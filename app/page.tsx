@@ -1,65 +1,146 @@
-import Image from "next/image";
+"use client";
+import { Navbar } from "@/components/layout/navbar";
+import { Footer } from "@/components/layout/footer";
+import { ProductGrid } from "@/components/ecommerce/product-grid";
+import { products } from "@/lib/mock/products";
+import Link from "next/link";
+import { ArrowRight } from 'lucide-react';
 
 export default function Home() {
+  const featuredProducts = products.filter((p) => p.featured);
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <div className="flex flex-col min-h-screen">
+      <Navbar />
+
+      <main className="flex-1">
+        {/* Hero Section */}
+        <section className="bg-gradient-to-r from-primary/10 to-accent/10 py-16 sm:py-24">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="space-y-6 text-center">
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-pretty">
+                Never Stop Dreaming Trading
+              </h1>
+              <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto text-balance">
+                Premium trading tools, education, and analytics for serious investors. Master the markets with confidence.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
+                <Link
+                  href="/products"
+                  className="inline-flex items-center justify-center gap-2 px-8 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-semibold"
+                >
+                  Explore Products <ArrowRight className="w-5 h-5" />
+                </Link>
+                <Link
+                  href="/about"
+                  className="inline-flex items-center justify-center gap-2 px-8 py-3 border border-primary text-primary rounded-lg hover:bg-primary/10 transition-colors font-semibold"
+                >
+                  Learn More
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Featured Products */}
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          <ProductGrid products={featuredProducts} title="Featured Products" />
+        </section>
+
+        {/* Categories Section */}
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          <h2 className="text-2xl font-bold mb-8">Shop by Category</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[
+              { name: "Software", icon: "💻", desc: "Trading & analysis tools" },
+              { name: "Education", icon: "📚", desc: "Courses & learning" },
+              { name: "Subscriptions", icon: "🔔", desc: "Premium alerts" },
+              { name: "Reports", icon: "📊", desc: "Market research" },
+            ].map((cat) => (
+              <Link
+                key={cat.name}
+                href={`/products?category=${cat.name.toLowerCase()}`}
+                className="bg-card border border-border rounded-lg p-6 hover:border-primary transition-colors group"
+              >
+                <div className="text-4xl mb-3 group-hover:scale-110 transition-transform">{cat.icon}</div>
+                <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">{cat.name}</h3>
+                <p className="text-sm text-muted-foreground">{cat.desc}</p>
+              </Link>
+            ))}
+          </div>
+        </section>
+
+        {/* CTA Section */}
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          <div className="bg-primary text-primary-foreground rounded-lg p-12 text-center">
+            <h2 className="text-3xl font-bold mb-4">Join Thousands of Traders</h2>
+            <p className="text-lg mb-6 opacity-90">
+              Get exclusive access to premium tools and stay ahead of the market.
+            </p>
+            <Link
+              href="/register"
+              className="inline-block px-8 py-3 bg-primary-foreground text-primary rounded-lg hover:opacity-90 transition-opacity font-semibold"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+              Create Free Account
+            </Link>
+          </div>
+        </section>
+
+        {/* Testimonials */}
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          <h2 className="text-2xl font-bold mb-8 text-center">What Our Users Say</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              {
+                name: "Sarah Chen",
+                role: "Professional Trader",
+                quote: "The analytics tools have completely changed how I analyze markets. Highly recommended!",
+              },
+              {
+                name: "Michael Rodriguez",
+                role: "Financial Analyst",
+                quote: "Best trading software I've used. The support team is incredibly responsive.",
+              },
+              {
+                name: "Emma Thompson",
+                role: "Beginner Investor",
+                quote: "The courses are beginner-friendly yet comprehensive. Worth every penny.",
+              },
+            ].map((testimonial, i) => (
+              <div key={i} className="bg-card border border-border rounded-lg p-6">
+                <p className="text-muted-foreground mb-4 italic">"{testimonial.quote}"</p>
+                <p className="font-semibold">{testimonial.name}</p>
+                <p className="text-sm text-muted-foreground">{testimonial.role}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Newsletter */}
+        <section className="bg-card border-t border-border py-16">
+          <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <h2 className="text-2xl font-bold mb-4">Stay Updated</h2>
+            <p className="text-muted-foreground mb-6">
+              Subscribe to get the latest trading insights and exclusive offers.
+            </p>
+            <form className="flex gap-2">
+              <input
+                type="email"
+                placeholder="your@email.com"
+                className="flex-1 px-4 py-3 rounded-lg bg-input border border-border focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              <button
+                type="submit"
+                className="px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-semibold"
+              >
+                Subscribe
+              </button>
+            </form>
+          </div>
+        </section>
       </main>
+
+      <Footer />
     </div>
   );
 }
