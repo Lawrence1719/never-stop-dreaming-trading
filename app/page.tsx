@@ -2,11 +2,14 @@
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { ProductGrid } from "@/components/ecommerce/product-grid";
-import { products } from "@/lib/mock/products";
+import { Product } from "@/lib/types";
 import Link from "next/link";
 import { ArrowRight } from 'lucide-react';
 
 export default function Home() {
+  // TODO: Replace with actual API call to fetch featured products from Supabase
+  // const { data: featuredProducts } = await supabase.from('products').select('*').eq('featured', true);
+  const products: Product[] = [];
   const featuredProducts = products.filter((p) => p.featured);
 
   return (

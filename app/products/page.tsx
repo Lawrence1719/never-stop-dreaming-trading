@@ -5,12 +5,16 @@ import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { ProductGrid } from "@/components/ecommerce/product-grid";
 import { ProductFilter } from "@/components/ecommerce/product-filter";
-import { products } from "@/lib/mock/products";
+import { Product } from "@/lib/types";
 
 export default function ProductsPage() {
   const [selectedCategory, setSelectedCategory] = useState("");
   const [priceRange, setPriceRange] = useState([0, 500]);
   const [sortBy, setSortBy] = useState("");
+
+  // TODO: Replace with actual API call to fetch products from Supabase
+  // const { data: products } = await supabase.from('products').select('*');
+  const products: Product[] = [];
 
   const filteredProducts = useMemo(() => {
     let result = [...products];

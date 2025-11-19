@@ -1,18 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from 'next/navigation';
 import Link from "next/link";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { useAuth } from "@/lib/context/auth-context";
-import { useToast } from "@/components/ui/toast";
+import { useToast, ToastContainer } from "@/components/ui/toast";
 import { validateEmail, validatePassword, validatePhoneNumber } from "@/lib/utils/validation";
 import { User, Mail, Lock, Phone, CheckCircle2 } from 'lucide-react';
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { register } = useAuth();
+  const { register, user, isLoading: authLoading } = useAuth();
   const { toasts, addToast, removeToast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -27,6 +27,17 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Redirect if already logged in or after successful registration
+  useEffect(() => {
+    if (!authLoading && user) {
+      if (user.role === 'admin') {
+        router.push('/admin/dashboard');
+      } else {
+        router.push('/');
+      }
+    }
+  }, [user, authLoading, router]);
+
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
@@ -34,12 +45,17 @@ export default function RegisterPage() {
       newErrors.name = "Full name is required";
     }
 
-    if (!validateEmail(formData.email)) {
+    const trimmedEmail = formData.email.trim();
+    if (!trimmedEmail) {
+      newErrors.email = "Email address is required";
+    } else if (!validateEmail(trimmedEmail)) {
       newErrors.email = "Please enter a valid email address";
     }
 
-    if (!validatePhoneNumber(formData.phone)) {
-      newErrors.phone = "Please enter a valid phone number";
+    if (!formData.phone.trim()) {
+      newErrors.phone = "Phone number is required";
+    } else if (!validatePhoneNumber(formData.phone)) {
+      newErrors.phone = "Please enter a valid Philippine phone number (e.g., 0912 345 6789)";
     }
 
     if (!validatePassword(formData.password)) {
@@ -55,7 +71,7 @@ export default function RegisterPage() {
     }
 
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    return { isValid: Object.keys(newErrors).length === 0, errors: newErrors };
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -65,26 +81,76 @@ export default function RegisterPage() {
       setErrors((prev) => ({ ...prev, [name]: "" }));
     }
   };
+  
+  const handleEmailBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    // Trim email on blur to remove any trailing whitespace
+    const trimmedEmail = e.target.value.trim().toLowerCase();
+    setFormData((prev) => ({ ...prev, email: trimmedEmail }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!validateForm()) {
-      addToast("Please fix the errors above", "error");
+    // Validate form - if errors exist, they're already shown in the form fields
+    // No need for a toast notification as the errors are visible inline
+    const validation = validateForm();
+    if (!validation.isValid) {
+      // Scroll to first error field for better UX
+      const firstErrorField = Object.keys(validation.errors)[0];
+      if (firstErrorField) {
+        // Wait a bit for the error state to update and render
+        setTimeout(() => {
+          const errorElement = document.querySelector(`[name="${firstErrorField}"]`) as HTMLElement;
+          if (errorElement) {
+            errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            errorElement.focus();
+          }
+        }, 50);
+      }
       return;
     }
 
     setIsLoading(true);
 
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Trim email before sending to ensure no whitespace issues
+      const trimmedEmail = formData.email.trim().toLowerCase();
+      
+      const { error } = await register(
+        formData.name.trim(),
+        trimmedEmail,
+        formData.phone.trim(),
+        formData.password
+      );
+      
+      if (error) {
+        // Show specific error messages based on error type
+        let errorMessage = "Registration failed. Please try again.";
+        
+        if (error.message) {
+          if (error.message.includes("already registered") || error.message.includes("already exists")) {
+            errorMessage = "This email is already registered. Please use a different email or try logging in.";
+          } else if (error.message.includes("password")) {
+            errorMessage = "Password is too weak. Please use a stronger password.";
+          } else if (error.message.includes("email")) {
+            errorMessage = "Invalid email address. Please check and try again.";
+          } else {
+            errorMessage = error.message;
+          }
+        }
+        
+        addToast(errorMessage, "error");
+        setIsLoading(false);
+        return;
+      }
 
-      register(formData.name, formData.email, formData.phone, formData.password);
-      addToast("Account created successfully", "success");
-      router.push("/");
+      // Success - show success toast
+      addToast("Account created successfully! Redirecting...", "success");
+      // Redirect will be handled by useEffect when user state updates
     } catch (error) {
-      addToast("Registration failed. Please try again.", "error");
+      // Handle unexpected errors
+      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred. Please try again.";
+      addToast(errorMessage, "error");
     } finally {
       setIsLoading(false);
     }
@@ -131,7 +197,9 @@ export default function RegisterPage() {
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
+                  onBlur={handleEmailBlur}
                   placeholder="you@example.com"
+                  autoComplete="email"
                   className={`w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
                     errors.email ? "border-destructive" : "border-border"
                   }`}
@@ -150,13 +218,15 @@ export default function RegisterPage() {
                   name="phone"
                   value={formData.phone}
                   onChange={handleChange}
-                  placeholder="+1 (555) 000-0000"
+                  placeholder="0912 345 6789"
+                  autoComplete="tel"
                   className={`w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
                     errors.phone ? "border-destructive" : "border-border"
                   }`}
                 />
               </div>
               {errors.phone && <p className="text-xs text-destructive mt-1">{errors.phone}</p>}
+              <p className="text-xs text-muted-foreground mt-1">Philippine format: 09XX XXX XXXX or +63 9XX XXX XXXX</p>
             </div>
 
             {/* Password */}
@@ -238,6 +308,9 @@ export default function RegisterPage() {
       </main>
 
       <Footer />
+      
+      {/* Toast Notifications */}
+      <ToastContainer toasts={toasts} onClose={removeToast} />
     </div>
   );
 }

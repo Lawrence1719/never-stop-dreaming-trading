@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, use } from "react";
 import Link from "next/link";
 import { useRouter } from 'next/navigation';
 import { Navbar } from "@/components/layout/navbar";
@@ -11,12 +11,17 @@ import { StockIndicator } from "@/components/ecommerce/stock-indicator";
 import { useCart } from "@/lib/context/cart-context";
 import { useWishlist } from "@/lib/context/wishlist-context";
 import { useToast } from "@/components/ui/toast";
-import { products } from "@/lib/mock/products";
+import { Product } from "@/lib/types";
 import { formatPrice } from "@/lib/utils/formatting";
 import { Heart, Share2, ChevronLeft } from 'lucide-react';
 
-export default function ProductDetailPage({ params }: { params: { id: string } }) {
-  const product = products.find((p) => p.id === params.id);
+export default function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  
+  // TODO: Replace with actual API call to fetch product from Supabase
+  // const { data: product } = await supabase.from('products').select('*').eq('id', id).single();
+  const products: Product[] = [];
+  const product = products.find((p) => p.id === id);
   const [quantity, setQuantity] = useState(1);
   const [imageIndex, setImageIndex] = useState(0);
   const router = useRouter();

@@ -68,6 +68,14 @@ export interface Order {
   trackingNumber?: string;
 }
 
+export interface Profile {
+  id: string;
+  name: string;
+  phone: string | null;
+  role: 'admin' | 'customer';
+  created_at: string;
+}
+
 export interface User {
   id: string;
   email: string;
@@ -76,6 +84,7 @@ export interface User {
   memberSince: string;
   defaultAddressId?: string;
   addresses: Address[];
+  role?: 'admin' | 'customer';
 }
 
 export interface Review {

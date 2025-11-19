@@ -5,15 +5,19 @@ import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { ProductCard } from "@/components/ecommerce/product-card";
 import { useWishlist } from "@/lib/context/wishlist-context";
-import { products } from "@/lib/mock/products";
+import { Product } from "@/lib/types";
 import { Heart } from 'lucide-react';
 
 export default function WishlistPage() {
   const { wishlist } = useWishlist();
 
+  // TODO: Replace with actual API call to fetch products from Supabase
+  // const { data: products } = await supabase.from('products').select('*').in('id', wishlist);
+  const products: Product[] = [];
+
   const wishlistProducts = wishlist
     .map((id) => products.find((p) => p.id === id))
-    .filter(Boolean);
+    .filter(Boolean) as Product[];
 
   if (wishlist.length === 0) {
     return (

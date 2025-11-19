@@ -6,13 +6,14 @@ import Link from "next/link";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { useAuth } from "@/lib/context/auth-context";
-import { useToast } from "@/components/ui/toast";
+import { useToast, ToastContainer } from "@/components/ui/toast";
 import { validateEmail, validatePassword } from "@/lib/utils/validation";
 import { Mail, Lock } from 'lucide-react';
+import { useEffect } from 'react';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, user, isLoading: authLoading, resendConfirmationEmail } = useAuth();
   const { toasts, addToast, removeToast } = useToast();
 
   const [email, setEmail] = useState("");
@@ -20,11 +21,27 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [showResendConfirmation, setShowResendConfirmation] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+
+  // Redirect if already logged in or after successful login
+  useEffect(() => {
+    if (!authLoading && user) {
+      if (user.role === 'admin') {
+        router.push('/admin/dashboard');
+      } else {
+        router.push('/');
+      }
+    }
+  }, [user, authLoading, router]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!validateEmail(email)) {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      newErrors.email = "Email address is required";
+    } else if (!validateEmail(trimmedEmail)) {
       newErrors.email = "Please enter a valid email address";
     }
 
@@ -47,16 +64,54 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Trim and lowercase email before sending
+      const trimmedEmail = email.trim().toLowerCase();
+      const { error } = await login(trimmedEmail, password);
+      
+      if (error) {
+        // Check if error is due to unconfirmed email
+        const errorMessage = error.message || "";
+        if (errorMessage.toLowerCase().includes("email not confirmed") || 
+            errorMessage.toLowerCase().includes("email_not_confirmed") ||
+            errorMessage.toLowerCase().includes("confirm your email")) {
+          setShowResendConfirmation(true);
+          addToast("Please confirm your email address before logging in. Check your inbox for the confirmation link.", "error");
+        } else {
+          addToast(errorMessage || "Login failed. Please try again.", "error");
+        }
+        return;
+      }
 
-      login(email, password);
       addToast("Logged in successfully", "success");
-      router.push("/");
+      setShowResendConfirmation(false);
+      // Redirect will be handled by useEffect when user state updates
     } catch (error) {
       addToast("Login failed. Please try again.", "error");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleResendConfirmation = async () => {
+    if (!email.trim()) {
+      addToast("Please enter your email address first", "error");
+      return;
+    }
+
+    setIsResending(true);
+    try {
+      const { error } = await resendConfirmationEmail(email.trim());
+      
+      if (error) {
+        addToast(error.message || "Failed to resend confirmation email. Please try again.", "error");
+      } else {
+        addToast("Confirmation email sent! Please check your inbox.", "success");
+        setShowResendConfirmation(false);
+      }
+    } catch (error) {
+      addToast("Failed to resend confirmation email. Please try again.", "error");
+    } finally {
+      setIsResending(false);
     }
   };
 
@@ -140,6 +195,22 @@ export default function LoginPage() {
             </button>
           </form>
 
+          {/* Email Not Confirmed Message */}
+          {showResendConfirmation && (
+            <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+              <p className="text-sm text-yellow-800 dark:text-yellow-200 mb-3">
+                Your email address hasn't been confirmed yet. Please check your inbox for the confirmation link.
+              </p>
+              <button
+                onClick={handleResendConfirmation}
+                disabled={isResending}
+                className="w-full px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isResending ? "Sending..." : "Resend Confirmation Email"}
+              </button>
+            </div>
+          )}
+
           {/* Signup Link */}
           <p className="text-center text-sm text-muted-foreground mt-6">
             Don't have an account?{" "}
@@ -148,17 +219,13 @@ export default function LoginPage() {
             </Link>
           </p>
 
-          {/* Demo Info */}
-          <div className="mt-8 p-4 bg-secondary/10 rounded-lg border border-secondary">
-            <p className="text-xs font-medium text-center mb-2">Demo Credentials</p>
-            <p className="text-xs text-muted-foreground text-center">
-              Any email and password with at least 6 characters will work!
-            </p>
-          </div>
         </div>
       </main>
 
       <Footer />
+      
+      {/* Toast Notifications */}
+      <ToastContainer toasts={toasts} onClose={removeToast} />
     </div>
   );
 }

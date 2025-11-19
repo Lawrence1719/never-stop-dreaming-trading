@@ -4,8 +4,8 @@ import Link from "next/link";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { useAuth } from "@/lib/context/auth-context";
-import { mockOrders } from "@/lib/mock/orders";
 import { formatPrice, formatDate } from "@/lib/utils/formatting";
+import { Order } from "@/lib/types";
 import { ChevronRight, Eye } from 'lucide-react';
 
 const statusColors = {
@@ -18,6 +18,10 @@ const statusColors = {
 
 export default function OrdersPage() {
   const { user } = useAuth();
+  
+  // TODO: Replace with actual API call to fetch user orders from Supabase
+  // const { data: orders } = await supabase.from('orders').select('*').eq('user_id', user.id);
+  const mockOrders: Order[] = [];
 
   if (!user) {
     return (

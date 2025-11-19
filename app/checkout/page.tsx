@@ -10,7 +10,7 @@ import { CheckoutStepper } from "@/components/ecommerce/checkout-stepper";
 import { useCart } from "@/lib/context/cart-context";
 import { useAuth } from "@/lib/context/auth-context";
 import { useToast } from "@/components/ui/toast";
-import { products } from "@/lib/mock/products";
+import { Product } from "@/lib/types";
 import { validateEmail, validatePhoneNumber, validateZipCode } from "@/lib/utils/validation";
 import { ChevronLeft } from 'lucide-react';
 
@@ -40,6 +40,10 @@ export default function CheckoutPage() {
 
   const steps = ["Shipping", "Payment", "Review"];
 
+  // TODO: Replace with actual API call to fetch products from Supabase
+  // const { data: products } = await supabase.from('products').select('*').in('id', cart.items.map(i => i.productId));
+  const products: Product[] = [];
+
   const cartProducts = cart.items
     .map((item) => ({
       product: products.find((p) => p.id === item.productId)!,
@@ -53,7 +57,11 @@ export default function CheckoutPage() {
     if (step === 0) {
       if (!formData.fullName.trim()) newErrors.fullName = "Full name required";
       if (!validateEmail(formData.email)) newErrors.email = "Valid email required";
-      if (!validatePhoneNumber(formData.phone)) newErrors.phone = "Valid phone required";
+      if (!formData.phone.trim()) {
+        newErrors.phone = "Phone number is required";
+      } else if (!validatePhoneNumber(formData.phone)) {
+        newErrors.phone = "Please enter a valid Philippine phone number (e.g., 0912 345 6789)";
+      }
       if (!formData.street.trim()) newErrors.street = "Street address required";
       if (!formData.city.trim()) newErrors.city = "City required";
       if (!formData.province.trim()) newErrors.province = "Province required";
@@ -187,7 +195,7 @@ export default function CheckoutPage() {
                           name="phone"
                           value={formData.phone}
                           onChange={handleInputChange}
-                          placeholder="+1 (555) 000-0000"
+                          placeholder="0912 345 6789"
                           className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${
                             errors.phone ? "border-destructive" : "border-border"
                           }`}

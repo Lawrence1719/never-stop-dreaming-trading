@@ -1,16 +1,22 @@
 "use client";
 
+import { use } from "react";
 import { useRouter } from 'next/navigation';
 import Link from "next/link";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
-import { mockTracking } from "@/lib/mock/orders";
+import { TrackingData } from "@/lib/types";
 import { formatDate } from "@/lib/utils/formatting";
 import { ChevronLeft, MapPin, Truck } from 'lucide-react';
 
-export default function OrderTrackingPage({ params }: { params: { orderId: string } }) {
+export default function OrderTrackingPage({ params }: { params: Promise<{ orderId: string }> }) {
   const router = useRouter();
-  const tracking = mockTracking.find((t) => t.orderId === params.orderId);
+  const { orderId } = use(params);
+  
+  // TODO: Replace with actual API call to fetch tracking data from Supabase
+  // const { data: tracking } = await supabase.from('order_tracking').select('*').eq('order_id', orderId).single();
+  const mockTracking: TrackingData[] = [];
+  const tracking = mockTracking.find((t) => t.orderId === orderId);
 
   if (!tracking) {
     return (

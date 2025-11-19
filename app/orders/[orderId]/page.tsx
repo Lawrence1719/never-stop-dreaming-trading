@@ -1,10 +1,11 @@
 "use client";
 
+import { use } from "react";
 import { useRouter } from 'next/navigation';
 import Link from "next/link";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
-import { mockOrders } from "@/lib/mock/orders";
+import { Order } from "@/lib/types";
 import { formatPrice, formatDate } from "@/lib/utils/formatting";
 import { ChevronLeft, Download } from 'lucide-react';
 
@@ -16,9 +17,14 @@ const statusColors = {
   cancelled: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
 };
 
-export default function OrderDetailsPage({ params }: { params: { orderId: string } }) {
+export default function OrderDetailsPage({ params }: { params: Promise<{ orderId: string }> }) {
   const router = useRouter();
-  const order = mockOrders.find((o) => o.id === params.orderId);
+  const { orderId } = use(params);
+  
+  // TODO: Replace with actual API call to fetch order from Supabase
+  // const { data: order } = await supabase.from('orders').select('*').eq('id', orderId).single();
+  const mockOrders: Order[] = [];
+  const order = mockOrders.find((o) => o.id === orderId);
 
   if (!order) {
     return (

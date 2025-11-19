@@ -6,16 +6,20 @@ import { Footer } from "@/components/layout/footer";
 import { CartItem } from "@/components/ecommerce/cart-item";
 import { CartSummary } from "@/components/ecommerce/cart-summary";
 import { useCart } from "@/lib/context/cart-context";
-import { products } from "@/lib/mock/products";
+import { Product } from "@/lib/types";
 import { ShoppingCart } from 'lucide-react';
 
 export default function CartPage() {
   const { cart } = useCart();
 
+  // TODO: Replace with actual API call to fetch products from Supabase
+  // const { data: products } = await supabase.from('products').select('*').in('id', cart.items.map(i => i.productId));
+  const products: Product[] = [];
+
   const cartProducts = cart.items.map((item) => ({
     product: products.find((p) => p.id === item.productId)!,
     quantity: item.quantity,
-  }));
+  })).filter(item => item.product); // Filter out undefined products
 
   if (cart.items.length === 0) {
     return (

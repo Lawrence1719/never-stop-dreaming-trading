@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/context/auth-context";
 import { ChevronDown, LogOut } from 'lucide-react';
 
 export function UserMenu() {
-  const { user, logout } = useAuth();
+  const { user, logout, isLoading } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -20,6 +20,15 @@ export function UserMenu() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Show loading state or login/register buttons
+  if (isLoading) {
+    return (
+      <div className="px-4 py-2 text-sm text-muted-foreground">
+        Loading...
+      </div>
+    );
+  }
 
   if (!user) {
     return (

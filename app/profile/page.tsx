@@ -1,21 +1,48 @@
 "use client";
 
+import { useEffect } from "react";
 import { useRouter } from 'next/navigation';
 import Link from "next/link";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { useAuth } from "@/lib/context/auth-context";
-import { formatDate } from "@/lib/utils/formatting";
-import { User, Settings, MapPin, LogOut } from 'lucide-react';
+import { formatDate, formatPrice } from "@/lib/utils/formatting";
+import { User, Settings, LogOut, MapPin, CreditCard, Package, Shield } from 'lucide-react';
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, isLoading } = useAuth();
+
+  useEffect(() => {
+    if (!isLoading && !user) {
+      router.push("/login");
+    }
+  }, [user, isLoading, router]);
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col min-h-screen">
+        <Navbar />
+        <main className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <p className="text-muted-foreground">Loading...</p>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   if (!user) {
-    router.push("/login");
     return null;
   }
+
+  // Calculate dynamic order statistics
+  // TODO: Replace with actual API call to fetch user orders
+  const userOrders: any[] = []; // Fetch from Supabase: select * from orders where user_id = user.id
+  const totalOrders = userOrders.length;
+  const totalSpent = userOrders.reduce((sum, order) => sum + order.total, 0);
+  const savedAddresses = user.addresses?.length || 0;
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -67,7 +94,7 @@ export default function ProfilePage() {
             <div className="md:col-span-2 space-y-6">
               <div className="bg-card border border-border rounded-lg p-6">
                 <h3 className="font-semibold mb-4">Quick Actions</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                   <Link
                     href="/profile/edit"
                     className="p-4 border border-border rounded-lg hover:bg-secondary/10 transition-colors text-center"
@@ -80,21 +107,35 @@ export default function ProfilePage() {
                     className="p-4 border border-border rounded-lg hover:bg-secondary/10 transition-colors text-center"
                   >
                     <MapPin className="w-6 h-6 mx-auto mb-2 text-primary" />
-                    <p className="font-medium text-sm">Manage Addresses</p>
+                    <p className="font-medium text-sm">Address Book</p>
+                  </Link>
+                  <Link
+                    href="/profile/payment-methods"
+                    className="p-4 border border-border rounded-lg hover:bg-secondary/10 transition-colors text-center"
+                  >
+                    <CreditCard className="w-6 h-6 mx-auto mb-2 text-primary" />
+                    <p className="font-medium text-sm">Payment Methods</p>
                   </Link>
                   <Link
                     href="/orders"
                     className="p-4 border border-border rounded-lg hover:bg-secondary/10 transition-colors text-center"
                   >
-                    <span className="text-2xl">📦</span>
-                    <p className="font-medium text-sm">View Orders</p>
+                    <Package className="w-6 h-6 mx-auto mb-2 text-primary" />
+                    <p className="font-medium text-sm">Order History</p>
+                  </Link>
+                  <Link
+                    href="/profile/security"
+                    className="p-4 border border-border rounded-lg hover:bg-secondary/10 transition-colors text-center"
+                  >
+                    <Shield className="w-6 h-6 mx-auto mb-2 text-primary" />
+                    <p className="font-medium text-sm">Security Settings</p>
                   </Link>
                   <Link
                     href="/profile/settings"
                     className="p-4 border border-border rounded-lg hover:bg-secondary/10 transition-colors text-center"
                   >
                     <Settings className="w-6 h-6 mx-auto mb-2 text-primary" />
-                    <p className="font-medium text-sm">Settings</p>
+                    <p className="font-medium text-sm">Account Settings</p>
                   </Link>
                 </div>
               </div>
@@ -105,15 +146,15 @@ export default function ProfilePage() {
                 <div className="space-y-3">
                   <div className="flex justify-between items-center p-3 bg-secondary/10 rounded-lg">
                     <span className="text-sm">Total Orders</span>
-                    <span className="font-bold text-primary">1</span>
+                    <span className="font-bold text-primary">{totalOrders}</span>
                   </div>
                   <div className="flex justify-between items-center p-3 bg-secondary/10 rounded-lg">
                     <span className="text-sm">Total Spent</span>
-                    <span className="font-bold text-primary">$309.99</span>
+                    <span className="font-bold text-primary">{formatPrice(totalSpent)}</span>
                   </div>
                   <div className="flex justify-between items-center p-3 bg-secondary/10 rounded-lg">
                     <span className="text-sm">Saved Addresses</span>
-                    <span className="font-bold text-primary">{user.addresses.length}</span>
+                    <span className="font-bold text-primary">{savedAddresses}</span>
                   </div>
                 </div>
               </div>
