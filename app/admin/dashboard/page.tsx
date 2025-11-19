@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { useAuth } from '@/lib/context/auth-context';
 
 const salesData = [
   { date: 'Mon', sales: 4000, revenue: 2400 },
@@ -35,6 +36,7 @@ const recentOrders = [
 ];
 
 export default function AdminDashboard() {
+  const { user } = useAuth();
   const [dateRange, setDateRange] = useState('week');
 
   const stats = [
@@ -74,7 +76,14 @@ export default function AdminDashboard() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground mt-1">Welcome back! Here's your sales overview.</p>
+          <p className="text-muted-foreground mt-1">
+            {user ? `Welcome back, ${user.name}! Here's your sales overview.` : "Welcome back! Here's your sales overview."}
+          </p>
+          {user && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Logged in as: {user.email} | Role: {user.role}
+            </p>
+          )}
         </div>
         <div className="flex gap-2">
           {['day', 'week', 'month'].map((range) => (

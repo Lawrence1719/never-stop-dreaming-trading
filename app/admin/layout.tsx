@@ -43,7 +43,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     <div className="flex h-screen bg-background text-foreground">
       <AdminSidebar isOpen={sidebarOpen} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <AdminNavbar onSidebarToggle={() => setSidebarOpen(!sidebarOpen)} sidebarOpen={sidebarOpen} />
+        <AdminNavbar onSidebarToggle={() => setSidebarOpen(!sidebarOpen)} sidebarOpen={sidebarOpen} user={user} />
         <main className="flex-1 overflow-auto">
           <div className="p-6">
             {children}

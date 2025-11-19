@@ -72,19 +72,23 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 
 You can find these values in your Supabase project settings under API.
 
-### 3. Run Database Migration
+### 3. Run Database Migrations
 
-Execute the SQL migration file to create the profiles table and set up RLS policies:
+Execute the SQL migration files to create the necessary tables and set up RLS policies:
 
 1. Open your Supabase project dashboard
 2. Navigate to SQL Editor
-3. Run the contents of `supabase/migrations/001_create_profiles_table.sql`
+3. Run the migrations in order:
+   - `supabase/migrations/001_create_profiles_table.sql` - Creates profiles table
+   - `supabase/migrations/002_create_notifications_table.sql` - Creates notifications table
 
 Alternatively, if you're using Supabase CLI:
 
 ```bash
 supabase db push
 ```
+
+**Note:** Make sure to run migrations in order (001, then 002).
 
 ## API Reference
 
@@ -248,15 +252,58 @@ If you encounter permission errors:
 2. Restart the development server after adding environment variables
 3. Verify the `.env.local` file is in the project root
 
-## Migration File
+## Notifications System
 
-The migration file is located at:
-- `supabase/migrations/001_create_profiles_table.sql`
+The application includes a notification system for admin users. Notifications are stored in the `notifications` table and can be:
 
-This file contains:
+- **Viewed in real-time** - Notifications appear automatically when created
+- **Marked as read** - Click on a notification to mark it as read
+- **Filtered by type** - Different notification types (order, stock, system, etc.)
+- **Linked to actions** - Notifications can include links to relevant pages
+
+### Notification Types
+
+- `info` - General information
+- `success` - Success messages
+- `warning` - Warning alerts
+- `error` - Error notifications
+- `order` - Order-related notifications
+- `stock` - Stock/inventory alerts
+- `system` - System notifications
+
+### Creating Notifications
+
+To create a notification programmatically:
+
+```typescript
+import { supabase } from '@/lib/supabase/client';
+
+// Create a notification for a specific user
+const { error } = await supabase
+  .from('notifications')
+  .insert({
+    user_id: userId,
+    title: 'New Order',
+    message: 'Order #1234 has been placed',
+    type: 'order',
+    link: '/admin/orders/1234',
+  });
+
+// Create a notification for all admins
+// (You would need to query for all admin users first)
+```
+
+## Migration Files
+
+The migration files are located at:
+- `supabase/migrations/001_create_profiles_table.sql` - Profiles table
+- `supabase/migrations/002_create_notifications_table.sql` - Notifications table
+
+These files contain:
 - Table creation
 - RLS policies
 - Automatic profile creation trigger
+- Indexes for performance
 
 ## Email Confirmation
 
