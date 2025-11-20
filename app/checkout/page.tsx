@@ -11,6 +11,7 @@ import { useCart } from "@/lib/context/cart-context";
 import { useAuth } from "@/lib/context/auth-context";
 import { useToast } from "@/components/ui/toast";
 import { Product } from "@/lib/types";
+import { supabase } from "@/lib/supabase/client";
 import { validateEmail, validatePhoneNumber, validateZipCode } from "@/lib/utils/validation";
 import { ChevronLeft } from 'lucide-react';
 
@@ -38,18 +39,78 @@ export default function CheckoutPage() {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  const [addresses, setAddresses] = useState<any[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+  const [saveAsDefault, setSaveAsDefault] = useState(true);
+  const [isSavingAddress, setIsSavingAddress] = useState(false);
+
   const steps = ["Shipping", "Payment", "Review"];
 
   // TODO: Replace with actual API call to fetch products from Supabase
   // const { data: products } = await supabase.from('products').select('*').in('id', cart.items.map(i => i.productId));
   const products: Product[] = [];
 
-  const cartProducts = cart.items
-    .map((item) => ({
-      product: products.find((p) => p.id === item.productId)!,
-      quantity: item.quantity,
-    }))
-    .filter((item) => item.product);
+  // Build product objects for the checkout summary. If we have full product
+  // data (from a server fetch) use that, otherwise synthesize a minimal Product
+  // object from the cart item's stored details so the checkout can render.
+  const cartProducts = cart.items.map((item) => {
+    const full = products.find((p) => p.id === item.productId);
+    if (full) return { product: full, quantity: item.quantity };
+
+    const synthesized: Product = {
+      id: item.productId,
+      name: item.name || "Product",
+      slug: item.productId,
+      description: "",
+      price: item.price ?? 0,
+      compareAtPrice: undefined,
+      images: item.image ? [item.image] : ["/placeholder.svg"],
+      category: "",
+      stock: item.quantity,
+      sku: "",
+      rating: 0,
+      reviewCount: 0,
+      featured: false,
+      specifications: {},
+      iot: undefined,
+    };
+
+    return { product: synthesized, quantity: item.quantity };
+  });
+
+  // If user has items in cart but is not authenticated, require login before checkout
+  if (cart.items.length > 0 && !user) {
+    return (
+      <div className="flex flex-col min-h-screen">
+        <Navbar />
+        <main className="flex-1">
+          <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-24 text-center">
+            <h1 className="text-2xl font-bold mb-4">Please sign in to continue</h1>
+            <p className="text-muted-foreground mb-6">You need to be logged in or create an account to complete your purchase.</p>
+            <div className="flex justify-center gap-4">
+              <Link
+                href="/login?next=/checkout"
+                className="inline-block px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-semibold"
+              >
+                Sign in
+              </Link>
+
+              <Link
+                href="/register?next=/checkout"
+                className="inline-block px-6 py-3 border border-primary text-primary rounded-lg hover:bg-primary/10 transition-colors font-semibold"
+              >
+                Create account
+              </Link>
+            </div>
+            <div className="mt-8">
+              <Link href="/products" className="text-sm text-muted-foreground hover:underline">Continue shopping</Link>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   const validateStep = () => {
     const newErrors: Record<string, string> = {};
@@ -80,6 +141,45 @@ export default function CheckoutPage() {
     return Object.keys(newErrors).length === 0;
   };
 
+  // Fetch user's addresses when available
+  React.useEffect(() => {
+    let mounted = true;
+    const fetchAddresses = async () => {
+      if (!user) return;
+      try {
+        const { data, error } = await supabase
+          .from('addresses')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        if (!mounted) return;
+        setAddresses(data || []);
+        const def = (data || []).find((a: any) => a.is_default);
+        if (def) {
+          setSelectedAddressId(def.id);
+          setFormData((prev) => ({
+            ...prev,
+            fullName: def.full_name,
+            email: def.email,
+            phone: def.phone,
+            street: def.street_address,
+            city: def.city,
+            province: def.province,
+            zip: def.zip_code,
+          }));
+        }
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('Failed to fetch addresses', err);
+      }
+    };
+
+    fetchAddresses();
+    return () => { mounted = false; };
+  }, [user]);
+
   const handleNext = () => {
     if (validateStep()) {
       setStep(step + 1);
@@ -100,13 +200,60 @@ export default function CheckoutPage() {
       return;
     }
 
-    if (validateStep()) {
+    if (!validateStep()) {
+      addToast("Please fix the errors above", "error");
+      return;
+    }
+
+    try {
+      let shippingAddressId: string | null = selectedAddressId;
+
+      if (user) {
+        // If user chose to save as default or didn't select an existing address,
+        // create a new address record and mark it default if requested.
+        if (!shippingAddressId || saveAsDefault) {
+          setIsSavingAddress(true);
+
+          // If saving as default, unset existing defaults first
+          if (saveAsDefault) {
+            await supabase
+              .from('addresses')
+              .update({ is_default: false })
+              .eq('user_id', user.id);
+          }
+
+          const { data: created, error: createErr } = await supabase
+            .from('addresses')
+            .insert({
+              user_id: user.id,
+              full_name: formData.fullName,
+              email: formData.email,
+              phone: formData.phone,
+              street_address: formData.street,
+              city: formData.city,
+              province: formData.province,
+              zip_code: formData.zip,
+              is_default: saveAsDefault,
+            })
+            .select()
+            .single();
+
+          setIsSavingAddress(false);
+
+          if (createErr) throw createErr;
+          shippingAddressId = created.id;
+        }
+      }
+
       const orderId = "ord-" + Math.random().toString(36).substr(2, 9);
+      // TODO: Save order with shippingAddressId into orders table (server-side)
       clearCart();
       addToast("Order placed successfully", "success");
       router.push(`/order-confirmation/${orderId}`);
-    } else {
-      addToast("Please fix the errors above", "error");
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to create address/order', err);
+      addToast('Failed to save address. Please try again.', 'error');
     }
   };
 
@@ -165,6 +312,40 @@ export default function CheckoutPage() {
                 {step === 0 && (
                   <div className="space-y-4">
                     <h2 className="text-xl font-bold mb-4">Shipping Information</h2>
+
+                    {/* Saved Addresses Dropdown */}
+                    {user && addresses.length > 0 && (
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Saved Addresses</label>
+                        <select
+                          className="w-full px-4 py-2 bg-input border border-border rounded-md"
+                          value={selectedAddressId || ""}
+                          onChange={(e) => {
+                            const id = e.target.value || null;
+                            setSelectedAddressId(id);
+                            if (!id) return;
+                            const a = addresses.find((ad) => ad.id === id);
+                            if (a) {
+                              setFormData((prev) => ({
+                                ...prev,
+                                fullName: a.full_name,
+                                email: a.email,
+                                phone: a.phone,
+                                street: a.street_address,
+                                city: a.city,
+                                province: a.province,
+                                zip: a.zip_code,
+                              }));
+                            }
+                          }}
+                        >
+                          <option value="">Use different address</option>
+                          {addresses.map((a) => (
+                            <option key={a.id} value={a.id}>{a.full_name} — {a.street_address}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
 
                     <div>
                       <label className="block text-sm font-medium mb-1">Full Name</label>
@@ -268,6 +449,20 @@ export default function CheckoutPage() {
                         {errors.zip && <p className="text-xs text-destructive mt-1">{errors.zip}</p>}
                       </div>
                     </div>
+
+                    {/* Save as default address (only for logged-in users) */}
+                    {user && (
+                      <div className="flex items-center gap-2 mt-2">
+                        <input
+                          id="saveAsDefault"
+                          type="checkbox"
+                          checked={saveAsDefault}
+                          onChange={(e) => setSaveAsDefault(e.target.checked)}
+                          className="rounded"
+                        />
+                        <label htmlFor="saveAsDefault" className="text-sm">Save as default address</label>
+                      </div>
+                    )}
 
                     <div>
                       <label className="block text-sm font-medium mb-1">Shipping Method</label>

@@ -1,21 +1,27 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { Cart, CartItem } from "@/lib/types";
+import { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
+import { Cart, CartItem, Product } from "@/lib/types";
 import { products } from "@/lib/mock/products";
+import { useAuth } from "@/lib/context/auth-context";
+import { supabase } from "@/lib/supabase/client";
 
 interface CartContextType {
   cart: Cart;
-  addItem: (productId: string, quantity: number) => void;
+  addItem: (productOrId: string | Product, quantity: number) => void;
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
   clearCart: () => void;
+  isMigrating: boolean;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<Cart>({ items: [], total: 0 });
+  const { user } = useAuth();
+  const migratedRef = useRef(false);
+  const [isMigrating, setIsMigrating] = useState(false);
 
   // Session-based guest cart: do NOT use localStorage, just keep in memory for session
   // If you want to persist across tabs or refresh, use localStorage (disabled for this prompt)
@@ -26,10 +32,22 @@ export function CartProvider({ children }: { children: ReactNode }) {
     return items.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
   };
 
-  const addItem = (productId: string, quantity: number) => {
-    // Find product details (from mockProducts or DB)
-    const product = products.find((p) => p.id === productId);
-    if (!product) return;
+  const addItem = (productOrId: string | Product, quantity: number) => {
+    let product: Product | undefined;
+    let productId: string;
+    if (typeof productOrId === "string") {
+      productId = productOrId;
+      product = products.find((p) => p.id === productId);
+    } else {
+      product = productOrId;
+      productId = product.id;
+    }
+
+    // If we couldn't resolve product details, still allow adding a minimal item
+    const name = product?.name || "";
+    const price = product?.price || 0;
+    const image = product?.images?.[0] || "";
+
     setCart((prev) => {
       const existingItem = prev.items.find((i) => i.productId === productId);
       let newItems: CartItem[];
@@ -40,10 +58,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
       } else {
         newItems = [...prev.items, {
           productId,
-          name: product.name,
-          price: product.price,
+          name,
+          price,
           quantity,
-          image: product.images[0] || '',
+          image,
         }];
       }
       const newCart = { items: newItems, total: calculateTotal(newItems) };
@@ -78,8 +96,86 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setCart(newCart);
   };
 
+  // When a guest user with items logs in, migrate their in-memory cart to DB
+  useEffect(() => {
+    const migrate = async () => {
+      if (!user) return;
+      if (cart.items.length === 0) return;
+      if (migratedRef.current) return;
+
+      try {
+        const itemsToMigrate = cart.items;
+        setIsMigrating(true);
+
+        // Upsert each cart item into DB under the logged-in user
+        for (const item of itemsToMigrate) {
+          // Try to read existing cart item for this user/product so we can increment quantity
+          const { data: existingRows } = await supabase
+            .from('cart')
+            .select('quantity')
+            .eq('user_id', user.id)
+            .eq('product_id', item.productId)
+            .limit(1)
+            .maybeSingle();
+
+          const existingQty = existingRows?.quantity ?? 0;
+          const newQty = existingQty + item.quantity;
+
+          const { error } = await supabase
+            .from('cart')
+            .upsert(
+              { user_id: user.id, product_id: item.productId, quantity: newQty },
+              { onConflict: 'user_id,product_id' }
+            );
+
+          if (error) {
+            console.error('Error upserting cart item during migration', error);
+          }
+        }
+
+        // Fetch product details for migrated items to rebuild client cart
+        const productIds = itemsToMigrate.map((i) => i.productId);
+        const { data: productsData } = await supabase
+          .from('products')
+          .select('*')
+          .in('id', productIds);
+
+        const newItems: CartItem[] = itemsToMigrate.map((i) => {
+          const p = productsData?.find((pd: any) => pd.id === i.productId);
+          return {
+            productId: i.productId,
+            quantity: i.quantity,
+            name: p?.name || i.name,
+            price: p?.price ?? i.price ?? 0,
+            image: p?.image_url || i.image || '',
+          } as CartItem;
+        });
+
+        setCart({ items: newItems, total: calculateTotal(newItems) });
+        migratedRef.current = true;
+        setIsMigrating(false);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('Cart migration failed', err);
+        setIsMigrating(false);
+      }
+    };
+
+    migrate();
+  }, [user]);
+
+  // When the user logs out (user becomes null), clear the cart and reset migration state.
+  useEffect(() => {
+    if (!user) {
+      // Clear in-memory cart when signing out
+      setCart({ items: [], total: 0 });
+      // Allow future migrations for a new login session
+      migratedRef.current = false;
+    }
+  }, [user]);
+
   return (
-    <CartContext.Provider value={{ cart, addItem, removeItem, updateQuantity, clearCart }}>
+    <CartContext.Provider value={{ cart, addItem, removeItem, updateQuantity, clearCart, isMigrating }}>
       {children}
     </CartContext.Provider>
   );

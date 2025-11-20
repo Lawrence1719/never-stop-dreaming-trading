@@ -29,6 +29,9 @@ export default function ProductDetailPage() {
 
   useEffect(() => {
     let mounted = true;
+    let loadingTimeout: ReturnType<typeof setTimeout> | null = null;
+    const MIN_LOADING_MS = 300;
+    const start = Date.now();
 
     const fetchProduct = async () => {
       try {
@@ -68,7 +71,15 @@ export default function ProductDetailPage() {
         // eslint-disable-next-line no-console
         console.warn('Failed to fetch product from Supabase, using mock product if available.', err);
       } finally {
-        setLoading(false);
+        const elapsed = Date.now() - start;
+        const remaining = MIN_LOADING_MS - elapsed;
+        if (remaining > 0) {
+          loadingTimeout = setTimeout(() => {
+            if (mounted) setLoading(false);
+          }, remaining);
+        } else {
+          if (mounted) setLoading(false);
+        }
       }
     };
 
@@ -76,6 +87,7 @@ export default function ProductDetailPage() {
 
     return () => {
       mounted = false;
+      if (loadingTimeout) clearTimeout(loadingTimeout);
     };
   }, [id]);
   const [quantity, setQuantity] = useState(1);
@@ -89,10 +101,51 @@ export default function ProductDetailPage() {
     return (
       <div className="flex flex-col min-h-screen">
         <Navbar />
-        <main className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto mb-4" />
-            <span className="text-lg">Loading product...</span>
+        <main className="flex-1">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            {/* Breadcrumb Skeleton */}
+            <div className="h-6 w-32 bg-muted rounded mb-8 animate-pulse" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
+              {/* Image Skeleton */}
+              <div className="space-y-4">
+                <div className="bg-muted rounded-lg overflow-hidden h-[400px] w-full animate-pulse" />
+                <div className="grid grid-cols-4 gap-2">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i} className="bg-muted rounded-lg h-20 w-full animate-pulse" />
+                  ))}
+                </div>
+              </div>
+              {/* Details Skeleton */}
+              <div className="space-y-4">
+                <div className="h-8 w-2/3 bg-muted rounded animate-pulse" />
+                <div className="h-6 w-1/2 bg-muted rounded animate-pulse" />
+                <div className="h-4 w-1/3 bg-muted rounded animate-pulse" />
+                <div className="h-10 w-full bg-muted rounded animate-pulse" />
+                <div className="h-12 w-full bg-muted rounded animate-pulse" />
+                <div className="flex gap-2 mt-4">
+                  <div className="h-10 w-24 bg-muted rounded animate-pulse" />
+                  <div className="h-10 w-24 bg-muted rounded animate-pulse" />
+                </div>
+              </div>
+            </div>
+            {/* Specifications Skeleton */}
+            <div className="border-t border-border pt-6">
+              <div className="h-6 w-32 bg-muted rounded mb-3 animate-pulse" />
+              <div className="space-y-2">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="h-4 w-1/4 bg-muted rounded animate-pulse" />
+                ))}
+              </div>
+            </div>
+            {/* Related Products Skeleton */}
+            <div className="border-t border-border pt-16">
+              <div className="h-8 w-1/4 bg-muted rounded mb-4 animate-pulse" />
+              <div className="grid grid-cols-4 gap-4">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="bg-muted rounded-lg h-40 w-full animate-pulse" />
+                ))}
+              </div>
+            </div>
           </div>
         </main>
         <Footer />
@@ -123,7 +176,7 @@ export default function ProductDetailPage() {
     : null;
 
   const handleAddToCart = () => {
-    addItem(product.id, quantity);
+    addItem(product, quantity);
     addToast("Added to cart", "success");
     setQuantity(1);
   };

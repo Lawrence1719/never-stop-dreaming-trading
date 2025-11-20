@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Footer } from "@/components/layout/footer";
 import { Navbar } from "@/components/layout/navbar";
 import { useAuth } from "@/lib/context/auth-context";
+import { useCart } from "@/lib/context/cart-context";
 import { useToast, ToastContainer } from "@/components/ui/toast";
 import { validateEmail, validatePassword } from "@/lib/utils/validation";
 import { Mail, Lock } from 'lucide-react';
@@ -26,9 +27,12 @@ export default function LoginPage() {
   const [showResendConfirmation, setShowResendConfirmation] = useState(false);
   const [isResending, setIsResending] = useState(false);
 
-  // Redirect if already logged in
+  const { isMigrating } = useCart();
+
+  // Redirect if already logged in; wait for cart migration to finish so migrated
+  // items are available in the user's cart before redirecting to `next`.
   useEffect(() => {
-    if (!authLoading && user) {
+    if (!authLoading && user && !isMigrating) {
       const next = searchParams.get('next');
       if (next) {
         router.push(next);
@@ -41,7 +45,7 @@ export default function LoginPage() {
         router.push('/');
       }
     }
-  }, [user, authLoading, router, searchParams]);
+  }, [user, authLoading, isMigrating, router, searchParams]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};

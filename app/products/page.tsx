@@ -159,7 +159,11 @@ export default function ProductsPage() {
           <div className="mb-8">
             <h1 className="text-3xl font-bold">All Products</h1>
             <p className="text-muted-foreground mt-2">
-              {filteredProducts.length} {filteredProducts.length === 1 ? "product" : "products"} found
+              {isLoadingProducts ? (
+                <span className="inline-block h-4 w-32 bg-muted rounded animate-pulse" />
+              ) : (
+                `${filteredProducts.length} ${filteredProducts.length === 1 ? "product" : "products"} found`
+              )}
             </p>
           </div>
 
@@ -204,7 +208,21 @@ export default function ProductsPage() {
                 </div>
               )}
 
-              {filteredProducts.length > 0 ? (
+              {isLoadingProducts ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {[...Array(8)].map((_, i) => (
+                    <div key={i} className="border rounded-lg p-4 space-y-3 animate-pulse">
+                      <div className="h-40 bg-muted rounded-md" />
+                      <div className="h-4 w-3/4 bg-muted rounded" />
+                      <div className="h-4 w-1/2 bg-muted rounded" />
+                      <div className="flex items-center justify-between">
+                        <div className="h-8 w-20 bg-muted rounded" />
+                        <div className="h-8 w-12 bg-muted rounded" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : filteredProducts.length > 0 ? (
                 <ProductGrid products={filteredProducts} />
               ) : (
                 <div className="text-center py-16">

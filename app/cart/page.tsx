@@ -16,10 +16,34 @@ export default function CartPage() {
   // const { data: products } = await supabase.from('products').select('*').in('id', cart.items.map(i => i.productId));
   const products: Product[] = [];
 
-  const cartProducts = cart.items.map((item) => ({
-    product: products.find((p) => p.id === item.productId)!,
-    quantity: item.quantity,
-  })).filter(item => item.product); // Filter out undefined products
+  // Build product objects for cart display. If we have full product data (from
+  // a fetched products list) use that, otherwise synthesize a minimal Product
+  // object from the cart item's stored details (name, price, image).
+  const cartProducts = cart.items.map((item) => {
+    const full = products.find((p) => p.id === item.productId);
+    if (full) return { product: full, quantity: item.quantity };
+
+    // Synthesize a Product-like object from cart item details so UI can render
+    const synthesized: Product = {
+      id: item.productId,
+      name: item.name || "Product",
+      slug: item.productId,
+      description: "",
+      price: item.price ?? 0,
+      compareAtPrice: undefined,
+      images: item.image ? [item.image] : ["/placeholder.svg"],
+      category: "",
+      stock: item.quantity,
+      sku: "",
+      rating: 0,
+      reviewCount: 0,
+      featured: false,
+      specifications: {},
+      iot: undefined,
+    };
+
+    return { product: synthesized, quantity: item.quantity };
+  });
 
   if (cart.items.length === 0) {
     return (
