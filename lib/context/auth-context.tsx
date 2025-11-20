@@ -31,9 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .single();
 
       // If profile doesn't exist, create it
-      // PGRST116 = no rows returned, or check error message
       if (error && (error.code === 'PGRST116' || error.message?.includes('No rows') || error.message?.includes('not found'))) {
-        // Profile doesn't exist, create it
         const userMetadata = session.user.user_metadata || {};
         const { data: newProfile, error: insertError } = await supabase
           .from("profiles")
@@ -48,7 +46,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (insertError) {
           console.error("Error creating profile:", insertError);
-          // Still set user with basic info from session
           const userData: User = {
             id: session.user.id,
             email: session.user.email || "",
@@ -62,7 +59,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
-        // Use the newly created profile
         if (newProfile) {
           const userData: User = {
             id: session.user.id,
@@ -80,7 +76,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         console.error("Error fetching user profile:", error);
-        // Still set user with basic info from session even if profile fetch fails
         const userMetadata = session.user.user_metadata || {};
         const userData: User = {
           id: session.user.id,
@@ -109,7 +104,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error("Error fetching user profile:", error);
-      // Fallback: set user with basic info from session
       const userMetadata = session.user.user_metadata || {};
       const userData: User = {
         id: session.user.id,
@@ -137,12 +131,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session) {
+      if (event === 'SIGNED_OUT') {
+        // Immediately clear user state on sign out
+        setUser(null);
+        setIsLoading(false);
+      } else if (session) {
         await fetchUserProfile(session);
+        setIsLoading(false);
       } else {
         setUser(null);
+        setIsLoading(false);
       }
-      setIsLoading(false);
     });
 
     return () => {
@@ -173,15 +172,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
+      // Immediately clear user state for faster UI response
+      setUser(null);
+      
+      // Then sign out from Supabase (this can happen in background)
       const { error } = await supabase.auth.signOut();
+      
       if (error) {
         console.error("Error logging out:", error);
-        throw error;
+        // Don't throw - we already cleared the user state
       }
-      setUser(null);
     } catch (error) {
       console.error("Error logging out:", error);
-      throw error;
+      // Don't throw - we already cleared the user state
     }
   };
 

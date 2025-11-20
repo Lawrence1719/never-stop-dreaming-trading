@@ -11,11 +11,11 @@ export function MobileDrawer() {
   const { user, logout } = useAuth();
 
   const links = [
-    { label: "Home", href: "/" },
-    { label: "Products", href: "/products" },
-    { label: "Categories", href: "/products" },
-    { label: "Orders", href: "/orders" },
-    { label: "About", href: "/about" },
+    { id: "home", label: "Home", href: "/" },
+    { id: "products", label: "Products", href: "/products" },
+    { id: "categories", label: "Categories", href: "/products" },
+    { id: "orders", label: "Orders", href: "/orders" },
+    { id: "about", label: "About", href: "/about" },
   ];
 
   return (
@@ -45,7 +45,7 @@ export function MobileDrawer() {
               <nav className="space-y-2">
                 {links.map((link) => (
                   <Link
-                    key={link.href}
+                    key={link.id}
                     href={link.href}
                     className="block px-4 py-2 rounded-md hover:bg-secondary/10 transition-colors"
                     onClick={() => setIsOpen(false)}

@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from 'next/navigation';
 import Link from "next/link";
-import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { useAuth } from "@/lib/context/auth-context";
 import { useToast, ToastContainer } from "@/components/ui/toast";
@@ -24,7 +23,7 @@ export default function LoginPage() {
   const [showResendConfirmation, setShowResendConfirmation] = useState(false);
   const [isResending, setIsResending] = useState(false);
 
-  // Redirect if already logged in or after successful login
+  // Redirect if already logged in
   useEffect(() => {
     if (!authLoading && user) {
       if (user.role === 'admin') {
@@ -64,12 +63,10 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      // Trim and lowercase email before sending
       const trimmedEmail = email.trim().toLowerCase();
       const { error } = await login(trimmedEmail, password);
       
       if (error) {
-        // Check if error is due to unconfirmed email
         const errorMessage = error.message || "";
         if (errorMessage.toLowerCase().includes("email not confirmed") || 
             errorMessage.toLowerCase().includes("email_not_confirmed") ||
@@ -84,7 +81,6 @@ export default function LoginPage() {
 
       addToast("Logged in successfully", "success");
       setShowResendConfirmation(false);
-      // Redirect will be handled by useEffect when user state updates
     } catch (error) {
       addToast("Login failed. Please try again.", "error");
     } finally {
@@ -115,9 +111,33 @@ export default function LoginPage() {
     }
   };
 
+  // Show loading state while checking auth
+  if (authLoading) {
+    return (
+      <div className="flex flex-col min-h-screen">
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Loading...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col min-h-screen">
-      <Navbar />
+      {/* Simple header for auth pages */}
+      <header className="border-b border-border">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <Link href="/" className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+              <span className="text-primary-foreground font-bold">NSD</span>
+            </div>
+            <span className="font-bold text-lg">Never Stop Dreaming</span>
+          </Link>
+        </div>
+      </header>
 
       <main className="flex-1 flex items-center justify-center px-4 py-16">
         <div className="w-full max-w-md">
