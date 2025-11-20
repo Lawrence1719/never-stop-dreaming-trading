@@ -4,15 +4,18 @@ import { useState } from "react";
 import { useRouter } from 'next/navigation';
 import Link from "next/link";
 import { Footer } from "@/components/layout/footer";
+import { Navbar } from "@/components/layout/navbar";
 import { useAuth } from "@/lib/context/auth-context";
 import { useToast, ToastContainer } from "@/components/ui/toast";
 import { validateEmail, validatePassword } from "@/lib/utils/validation";
 import { Mail, Lock } from 'lucide-react';
 import { useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 
 export default function LoginPage() {
   const router = useRouter();
   const { login, user, isLoading: authLoading, resendConfirmationEmail } = useAuth();
+  const searchParams = useSearchParams();
   const { toasts, addToast, removeToast } = useToast();
 
   const [email, setEmail] = useState("");
@@ -26,13 +29,19 @@ export default function LoginPage() {
   // Redirect if already logged in
   useEffect(() => {
     if (!authLoading && user) {
+      const next = searchParams.get('next');
+      if (next) {
+        router.push(next);
+        return;
+      }
+
       if (user.role === 'admin') {
         router.push('/admin/dashboard');
       } else {
         router.push('/');
       }
     }
-  }, [user, authLoading, router]);
+  }, [user, authLoading, router, searchParams]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -127,17 +136,7 @@ export default function LoginPage() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      {/* Simple header for auth pages */}
-      <header className="border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <span className="text-primary-foreground font-bold">NSD</span>
-            </div>
-            <span className="font-bold text-lg">Never Stop Dreaming</span>
-          </Link>
-        </div>
-      </header>
+      <Navbar />
 
       <main className="flex-1 flex items-center justify-center px-4 py-16">
         <div className="w-full max-w-md">

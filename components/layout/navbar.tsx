@@ -5,18 +5,19 @@ import Link from "next/link";
 import { Search, Heart, ShoppingCart } from 'lucide-react';
 import { useCart } from "@/lib/context/cart-context";
 import { useWishlist } from "@/lib/context/wishlist-context";
+import { useAuth } from "@/lib/context/auth-context";
 import { SearchModal } from "./search-modal";
 import { UserMenu } from "./user-menu";
 import { ThemeToggle } from "./theme-toggle";
-import { MobileDrawer } from "./mobile-drawer";
-
+import { MobileDrawer } from "@/components/layout/mobile-drawer";
 export function Navbar() {
   const [searchOpen, setSearchOpen] = useState(false);
   const { cart } = useCart();
   const { wishlist } = useWishlist();
+  const { user } = useAuth();
 
   const cartCount = cart.items.reduce((sum, item) => sum + item.quantity, 0);
-  const wishlistCount = wishlist.length;
+  const wishlistCount = user ? wishlist.length : 0;
 
   return (
     <>

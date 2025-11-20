@@ -5,6 +5,7 @@ import { ProductGrid } from "@/components/ecommerce/product-grid";
 import { Product } from "@/lib/types";
 import Link from "next/link";
 import { ArrowRight } from 'lucide-react';
+import { MAIN_CATEGORIES } from '@/lib/data/categories';
 
 export default function Home() {
   // TODO: Replace with actual API call to fetch featured products from Supabase
@@ -54,22 +55,29 @@ export default function Home() {
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
           <h2 className="text-2xl font-bold mb-8">Shop by Category</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[
-              { name: "Software", icon: "💻", desc: "Trading & analysis tools" },
-              { name: "Education", icon: "📚", desc: "Courses & learning" },
-              { name: "Subscriptions", icon: "🔔", desc: "Premium alerts" },
-              { name: "Reports", icon: "📊", desc: "Market research" },
-            ].map((cat) => (
-              <Link
-                key={cat.name}
-                href={`/products?category=${cat.name.toLowerCase()}`}
-                className="bg-card border border-border rounded-lg p-6 hover:border-primary transition-colors group"
-              >
-                <div className="text-4xl mb-3 group-hover:scale-110 transition-transform">{cat.icon}</div>
-                <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">{cat.name}</h3>
-                <p className="text-sm text-muted-foreground">{cat.desc}</p>
-              </Link>
-            ))}
+            {MAIN_CATEGORIES.map((name) => {
+              const meta: Record<string, { icon: string; desc: string }> = {
+                'Food & Pantry': { icon: '🥫', desc: 'Canned goods, staples & snacks' },
+                Beverages: { icon: '🥤', desc: 'Drinks: water, juice, coffee & more' },
+                'Household Essentials': { icon: '🧽', desc: 'Cleaning & paper products' },
+                'Personal Care': { icon: '🧴', desc: 'Toiletries & personal care' },
+                'Refrigerated & Frozen': { icon: '🧊', desc: 'Chilled & frozen items' },
+              };
+
+              const { icon, desc } = meta[name] || { icon: '📦', desc: '' };
+
+              return (
+                <Link
+                  key={name}
+                  href={`/products?category=${encodeURIComponent(name)}`}
+                  className="bg-card border border-border rounded-lg p-6 hover:border-primary transition-colors group"
+                >
+                  <div className="text-4xl mb-3 group-hover:scale-110 transition-transform">{icon}</div>
+                  <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">{name}</h3>
+                  <p className="text-sm text-muted-foreground">{desc}</p>
+                </Link>
+              );
+            })}
           </div>
         </section>
 

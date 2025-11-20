@@ -341,6 +341,17 @@ For development/testing, you can disable email confirmation:
 4. Set up admin role management
 5. Add profile image upload functionality
 
+## Server-side service key (for public reads)
+
+If you want the frontend to show products to unauthenticated users while keeping stricter Row Level Security (RLS) for write operations, you can expose a server-side API route that uses the Supabase Service Role Key to fetch data. The service key must never be exposed to the browser.
+
+- Add the service role key to your server environment (example in `.env.local` - do NOT commit this file):
+  ```env
+  SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
+  ```
+- Use the service role key only on server-side code (API routes or server components). The project includes an example API endpoint at `app/api/public/products/route.ts` that uses this key to return the product list to unauthenticated users.
+- Security note: the service role key bypasses RLS — ensure your API endpoints validate and limit what they return, and avoid exposing administrative operations through those endpoints.
+
 ## Additional Resources
 
 - [Supabase Auth Documentation](https://supabase.com/docs/guides/auth)

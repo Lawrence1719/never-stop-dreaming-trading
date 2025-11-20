@@ -34,6 +34,32 @@ export default function AdminNavbar({
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
 
+  // Improved error logger for various error shapes (Error, plain object, Response, etc.)
+  const logError = (label: string, error: unknown) => {
+    if (!error) {
+      console.error(label, error);
+      return;
+    }
+
+    if (error instanceof Error) {
+      console.error(label, error.message, { stack: error.stack });
+      return;
+    }
+
+    try {
+      // Try to stringify plain objects (Supabase PostgrestError etc.)
+      if (typeof error === 'object') {
+        console.error(label, JSON.stringify(error));
+        return;
+      }
+    } catch (e) {
+      // Fallthrough to generic logging
+    }
+
+    // Fallback
+    console.error(label, String(error));
+  };
+
   const handleLogout = async (e?: Event) => {
     if (e) {
       e.preventDefault();
@@ -82,7 +108,7 @@ export default function AdminNavbar({
           setNotifications(data || []);
         }
       } catch (error) {
-        console.error('Error fetching notifications:', error);
+        logError('Error fetching notifications:', error);
         // Fallback to empty array on error
         setNotifications([]);
       } finally {

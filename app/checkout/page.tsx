@@ -93,6 +93,13 @@ export default function CheckoutPage() {
   };
 
   const handleSubmit = async () => {
+    if (!user) {
+      addToast("Please sign in to complete the purchase", "info");
+      // send user to login and return to checkout after auth
+      router.push(`/login?next=/checkout`);
+      return;
+    }
+
     if (validateStep()) {
       const orderId = "ord-" + Math.random().toString(36).substr(2, 9);
       clearCart();

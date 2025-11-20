@@ -6,6 +6,7 @@ import { Product } from "@/lib/types";
 import { formatPrice } from "@/lib/utils/formatting";
 import { useCart } from "@/lib/context/cart-context";
 import { useWishlist } from "@/lib/context/wishlist-context";
+import { useAuth } from "@/lib/context/auth-context";
 import { useToast } from "@/components/ui/toast";
 import { Badge } from "@/components/ui/badge";
 
@@ -17,6 +18,7 @@ export function ProductCard({ product }: ProductCardProps) {
   const { addItem } = useCart();
   const { addItem: addToWishlist, removeItem: removeFromWishlist, isInWishlist } = useWishlist();
   const { toasts, addToast, removeToast } = useToast();
+  const { user } = useAuth();
   const inWishlist = isInWishlist(product.id);
 
   const handleAddToCart = (e: React.MouseEvent) => {
@@ -27,6 +29,10 @@ export function ProductCard({ product }: ProductCardProps) {
 
   const handleWishlist = (e: React.MouseEvent) => {
     e.preventDefault();
+    if (!user) {
+      addToast("Please log in to add items to your wishlist.", "info");
+      return;
+    }
     if (inWishlist) {
       removeFromWishlist(product.id);
       addToast("Removed from wishlist", "info");
@@ -49,6 +55,30 @@ export function ProductCard({ product }: ProductCardProps) {
             alt={product.name}
             className="w-full aspect-square object-cover group-hover:scale-110 transition-transform duration-300"
           />
+          {/* IoT status badge for refrigerated / frozen categories */}
+          {(() => {
+            const IOT_CATEGORIES = new Set([
+              'Meat',
+              'Frozen goods',
+              'Dairy',
+              'Ice cream',
+              'Cold beverages',
+              'Refrigerated & Frozen',
+            ]);
+
+              if (IOT_CATEGORIES.has(product.category)) {
+                const status = product.iot?.status || 'unknown';
+                // Map status to color classes (no visible text label)
+                const colorClass =
+                  status === 'online' ? 'bg-emerald-500' : status === 'offline' ? 'bg-rose-500' : status === 'error' ? 'bg-amber-500' : 'bg-slate-400';
+
+                return (
+                  <div className={`absolute top-3 left-3 w-3 h-3 rounded-full ${colorClass}`} aria-hidden="true" />
+                );
+              }
+
+            return null;
+          })()}
           {discount && (
             <Badge variant="accent" className="absolute top-3 right-3">
               -{discount}%
@@ -79,6 +109,9 @@ export function ProductCard({ product }: ProductCardProps) {
         <h3 className="font-semibold text-sm line-clamp-2 group-hover:text-primary transition-colors">
           {product.name}
         </h3>
+        <div className="flex items-center gap-2 mt-1">
+          <span className="text-xs text-muted-foreground">{product.category}</span>
+        </div>
         <div className="flex items-center justify-between mt-2">
           <div className="flex items-center gap-2">
             <span className="font-bold text-primary">{formatPrice(product.price)}</span>

@@ -9,10 +9,19 @@ export interface Product {
   category: string;
   stock: number;
   sku: string;
+  reorder_threshold?: number;
+  updated_at?: string;
+  is_active?: boolean;
   rating: number;
   reviewCount: number;
   featured: boolean;
   specifications: Record<string, string>;
+  // Optional IoT metadata for refrigerated / frozen items
+  iot?: {
+    status: 'online' | 'offline' | 'unknown' | 'error';
+    lastUpdated?: string;
+    deviceId?: string;
+  };
 }
 
 export interface Category {

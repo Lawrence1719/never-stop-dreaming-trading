@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, use } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { ProductGrid } from "@/components/ecommerce/product-grid";
@@ -14,14 +14,70 @@ import { useToast } from "@/components/ui/toast";
 import { Product } from "@/lib/types";
 import { formatPrice } from "@/lib/utils/formatting";
 import { Heart, Share2, ChevronLeft } from 'lucide-react';
+import { products as mockProducts } from '@/lib/mock/products';
+import { supabase } from '@/lib/supabase/client';
 
-export default function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
-  
+export default function ProductDetailPage() {
+  const { id } = useParams();
+  console.log('ProductDetailPage id:', id);
+
   // TODO: Replace with actual API call to fetch product from Supabase
   // const { data: product } = await supabase.from('products').select('*').eq('id', id).single();
-  const products: Product[] = [];
-  const product = products.find((p) => p.id === id);
+  const products: Product[] = mockProducts as Product[];
+  const [product, setProduct] = useState<Product | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const fetchProduct = async () => {
+      try {
+        if (!id) return;
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .eq('id', id)
+          .single();
+        console.log('Supabase fetch result:', { data, error });
+        if (error) throw error;
+        if (data && mounted) {
+          const mapped: Product = {
+            id: data.id,
+            name: data.name,
+            slug: data.slug || data.id,
+            description: data.description || '',
+            price: Number(data.price) || 0,
+            compareAtPrice: data.compare_at_price ? Number(data.compare_at_price) : undefined,
+            images: data.image_url ? [data.image_url] : [],
+            category: data.category || '',
+            stock: data.stock ?? 0,
+            sku: data.sku || '',
+            rating: data.rating ?? 0,
+            reviewCount: data.review_count ?? 0,
+            featured: data.featured ?? false,
+            specifications: data.specifications || {},
+            iot: data.iot || undefined,
+            reorder_threshold: data.reorder_threshold ?? undefined,
+            updated_at: data.updated_at ?? undefined,
+            is_active: data.is_active ?? undefined,
+          };
+          setProduct(mapped);
+        }
+      } catch (err) {
+        // fallback: keep existing mock product if available
+        // eslint-disable-next-line no-console
+        console.warn('Failed to fetch product from Supabase, using mock product if available.', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProduct();
+
+    return () => {
+      mounted = false;
+    };
+  }, [id]);
   const [quantity, setQuantity] = useState(1);
   const [imageIndex, setImageIndex] = useState(0);
   const router = useRouter();
@@ -29,6 +85,20 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
   const { addItem: addToWishlist, removeItem: removeFromWishlist, isInWishlist } = useWishlist();
   const { toasts, addToast, removeToast } = useToast();
 
+  if (loading) {
+    return (
+      <div className="flex flex-col min-h-screen">
+        <Navbar />
+        <main className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto mb-4" />
+            <span className="text-lg">Loading product...</span>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
   if (!product) {
     return (
       <div className="flex flex-col min-h-screen">
@@ -114,7 +184,18 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
             <div className="space-y-6">
               <div>
                 <div className="flex items-start justify-between mb-2">
-                  <h1 className="text-3xl font-bold">{product.name}</h1>
+                  <div className="flex items-center gap-3">
+                    <h1 className="text-3xl font-bold">{product.name}</h1>
+                    {/* Compact IoT dot indicator (no label) */}
+                    {['Meat','Frozen goods','Dairy','Ice cream','Cold beverages','Refrigerated & Frozen'].includes(product.category) && (
+                      (() => {
+                        const status = product.iot?.status || 'unknown';
+                        const colorClass =
+                          status === 'online' ? 'bg-emerald-500' : status === 'offline' ? 'bg-rose-500' : status === 'error' ? 'bg-amber-500' : 'bg-slate-400';
+                        return <span className={`w-3 h-3 rounded-full ${colorClass}`} aria-hidden="true" />;
+                      })()
+                    )}
+                  </div>
                   <button
                     onClick={handleWishlist}
                     className={`p-2 rounded-full transition-colors ${

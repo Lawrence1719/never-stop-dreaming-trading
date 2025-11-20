@@ -1,18 +1,32 @@
 "use client";
 
 import { useState } from "react";
+import { CATEGORY_TREE, MAIN_CATEGORIES } from "@/lib/data/categories";
 
 interface ProductFilterProps {
   onCategoryChange: (category: string) => void;
   onPriceChange: (min: number, max: number) => void;
   onSortChange: (sort: string) => void;
+  // Optional: notified when subcategory changes
+  onSubcategoryChange?: (subcategory: string) => void;
 }
 
-export function ProductFilter({ onCategoryChange, onPriceChange, onSortChange }: ProductFilterProps) {
+export function ProductFilter({ onCategoryChange, onPriceChange, onSortChange, onSubcategoryChange }: ProductFilterProps) {
   const [priceRange, setPriceRange] = useState([0, 500]);
-  const [selectedCategory, setSelectedCategory] = useState("");
+  const [selectedMainCategory, setSelectedMainCategory] = useState("");
+  const [selectedSubcategory, setSelectedSubcategory] = useState("");
 
-  const categories = ["Software", "Education", "Subscription", "Reports"];
+  const handleMainSelect = (cat: string) => {
+    setSelectedMainCategory(cat);
+    setSelectedSubcategory("");
+    onCategoryChange(cat);
+    onSubcategoryChange?.("");
+  };
+
+  const handleSubSelect = (sub: string) => {
+    setSelectedSubcategory(sub);
+    onSubcategoryChange?.(sub);
+  };
 
   return (
     <div className="space-y-6">
@@ -31,37 +45,25 @@ export function ProductFilter({ onCategoryChange, onPriceChange, onSortChange }:
         </select>
       </div>
 
-      {/* Category */}
+      {/* Main Categories (Sidebar) */}
       <div>
         <h3 className="font-semibold mb-3">Category</h3>
         <div className="space-y-2">
-          <label className="flex items-center gap-2">
-            <input
-              type="radio"
-              name="category"
-              value=""
-              checked={selectedCategory === ""}
-              onChange={(e) => {
-                setSelectedCategory(e.target.value);
-                onCategoryChange("");
-              }}
-            />
-            <span className="text-sm">All Products</span>
-          </label>
-          {categories.map((cat) => (
-            <label key={cat} className="flex items-center gap-2">
-              <input
-                type="radio"
-                name="category"
-                value={cat}
-                checked={selectedCategory === cat}
-                onChange={(e) => {
-                  setSelectedCategory(e.target.value);
-                  onCategoryChange(e.target.value);
-                }}
-              />
-              <span className="text-sm">{cat}</span>
-            </label>
+          <button
+            onClick={() => handleMainSelect("")}
+            className={`w-full text-left px-3 py-2 rounded-md border ${selectedMainCategory === "" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+          >
+            All Products
+          </button>
+
+          {MAIN_CATEGORIES.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => handleMainSelect(cat)}
+              className={`w-full text-left px-3 py-2 rounded-md border ${selectedMainCategory === cat ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+            >
+              {cat}
+            </button>
           ))}
         </div>
       </div>
@@ -89,6 +91,19 @@ export function ProductFilter({ onCategoryChange, onPriceChange, onSortChange }:
           </div>
         </div>
       </div>
+
+      {/* Hidden subcategory selector for accessibility on sidebar (actual chips shown above products) */}
+      {selectedMainCategory && CATEGORY_TREE[selectedMainCategory] && (
+        <div className="sr-only">
+          <label>Selected subcategory</label>
+          <select value={selectedSubcategory} onChange={(e) => handleSubSelect(e.target.value)}>
+            <option value="">All</option>
+            {CATEGORY_TREE[selectedMainCategory].map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </div>
+      )}
     </div>
   );
 }
