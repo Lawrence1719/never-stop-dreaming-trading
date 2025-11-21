@@ -23,6 +23,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Fetch user profile from Supabase
   const fetchUserProfile = async (session: Session) => {
+    setIsLoading(true);
     try {
       const { data: profile, error } = await supabase
         .from("profiles")
@@ -115,29 +116,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role: (userMetadata.role as 'admin' | 'customer') || 'customer',
       };
       setUser(userData);
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  const buildUserFromSession = (session: Session): User => {
+    const userMetadata = session.user.user_metadata || {};
+    return {
+      id: session.user.id,
+      email: session.user.email || "",
+      name: (userMetadata.name as string) || session.user.email?.split('@')[0] || 'User',
+      phone: (userMetadata.phone as string) || "",
+      memberSince: new Date().toISOString(),
+      addresses: [],
+      role: (userMetadata.role as 'admin' | 'customer') || 'customer',
+    };
   };
 
   useEffect(() => {
     // Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        fetchUserProfile(session);
+        // Set a minimal user immediately so the UI responds quickly,
+        // then fetch the full profile in the background to enrich the data.
+        setUser(buildUserFromSession(session));
+        fetchUserProfile(session).catch((err) => console.error('Error fetching profile on init', err));
+      } else {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     });
 
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
         // Immediately clear user state on sign out
         setUser(null);
         setIsLoading(false);
       } else if (session) {
-        await fetchUserProfile(session);
-        setIsLoading(false);
+        // Set minimal user quickly and fetch profile in background
+        setUser(buildUserFromSession(session));
+        fetchUserProfile(session).catch((err) => console.error('Error fetching profile on auth change', err));
       } else {
         setUser(null);
         setIsLoading(false);
@@ -161,7 +182,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (data.session) {
-        await fetchUserProfile(data.session);
+        // Set minimal user immediately so UI doesn't wait for profile fetch
+        setUser(buildUserFromSession(data.session));
+        // Fetch the full profile in the background
+        fetchUserProfile(data.session).catch((err) => console.error('Error fetching profile after login', err));
       }
 
       return { error: null };
@@ -207,7 +231,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (data.session) {
-        await fetchUserProfile(data.session);
+        // Set minimal user immediately and fetch profile in background
+        setUser(buildUserFromSession(data.session));
+        fetchUserProfile(data.session).catch((err) => console.error('Error fetching profile after register', err));
       }
 
       return { error: null };

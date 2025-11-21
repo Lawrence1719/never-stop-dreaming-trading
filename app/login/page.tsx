@@ -32,7 +32,10 @@ export default function LoginPage() {
   // Redirect if already logged in; wait for cart migration to finish so migrated
   // items are available in the user's cart before redirecting to `next`.
   useEffect(() => {
-    if (!authLoading && user && !isMigrating) {
+    // Allow admin users to redirect immediately (they don't need cart migration)
+    const migrationDoneOrAdmin = !isMigrating || (user && user.role === 'admin');
+
+    if (!authLoading && user && migrationDoneOrAdmin) {
       const next = searchParams.get('next');
       if (next) {
         router.push(next);
@@ -40,7 +43,7 @@ export default function LoginPage() {
       }
 
       if (user.role === 'admin') {
-        router.push('/admin/dashboard');
+        router.replace('/admin/dashboard');
       } else {
         router.push('/');
       }

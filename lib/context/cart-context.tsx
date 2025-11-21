@@ -164,6 +164,66 @@ export function CartProvider({ children }: { children: ReactNode }) {
     migrate();
   }, [user]);
 
+  // When a user is present and there are no in-memory cart items to migrate,
+  // load the cart from the database so authenticated users keep their cart
+  // across refreshes. We also avoid fetching if migration already ran.
+  useEffect(() => {
+    const fetchUserCart = async () => {
+      if (!user) return;
+      if (migratedRef.current) return;
+      // If there are guest items in memory, migration effect will handle upserting them.
+      if (cart.items.length > 0) return;
+
+      try {
+        setIsMigrating(true);
+        const { data: cartRows, error: cartErr } = await supabase
+          .from('cart')
+          .select('product_id,quantity')
+          .eq('user_id', user.id);
+
+        if (cartErr) {
+          console.error('Error fetching user cart', cartErr);
+          setIsMigrating(false);
+          return;
+        }
+
+        if (!cartRows || cartRows.length === 0) {
+          // No items in DB cart
+          setCart({ items: [], total: 0 });
+          migratedRef.current = true;
+          setIsMigrating(false);
+          return;
+        }
+
+        const productIds = cartRows.map((r: any) => r.product_id);
+        const { data: productsData } = await supabase
+          .from('products')
+          .select('*')
+          .in('id', productIds);
+
+        const newItems: CartItem[] = (cartRows as any[]).map((r) => {
+          const p = productsData?.find((pd: any) => pd.id === r.product_id);
+          return {
+            productId: r.product_id,
+            quantity: r.quantity,
+            name: p?.name || '',
+            price: p?.price ?? 0,
+            image: p?.image_url || '',
+          } as CartItem;
+        });
+
+        setCart({ items: newItems, total: calculateTotal(newItems) });
+        migratedRef.current = true;
+        setIsMigrating(false);
+      } catch (err) {
+        console.error('Failed to fetch user cart', err);
+        setIsMigrating(false);
+      }
+    };
+
+    fetchUserCart();
+  }, [user]);
+
   // When the user logs out (user becomes null), clear the cart and reset migration state.
   useEffect(() => {
     if (!user) {
