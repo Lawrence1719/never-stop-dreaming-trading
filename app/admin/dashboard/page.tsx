@@ -58,9 +58,9 @@ type DashboardResponse = {
 
 const COLORS = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b'];
 
-const currencyFormatter = new Intl.NumberFormat('en-US', {
+const currencyFormatter = new Intl.NumberFormat('en-PH', {
   style: 'currency',
-  currency: 'USD',
+  currency: 'PHP',
   maximumFractionDigits: 2,
 });
 

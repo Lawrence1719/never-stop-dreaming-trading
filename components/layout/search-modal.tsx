@@ -87,7 +87,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                     />
                     <div className="flex-1">
                       <p className="font-medium text-sm">{product.name}</p>
-                      <p className="text-xs text-muted-foreground">${product.price}</p>
+                      <p className="text-xs text-muted-foreground">₱{product.price}</p>
                     </div>
                   </Link>
                 ))}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from 'next/navigation';
 import Link from "next/link";
 import { Navbar } from "@/components/layout/navbar";
@@ -10,6 +10,7 @@ import { CheckoutStepper } from "@/components/ecommerce/checkout-stepper";
 import { useCart } from "@/lib/context/cart-context";
 import { useAuth } from "@/lib/context/auth-context";
 import { useToast } from "@/components/ui/toast";
+import { useSettings } from "@/lib/hooks/use-settings";
 import { Product } from "@/lib/types";
 import { supabase } from "@/lib/supabase/client";
 import { validateEmail, validatePhoneNumber, validateZipCode } from "@/lib/utils/validation";
@@ -20,8 +21,18 @@ export default function CheckoutPage() {
   const { user } = useAuth();
   const { cart, clearCart } = useCart();
   const { toasts, addToast, removeToast } = useToast();
+  const { settings } = useSettings();
 
   const [step, setStep] = useState(0);
+  // Initialize payment method based on available options
+  const getInitialPaymentMethod = () => {
+    if (!settings) return "card";
+    if (settings.payment.creditCard) return "card";
+    if (settings.payment.cashOnDelivery) return "cod";
+    if (settings.payment.bankTransfer) return "bank";
+    return "card";
+  };
+
   const [formData, setFormData] = useState({
     fullName: user?.name || "",
     email: user?.email || "",
@@ -31,7 +42,7 @@ export default function CheckoutPage() {
     province: "",
     zip: "",
     shippingMethod: "standard",
-    paymentMethod: "card",
+    paymentMethod: getInitialPaymentMethod(),
     cardNumber: "",
     cardExpiry: "",
     cardCvc: "",
@@ -49,6 +60,26 @@ export default function CheckoutPage() {
   // TODO: Replace with actual API call to fetch products from Supabase
   // const { data: products } = await supabase.from('products').select('*').in('id', cart.items.map(i => i.productId));
   const products: Product[] = [];
+
+  // Calculate shipping cost based on selected method and settings
+  const calculateShippingCost = () => {
+    if (!settings) return 10; // Default fallback
+    
+    const subtotal = cart.items.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
+    const freeThreshold = parseFloat(settings.shipping.freeShippingThreshold || '50.00');
+    
+    // Free shipping if subtotal exceeds threshold
+    if (subtotal >= freeThreshold) {
+      return 0;
+    }
+    
+    if (formData.shippingMethod === "standard") {
+      return parseFloat(settings.shipping.standardRate || '5.00');
+    } else if (formData.shippingMethod === "express") {
+      return parseFloat(settings.shipping.expressRate || '15.00');
+    }
+    return 0;
+  };
 
   // Build product objects for the checkout summary. If we have full product
   // data (from a server fetch) use that, otherwise synthesize a minimal Product
@@ -142,7 +173,7 @@ export default function CheckoutPage() {
   };
 
   // Fetch user's addresses when available
-  React.useEffect(() => {
+  useEffect(() => {
     let mounted = true;
     const fetchAddresses = async () => {
       if (!user) return;
@@ -472,9 +503,24 @@ export default function CheckoutPage() {
                         onChange={handleInputChange}
                         className="w-full px-4 py-2 bg-input border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
                       >
-                        <option value="standard">Standard (5-7 business days) - $10</option>
-                        <option value="express">Express (2-3 business days) - $25</option>
-                        <option value="overnight">Overnight - $50</option>
+                        {(() => {
+                          const subtotal = cart.items.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
+                          const freeThreshold = settings ? parseFloat(settings.shipping.freeShippingThreshold || '50.00') : 50;
+                          const standardRate = settings ? parseFloat(settings.shipping.standardRate || '5.00') : 5;
+                          const expressRate = settings ? parseFloat(settings.shipping.expressRate || '15.00') : 15;
+                          const isFreeShipping = subtotal >= freeThreshold;
+                          
+                          return (
+                            <>
+                              <option value="standard">
+                                Standard (5-7 business days) - {isFreeShipping ? 'FREE' : `₱${standardRate.toFixed(2)}`}
+                              </option>
+                              <option value="express">
+                                Express (2-3 business days) - {isFreeShipping ? 'FREE' : `₱${expressRate.toFixed(2)}`}
+                              </option>
+                            </>
+                          );
+                        })()}
                       </select>
                     </div>
                   </div>
@@ -486,27 +532,44 @@ export default function CheckoutPage() {
                     <h2 className="text-xl font-bold mb-4">Payment Method</h2>
 
                     <div className="space-y-3">
-                      <label className="flex items-center gap-3 p-3 border border-border rounded-lg hover:bg-secondary/10 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="paymentMethod"
-                          value="card"
-                          checked={formData.paymentMethod === "card"}
-                          onChange={handleInputChange}
-                        />
-                        <span className="font-medium">Credit/Debit Card</span>
-                      </label>
+                      {settings?.payment.creditCard && (
+                        <label className="flex items-center gap-3 p-3 border border-border rounded-lg hover:bg-secondary/10 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="paymentMethod"
+                            value="card"
+                            checked={formData.paymentMethod === "card"}
+                            onChange={handleInputChange}
+                          />
+                          <span className="font-medium">Credit/Debit Card</span>
+                        </label>
+                      )}
 
-                      <label className="flex items-center gap-3 p-3 border border-border rounded-lg hover:bg-secondary/10 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="paymentMethod"
-                          value="cod"
-                          checked={formData.paymentMethod === "cod"}
-                          onChange={handleInputChange}
-                        />
-                        <span className="font-medium">Cash on Delivery</span>
-                      </label>
+                      {settings?.payment.cashOnDelivery && (
+                        <label className="flex items-center gap-3 p-3 border border-border rounded-lg hover:bg-secondary/10 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="paymentMethod"
+                            value="cod"
+                            checked={formData.paymentMethod === "cod"}
+                            onChange={handleInputChange}
+                          />
+                          <span className="font-medium">Cash on Delivery</span>
+                        </label>
+                      )}
+
+                      {settings?.payment.bankTransfer && (
+                        <label className="flex items-center gap-3 p-3 border border-border rounded-lg hover:bg-secondary/10 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="paymentMethod"
+                            value="bank"
+                            checked={formData.paymentMethod === "bank"}
+                            onChange={handleInputChange}
+                          />
+                          <span className="font-medium">Bank Transfer</span>
+                        </label>
+                      )}
                     </div>
 
                     {formData.paymentMethod === "card" && (
@@ -574,7 +637,7 @@ export default function CheckoutPage() {
                         {cartProducts.map(({ product, quantity }) => (
                           <div key={product.id} className="flex justify-between text-sm">
                             <span>{product.name} x {quantity}</span>
-                            <span>${(product.price * quantity).toFixed(2)}</span>
+                            <span>₱{(product.price * quantity).toFixed(2)}</span>
                           </div>
                         ))}
                       </div>
@@ -592,9 +655,8 @@ export default function CheckoutPage() {
                     <div>
                       <h3 className="font-semibold mb-3">Shipping Method</h3>
                       <p className="text-sm text-muted-foreground">
-                        {formData.shippingMethod === "standard" && "Standard (5-7 business days)"}
-                        {formData.shippingMethod === "express" && "Express (2-3 business days)"}
-                        {formData.shippingMethod === "overnight" && "Overnight"}
+                        {formData.shippingMethod === "standard" && `Standard (5-7 business days) - ${calculateShippingCost() === 0 ? 'FREE' : `₱${calculateShippingCost().toFixed(2)}`}`}
+                        {formData.shippingMethod === "express" && `Express (2-3 business days) - ${calculateShippingCost() === 0 ? 'FREE' : `₱${calculateShippingCost().toFixed(2)}`}`}
                       </p>
                     </div>
 
@@ -603,6 +665,7 @@ export default function CheckoutPage() {
                       <p className="text-sm text-muted-foreground">
                         {formData.paymentMethod === "card" && "Credit/Debit Card"}
                         {formData.paymentMethod === "cod" && "Cash on Delivery"}
+                        {formData.paymentMethod === "bank" && "Bank Transfer"}
                       </p>
                     </div>
                   </div>
@@ -640,7 +703,10 @@ export default function CheckoutPage() {
 
             {/* Order Summary Sidebar */}
             <div className="lg:col-span-1 h-fit">
-              <CartSummary subtotal={cart.total} />
+              <CartSummary 
+                subtotal={cart.total} 
+                shipping={calculateShippingCost()}
+              />
             </div>
           </div>
         </div>

@@ -1,25 +1,105 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { Download, Package, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { supabase } from '@/lib/supabase/client';
+import { exportToCSV } from '@/lib/utils/export';
 
-const lowStockItems = [
-  { name: 'Trading Course Workbook', sku: 'TCW-001', stock: 5, threshold: 20, status: 'critical' },
-  { name: 'Market Analysis Software', sku: 'MAS-002', stock: 12, threshold: 25, status: 'low' },
-  { name: 'Portfolio Management Tool', sku: 'PMT-003', stock: 8, threshold: 15, status: 'critical' },
-  { name: 'Trading Journal Premium', sku: 'TJP-004', stock: 18, threshold: 30, status: 'low' },
-];
-
-const inventoryByCategory = [
-  { category: 'Software', total: 450, inStock: 420, lowStock: 25, outOfStock: 5 },
-  { category: 'Education', total: 320, inStock: 295, lowStock: 20, outOfStock: 5 },
-  { category: 'Subscriptions', total: 180, inStock: 175, lowStock: 5, outOfStock: 0 },
-];
+interface InventoryReport {
+  summary: {
+    totalProducts: number;
+    inStock: number;
+    lowStock: number;
+    outOfStock: number;
+    inStockPercentage: string;
+  };
+  lowStockItems: Array<{
+    name: string;
+    sku: string;
+    stock: number;
+    threshold: number;
+    status: 'critical' | 'low';
+  }>;
+  inventoryByCategory: Array<{
+    category: string;
+    total: number;
+    inStock: number;
+    lowStock: number;
+    outOfStock: number;
+  }>;
+}
 
 export default function InventoryReportPage() {
+  const [data, setData] = useState<InventoryReport | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchReport() {
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch('/api/admin/reports/inventory', {
+          headers: session?.access_token
+            ? { Authorization: `Bearer ${session.access_token}` }
+            : undefined,
+        });
+
+        if (!res.ok) {
+          throw new Error('Failed to load inventory report');
+        }
+
+        const reportData = await res.json();
+        setData(reportData);
+      } catch (err) {
+        console.error('Failed to load inventory report', err);
+        setError(err instanceof Error ? err.message : 'Failed to load inventory report');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchReport();
+  }, []);
+
+  const handleExport = () => {
+    if (!data) return;
+    
+    // Export summary
+    const summaryData = [{
+      Metric: 'Total Products',
+      Value: data.summary.totalProducts,
+    }, {
+      Metric: 'In Stock',
+      Value: data.summary.inStock,
+      Percentage: `${data.summary.inStockPercentage}%`,
+    }, {
+      Metric: 'Low Stock',
+      Value: data.summary.lowStock,
+    }, {
+      Metric: 'Out of Stock',
+      Value: data.summary.outOfStock,
+    }];
+
+    exportToCSV(summaryData, 'inventory_summary');
+    
+    // Export low stock items
+    setTimeout(() => {
+      exportToCSV(data.lowStockItems, 'low_stock_items');
+    }, 500);
+    
+    // Export by category
+    setTimeout(() => {
+      exportToCSV(data.inventoryByCategory, 'inventory_by_category');
+    }, 1000);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -27,11 +107,17 @@ export default function InventoryReportPage() {
           <h1 className="text-3xl font-bold tracking-tight">Inventory Reports</h1>
           <p className="text-muted-foreground mt-1">Stock levels, alerts, and inventory analytics</p>
         </div>
-        <Button className="gap-2">
+        <Button className="gap-2" onClick={handleExport} disabled={isLoading || !data}>
           <Download className="h-4 w-4" />
           Export Report
         </Button>
       </div>
+
+      {error && (
+        <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+          <p className="text-sm text-destructive">{error}</p>
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -40,8 +126,14 @@ export default function InventoryReportPage() {
             <CardTitle className="text-sm font-medium">Total Products</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">950</div>
-            <p className="text-xs text-muted-foreground mt-1">Across all categories</p>
+            {isLoading ? (
+              <div className="h-8 w-24 bg-muted rounded animate-pulse" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{data ? data.summary.totalProducts : 0}</div>
+                <p className="text-xs text-muted-foreground mt-1">Across all categories</p>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -50,8 +142,14 @@ export default function InventoryReportPage() {
             <CardTitle className="text-sm font-medium">In Stock</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">890</div>
-            <p className="text-xs text-green-600 mt-1">93.7% availability</p>
+            {isLoading ? (
+              <div className="h-8 w-24 bg-muted rounded animate-pulse" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold text-green-600">{data ? data.summary.inStock : 0}</div>
+                <p className="text-xs text-green-600 mt-1">{data ? `${data.summary.inStockPercentage}% availability` : 'N/A'}</p>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -60,8 +158,14 @@ export default function InventoryReportPage() {
             <CardTitle className="text-sm font-medium">Low Stock</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">50</div>
-            <p className="text-xs text-yellow-600 mt-1">Requires attention</p>
+            {isLoading ? (
+              <div className="h-8 w-24 bg-muted rounded animate-pulse" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold text-yellow-600">{data ? data.summary.lowStock : 0}</div>
+                <p className="text-xs text-yellow-600 mt-1">Requires attention</p>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -70,8 +174,14 @@ export default function InventoryReportPage() {
             <CardTitle className="text-sm font-medium">Out of Stock</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">10</div>
-            <p className="text-xs text-red-600 mt-1">Needs restocking</p>
+            {isLoading ? (
+              <div className="h-8 w-24 bg-muted rounded animate-pulse" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold text-red-600">{data ? data.summary.outOfStock : 0}</div>
+                <p className="text-xs text-red-600 mt-1">Needs restocking</p>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -97,19 +207,37 @@ export default function InventoryReportPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {lowStockItems.map((item, idx) => (
-                <TableRow key={idx}>
-                  <TableCell className="font-medium">{item.name}</TableCell>
-                  <TableCell className="text-muted-foreground">{item.sku}</TableCell>
-                  <TableCell>{item.stock}</TableCell>
-                  <TableCell>{item.threshold}</TableCell>
-                  <TableCell>
-                    <Badge variant={item.status === 'critical' ? 'destructive' : 'secondary'}>
-                      {item.status}
-                    </Badge>
+              {isLoading ? (
+                Array.from({ length: 4 }).map((_, idx) => (
+                  <TableRow key={`loading-${idx}`} className="animate-pulse">
+                    <TableCell><div className="h-4 bg-muted rounded w-32" /></TableCell>
+                    <TableCell><div className="h-4 bg-muted rounded w-20" /></TableCell>
+                    <TableCell><div className="h-4 bg-muted rounded w-12" /></TableCell>
+                    <TableCell><div className="h-4 bg-muted rounded w-12" /></TableCell>
+                    <TableCell><div className="h-4 bg-muted rounded w-16" /></TableCell>
+                  </TableRow>
+                ))
+              ) : data && data.lowStockItems.length > 0 ? (
+                data.lowStockItems.map((item, idx) => (
+                  <TableRow key={idx}>
+                    <TableCell className="font-medium">{item.name}</TableCell>
+                    <TableCell className="text-muted-foreground">{item.sku}</TableCell>
+                    <TableCell>{item.stock}</TableCell>
+                    <TableCell>{item.threshold}</TableCell>
+                    <TableCell>
+                      <Badge variant={item.status === 'critical' ? 'destructive' : 'secondary'}>
+                        {item.status}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                    No low stock items
                   </TableCell>
                 </TableRow>
-              ))}
+              )}
             </TableBody>
           </Table>
         </CardContent>
@@ -133,15 +261,33 @@ export default function InventoryReportPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {inventoryByCategory.map((category, idx) => (
-                <TableRow key={idx}>
-                  <TableCell className="font-medium">{category.category}</TableCell>
-                  <TableCell>{category.total}</TableCell>
-                  <TableCell className="text-green-600">{category.inStock}</TableCell>
-                  <TableCell className="text-yellow-600">{category.lowStock}</TableCell>
-                  <TableCell className="text-red-600">{category.outOfStock}</TableCell>
+              {isLoading ? (
+                Array.from({ length: 3 }).map((_, idx) => (
+                  <TableRow key={`loading-${idx}`} className="animate-pulse">
+                    <TableCell><div className="h-4 bg-muted rounded w-24" /></TableCell>
+                    <TableCell><div className="h-4 bg-muted rounded w-12" /></TableCell>
+                    <TableCell><div className="h-4 bg-muted rounded w-12" /></TableCell>
+                    <TableCell><div className="h-4 bg-muted rounded w-12" /></TableCell>
+                    <TableCell><div className="h-4 bg-muted rounded w-12" /></TableCell>
+                  </TableRow>
+                ))
+              ) : data && data.inventoryByCategory.length > 0 ? (
+                data.inventoryByCategory.map((category, idx) => (
+                  <TableRow key={idx}>
+                    <TableCell className="font-medium">{category.category}</TableCell>
+                    <TableCell>{category.total}</TableCell>
+                    <TableCell className="text-green-600">{category.inStock}</TableCell>
+                    <TableCell className="text-yellow-600">{category.lowStock}</TableCell>
+                    <TableCell className="text-red-600">{category.outOfStock}</TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                    No category data available
+                  </TableCell>
                 </TableRow>
-              ))}
+              )}
             </TableBody>
           </Table>
         </CardContent>

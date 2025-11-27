@@ -128,7 +128,7 @@ export async function GET(request: NextRequest) {
         const date = new Date(row.created_at).toISOString().split('T')[0];
         
         // Format amount
-        const amount = `$${Number(row.total).toFixed(2)}`;
+        const amount = `₱${Number(row.total).toFixed(2)}`;
         
         return {
           id: orderId,

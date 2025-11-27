@@ -197,17 +197,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     try {
       // Immediately clear user state for faster UI response
+      setIsLoading(true);
       setUser(null);
       
-      // Then sign out from Supabase (this can happen in background)
+      // Sign out from Supabase
       const { error } = await supabase.auth.signOut();
       
       if (error) {
         console.error("Error logging out:", error);
         // Don't throw - we already cleared the user state
       }
+      
+      // Clear any cached auth data from localStorage
+      if (typeof window !== 'undefined') {
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.includes('supabase') || key.includes('auth'))) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+      }
+      
+      setIsLoading(false);
     } catch (error) {
       console.error("Error logging out:", error);
+      setIsLoading(false);
       // Don't throw - we already cleared the user state
     }
   };

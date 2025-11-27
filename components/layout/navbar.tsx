@@ -6,6 +6,7 @@ import { Search, Heart, ShoppingCart } from 'lucide-react';
 import { useCart } from "@/lib/context/cart-context";
 import { useWishlist } from "@/lib/context/wishlist-context";
 import { useAuth } from "@/lib/context/auth-context";
+import { useSettings } from "@/lib/hooks/use-settings";
 import { SearchModal } from "./search-modal";
 import { UserMenu } from "./user-menu";
 import { ThemeToggle } from "./theme-toggle";
@@ -15,9 +16,11 @@ export function Navbar() {
   const { cart } = useCart();
   const { wishlist } = useWishlist();
   const { user } = useAuth();
+  const { settings } = useSettings();
 
   const cartCount = cart.items.reduce((sum, item) => sum + item.quantity, 0);
   const wishlistCount = user ? wishlist.length : 0;
+  const storeName = settings?.general.storeName || 'Never Stop Dreaming';
 
   return (
     <>
@@ -28,9 +31,11 @@ export function Navbar() {
             <div className="flex items-center gap-8">
               <Link href="/" className="flex items-center gap-2">
                 <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                  <span className="text-primary-foreground font-bold">NSD</span>
+                  <span className="text-primary-foreground font-bold">
+                    {storeName.split(' ').map(w => w[0]).join('').substring(0, 3).toUpperCase()}
+                  </span>
                 </div>
-                <span className="font-bold text-lg hidden sm:inline">Never Stop Dreaming</span>
+                <span className="font-bold text-lg hidden sm:inline">{storeName}</span>
               </Link>
 
               {/* Desktop Navigation */}

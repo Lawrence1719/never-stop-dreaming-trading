@@ -123,7 +123,7 @@ export async function GET(request: NextRequest) {
         const joinDate = new Date(profile.created_at).toISOString().split('T')[0];
         
         // Format total spent
-        const totalSpent = `$${stats.total.toFixed(2)}`;
+        const totalSpent = `₱${stats.total.toFixed(2)}`;
         
         return {
           id: profile.id,

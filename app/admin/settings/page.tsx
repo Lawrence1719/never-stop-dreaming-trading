@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { Save, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Save, AlertCircle, User, ExternalLink } from 'lucide-react';
+import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,13 +11,120 @@ import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
+import { supabase } from '@/lib/supabase/client';
+import { clearSettingsCache } from '@/lib/hooks/use-settings';
+
+interface Settings {
+  general: {
+    storeName: string;
+    tagline: string;
+    contactEmail: string;
+    contactPhone: string;
+    businessAddress: string;
+  };
+  shipping: {
+    standardRate: string;
+    expressRate: string;
+    freeShippingThreshold: string;
+  };
+  payment: {
+    creditCard: boolean;
+    cashOnDelivery: boolean;
+    bankTransfer: boolean;
+  };
+  system: {
+    maintenanceMode: boolean;
+    enableCustomerRegistration: boolean;
+    enableProductReviews: boolean;
+    enableWishlist: boolean;
+  };
+}
 
 export default function SettingsPage() {
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState('general');
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+  useEffect(() => {
+    async function fetchSettings() {
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch('/api/admin/settings', {
+          headers: session?.access_token
+            ? { Authorization: `Bearer ${session.access_token}` }
+            : undefined,
+        });
+
+        if (!res.ok) {
+          throw new Error('Failed to load settings');
+        }
+
+        const data = await res.json();
+        setSettings(data);
+      } catch (err) {
+        console.error('Failed to load settings', err);
+        setError(err instanceof Error ? err.message : 'Failed to load settings');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchSettings();
+  }, []);
+
+  const handleSave = async (section: 'general' | 'shipping' | 'payment' | 'system') => {
+    if (!settings) return;
+
+    setIsSaving(true);
+    setError(null);
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('/api/admin/settings', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({
+          section,
+          settings: settings[section],
+        }),
+      });
+
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.error || 'Failed to save settings');
+      }
+
+      // Clear the public settings cache so customer pages see the update
+      clearSettingsCache();
+      
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err) {
+      console.error('Failed to save settings', err);
+      setError(err instanceof Error ? err.message : 'Failed to save settings');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const updateSetting = (section: keyof Settings, key: string, value: any) => {
+    if (!settings) return;
+    setSettings({
+      ...settings,
+      [section]: {
+        ...settings[section],
+        [key]: value,
+      },
+    });
   };
 
   return (
@@ -35,12 +143,28 @@ export default function SettingsPage() {
         </Alert>
       )}
 
-      <Tabs defaultValue="general" className="space-y-4">
+      {error && (
+        <Alert className="bg-destructive/10 border-destructive/20">
+          <AlertCircle className="h-4 w-4 text-destructive" />
+          <AlertDescription className="text-destructive">
+            {error}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {isLoading ? (
+        <div className="space-y-4">
+          <div className="h-8 w-48 bg-muted rounded animate-pulse" />
+          <div className="h-64 bg-muted rounded animate-pulse" />
+        </div>
+      ) : settings ? (
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="shipping">Shipping</TabsTrigger>
           <TabsTrigger value="payment">Payment</TabsTrigger>
           <TabsTrigger value="system">System</TabsTrigger>
+          <TabsTrigger value="profile">Profile</TabsTrigger>
         </TabsList>
 
         {/* General Settings */}
@@ -53,27 +177,53 @@ export default function SettingsPage() {
             <CardContent className="space-y-6">
               <div>
                 <Label htmlFor="store-name">Store Name</Label>
-                <Input id="store-name" defaultValue="Never Stop Dreaming Trading" className="mt-2" />
+                <Input
+                  id="store-name"
+                  value={settings.general.storeName}
+                  onChange={(e) => updateSetting('general', 'storeName', e.target.value)}
+                  className="mt-2"
+                />
               </div>
               <div>
                 <Label htmlFor="tagline">Tagline</Label>
-                <Input id="tagline" defaultValue="Your trusted online store" className="mt-2" />
+                <Input
+                  id="tagline"
+                  value={settings.general.tagline}
+                  onChange={(e) => updateSetting('general', 'tagline', e.target.value)}
+                  className="mt-2"
+                />
               </div>
               <div>
                 <Label htmlFor="email">Contact Email</Label>
-                <Input id="email" type="email" defaultValue="contact@example.com" className="mt-2" />
+                <Input
+                  id="email"
+                  type="email"
+                  value={settings.general.contactEmail}
+                  onChange={(e) => updateSetting('general', 'contactEmail', e.target.value)}
+                  className="mt-2"
+                />
               </div>
               <div>
                 <Label htmlFor="phone">Contact Phone</Label>
-                <Input id="phone" defaultValue="+1 234 567 8900" className="mt-2" />
+                <Input
+                  id="phone"
+                  value={settings.general.contactPhone}
+                  onChange={(e) => updateSetting('general', 'contactPhone', e.target.value)}
+                  className="mt-2"
+                />
               </div>
               <div>
                 <Label htmlFor="address">Business Address</Label>
-                <Textarea id="address" defaultValue="123 Main Street, City, State 12345" className="mt-2" />
+                <Textarea
+                  id="address"
+                  value={settings.general.businessAddress}
+                  onChange={(e) => updateSetting('general', 'businessAddress', e.target.value)}
+                  className="mt-2"
+                />
               </div>
-              <Button onClick={handleSave} className="gap-2">
+              <Button onClick={() => handleSave('general')} className="gap-2" disabled={isSaving}>
                 <Save className="h-4 w-4" />
-                Save Changes
+                {isSaving ? 'Saving...' : 'Save Changes'}
               </Button>
             </CardContent>
           </Card>
@@ -89,19 +239,49 @@ export default function SettingsPage() {
             <CardContent className="space-y-6">
               <div>
                 <Label htmlFor="shipping-standard">Standard Shipping Rate</Label>
-                <Input id="shipping-standard" defaultValue="$5.00" className="mt-2" />
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="text-muted-foreground">₱</span>
+                  <Input
+                    id="shipping-standard"
+                    type="number"
+                    step="0.01"
+                    value={settings.shipping.standardRate}
+                    onChange={(e) => updateSetting('shipping', 'standardRate', e.target.value)}
+                    className="flex-1"
+                  />
+                </div>
               </div>
               <div>
                 <Label htmlFor="shipping-express">Express Shipping Rate</Label>
-                <Input id="shipping-express" defaultValue="$15.00" className="mt-2" />
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="text-muted-foreground">₱</span>
+                  <Input
+                    id="shipping-express"
+                    type="number"
+                    step="0.01"
+                    value={settings.shipping.expressRate}
+                    onChange={(e) => updateSetting('shipping', 'expressRate', e.target.value)}
+                    className="flex-1"
+                  />
+                </div>
               </div>
               <div>
                 <Label htmlFor="shipping-free">Free Shipping Threshold</Label>
-                <Input id="shipping-free" defaultValue="$50.00" className="mt-2" />
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="text-muted-foreground">₱</span>
+                  <Input
+                    id="shipping-free"
+                    type="number"
+                    step="0.01"
+                    value={settings.shipping.freeShippingThreshold}
+                    onChange={(e) => updateSetting('shipping', 'freeShippingThreshold', e.target.value)}
+                    className="flex-1"
+                  />
+                </div>
               </div>
-              <Button onClick={handleSave} className="gap-2">
+              <Button onClick={() => handleSave('shipping')} className="gap-2" disabled={isSaving}>
                 <Save className="h-4 w-4" />
-                Save Changes
+                {isSaving ? 'Saving...' : 'Save Changes'}
               </Button>
             </CardContent>
           </Card>
@@ -117,19 +297,28 @@ export default function SettingsPage() {
             <CardContent className="space-y-6">
               <div className="flex items-center justify-between">
                 <Label>Credit/Debit Card</Label>
-                <Switch defaultChecked />
+                <Switch
+                  checked={settings.payment.creditCard}
+                  onCheckedChange={(checked) => updateSetting('payment', 'creditCard', checked)}
+                />
               </div>
               <div className="flex items-center justify-between">
                 <Label>Cash on Delivery</Label>
-                <Switch defaultChecked />
+                <Switch
+                  checked={settings.payment.cashOnDelivery}
+                  onCheckedChange={(checked) => updateSetting('payment', 'cashOnDelivery', checked)}
+                />
               </div>
               <div className="flex items-center justify-between">
                 <Label>Bank Transfer</Label>
-                <Switch />
+                <Switch
+                  checked={settings.payment.bankTransfer}
+                  onCheckedChange={(checked) => updateSetting('payment', 'bankTransfer', checked)}
+                />
               </div>
-              <Button onClick={handleSave} className="gap-2">
+              <Button onClick={() => handleSave('payment')} className="gap-2" disabled={isSaving}>
                 <Save className="h-4 w-4" />
-                Save Changes
+                {isSaving ? 'Saving...' : 'Save Changes'}
               </Button>
             </CardContent>
           </Card>
@@ -145,28 +334,115 @@ export default function SettingsPage() {
             <CardContent className="space-y-6">
               <div className="flex items-center justify-between">
                 <Label>Maintenance Mode</Label>
-                <Switch />
+                <Switch
+                  checked={settings.system.maintenanceMode}
+                  onCheckedChange={(checked) => updateSetting('system', 'maintenanceMode', checked)}
+                />
               </div>
               <div className="flex items-center justify-between">
                 <Label>Enable Customer Registration</Label>
-                <Switch defaultChecked />
+                <Switch
+                  checked={settings.system.enableCustomerRegistration}
+                  onCheckedChange={(checked) => updateSetting('system', 'enableCustomerRegistration', checked)}
+                />
               </div>
               <div className="flex items-center justify-between">
                 <Label>Enable Product Reviews</Label>
-                <Switch defaultChecked />
+                <Switch
+                  checked={settings.system.enableProductReviews}
+                  onCheckedChange={(checked) => updateSetting('system', 'enableProductReviews', checked)}
+                />
               </div>
               <div className="flex items-center justify-between">
                 <Label>Enable Wishlist</Label>
-                <Switch defaultChecked />
+                <Switch
+                  checked={settings.system.enableWishlist}
+                  onCheckedChange={(checked) => updateSetting('system', 'enableWishlist', checked)}
+                />
               </div>
-              <Button onClick={handleSave} className="gap-2">
+              <Button onClick={() => handleSave('system')} className="gap-2" disabled={isSaving}>
                 <Save className="h-4 w-4" />
-                Save Changes
+                {isSaving ? 'Saving...' : 'Save Changes'}
               </Button>
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Profile Tab */}
+        <TabsContent value="profile">
+          <Card>
+            <CardHeader>
+              <CardTitle>Admin Profile</CardTitle>
+              <CardDescription>Manage your admin account settings and preferences</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="p-6 border border-border rounded-lg bg-secondary/10">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center">
+                      <User className="w-6 h-6 text-primary-foreground" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-lg">Manage Your Profile</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Update your personal information, security settings, and preferences
+                      </p>
+                    </div>
+                  </div>
+                  <Button asChild className="gap-2">
+                    <Link href="/admin/profile">
+                      Go to Profile
+                      <ExternalLink className="h-4 w-4" />
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="p-4 border border-border rounded-lg">
+                  <h4 className="font-medium mb-2">Profile Information</h4>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Update your name, email, phone number, and other personal details.
+                  </p>
+                  <Button variant="outline" asChild className="w-full sm:w-auto">
+                    <Link href="/admin/profile?tab=profile">
+                      Edit Profile
+                      <ExternalLink className="h-4 w-4 ml-2" />
+                    </Link>
+                  </Button>
+                </div>
+
+                <div className="p-4 border border-border rounded-lg">
+                  <h4 className="font-medium mb-2">Security Settings</h4>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Change your password, enable two-factor authentication, and manage security preferences.
+                  </p>
+                  <Button variant="outline" asChild className="w-full sm:w-auto">
+                    <Link href="/admin/profile?tab=security">
+                      Security Settings
+                      <ExternalLink className="h-4 w-4 ml-2" />
+                    </Link>
+                  </Button>
+                </div>
+
+                <div className="p-4 border border-border rounded-lg">
+                  <h4 className="font-medium mb-2">Preferences</h4>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Customize your admin experience, notifications, and activity settings.
+                  </p>
+                  <Button variant="outline" asChild className="w-full sm:w-auto">
+                    <Link href="/admin/profile?tab=preferences">
+                      View Preferences
+                      <ExternalLink className="h-4 w-4 ml-2" />
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
+      ) : null}
     </div>
   );
 }

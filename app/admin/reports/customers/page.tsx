@@ -1,25 +1,109 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { Download, Users, TrendingUp, DollarSign } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { supabase } from '@/lib/supabase/client';
+import { exportToCSV } from '@/lib/utils/export';
 
-const topCustomers = [
-  { name: 'John Smith', email: 'john@example.com', orders: 24, totalSpent: '$2,450', status: 'VIP' },
-  { name: 'Sarah Johnson', email: 'sarah@example.com', orders: 18, totalSpent: '$1,890', status: 'Regular' },
-  { name: 'Mike Davis', email: 'mike@example.com', orders: 15, totalSpent: '$1,650', status: 'Regular' },
-  { name: 'Emily Wilson', email: 'emily@example.com', orders: 12, totalSpent: '$1,320', status: 'Regular' },
-];
-
-const customerSegments = [
-  { segment: 'VIP Customers', count: 45, avgOrderValue: '$125.50', totalRevenue: '$45,247' },
-  { segment: 'Regular Customers', count: 320, avgOrderValue: '$68.30', totalRevenue: '$21,856' },
-  { segment: 'New Customers', count: 185, avgOrderValue: '$42.10', totalRevenue: '$7,789' },
-];
+interface CustomerReport {
+  summary: {
+    totalCustomers: number;
+    activeCustomers: number;
+    avgOrderValue: number;
+    customerLifetimeValue: number;
+  };
+  topCustomers: Array<{
+    name: string;
+    email: string;
+    orders: number;
+    totalSpent: string;
+    status: string;
+  }>;
+  customerSegments: Array<{
+    segment: string;
+    count: number;
+    avgOrderValue: string;
+    totalRevenue: string;
+  }>;
+}
 
 export default function CustomersReportPage() {
+  const [data, setData] = useState<CustomerReport | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchReport() {
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch('/api/admin/reports/customers', {
+          headers: session?.access_token
+            ? { Authorization: `Bearer ${session.access_token}` }
+            : undefined,
+        });
+
+        if (!res.ok) {
+          throw new Error('Failed to load customer report');
+        }
+
+        const reportData = await res.json();
+        setData(reportData);
+      } catch (err) {
+        console.error('Failed to load customer report', err);
+        setError(err instanceof Error ? err.message : 'Failed to load customer report');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchReport();
+  }, []);
+
+  const handleExport = () => {
+    if (!data) return;
+    
+    // Export summary
+    const summaryData = [{
+      Metric: 'Total Customers',
+      Value: data.summary.totalCustomers,
+    }, {
+      Metric: 'Active Customers',
+      Value: data.summary.activeCustomers,
+      Percentage: `${((data.summary.activeCustomers / data.summary.totalCustomers) * 100).toFixed(1)}%`,
+    }, {
+      Metric: 'Average Order Value',
+      Value: `₱${data.summary.avgOrderValue.toFixed(2)}`,
+    }, {
+      Metric: 'Customer Lifetime Value',
+      Value: `₱${data.summary.customerLifetimeValue.toFixed(2)}`,
+    }];
+
+    exportToCSV(summaryData, 'customer_summary');
+    
+    // Export top customers
+    setTimeout(() => {
+      exportToCSV(data.topCustomers, 'top_customers');
+    }, 500);
+    
+    // Export segments
+    setTimeout(() => {
+      exportToCSV(data.customerSegments, 'customer_segments');
+    }, 1000);
+  };
+
+  const currencyFormatter = new Intl.NumberFormat('en-PH', {
+    style: 'currency',
+    currency: 'PHP',
+    maximumFractionDigits: 2,
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -27,11 +111,17 @@ export default function CustomersReportPage() {
           <h1 className="text-3xl font-bold tracking-tight">Customer Reports</h1>
           <p className="text-muted-foreground mt-1">Customer analytics, segments, and insights</p>
         </div>
-        <Button className="gap-2">
+        <Button className="gap-2" onClick={handleExport} disabled={isLoading || !data}>
           <Download className="h-4 w-4" />
           Export Report
         </Button>
       </div>
+
+      {error && (
+        <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+          <p className="text-sm text-destructive">{error}</p>
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -40,8 +130,14 @@ export default function CustomersReportPage() {
             <CardTitle className="text-sm font-medium">Total Customers</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">550</div>
-            <p className="text-xs text-green-600 mt-1">+15% from last month</p>
+            {isLoading ? (
+              <div className="h-8 w-24 bg-muted rounded animate-pulse" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{data ? data.summary.totalCustomers : 0}</div>
+                <p className="text-xs text-muted-foreground mt-1">All registered customers</p>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -50,8 +146,18 @@ export default function CustomersReportPage() {
             <CardTitle className="text-sm font-medium">Active Customers</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">365</div>
-            <p className="text-xs text-muted-foreground mt-1">66% of total</p>
+            {isLoading ? (
+              <div className="h-8 w-24 bg-muted rounded animate-pulse" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold">
+                  {data ? data.summary.activeCustomers : 0}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {data ? `${((data.summary.activeCustomers / data.summary.totalCustomers) * 100).toFixed(1)}% of total` : 'N/A'}
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -60,8 +166,16 @@ export default function CustomersReportPage() {
             <CardTitle className="text-sm font-medium">Avg. Order Value</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$78.50</div>
-            <p className="text-xs text-green-600 mt-1">+5% from last month</p>
+            {isLoading ? (
+              <div className="h-8 w-24 bg-muted rounded animate-pulse" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold">
+                  {data ? currencyFormatter.format(data.summary.avgOrderValue) : '₱0.00'}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Average per order</p>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -70,8 +184,16 @@ export default function CustomersReportPage() {
             <CardTitle className="text-sm font-medium">Customer Lifetime Value</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$245</div>
-            <p className="text-xs text-green-600 mt-1">+8% from last month</p>
+            {isLoading ? (
+              <div className="h-8 w-24 bg-muted rounded animate-pulse" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold">
+                  {data ? currencyFormatter.format(data.summary.customerLifetimeValue) : '₱0.00'}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Average per customer</p>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -94,19 +216,37 @@ export default function CustomersReportPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {topCustomers.map((customer, idx) => (
-                <TableRow key={idx}>
-                  <TableCell className="font-medium">{customer.name}</TableCell>
-                  <TableCell className="text-muted-foreground">{customer.email}</TableCell>
-                  <TableCell>{customer.orders}</TableCell>
-                  <TableCell className="text-green-600 font-medium">{customer.totalSpent}</TableCell>
-                  <TableCell>
-                    <Badge variant={customer.status === 'VIP' ? 'default' : 'secondary'}>
-                      {customer.status}
-                    </Badge>
+              {isLoading ? (
+                Array.from({ length: 4 }).map((_, idx) => (
+                  <TableRow key={`loading-${idx}`} className="animate-pulse">
+                    <TableCell><div className="h-4 bg-muted rounded w-24" /></TableCell>
+                    <TableCell><div className="h-4 bg-muted rounded w-32" /></TableCell>
+                    <TableCell><div className="h-4 bg-muted rounded w-12" /></TableCell>
+                    <TableCell><div className="h-4 bg-muted rounded w-20" /></TableCell>
+                    <TableCell><div className="h-4 bg-muted rounded w-16" /></TableCell>
+                  </TableRow>
+                ))
+              ) : data && data.topCustomers.length > 0 ? (
+                data.topCustomers.map((customer, idx) => (
+                  <TableRow key={idx}>
+                    <TableCell className="font-medium">{customer.name}</TableCell>
+                    <TableCell className="text-muted-foreground">{customer.email}</TableCell>
+                    <TableCell>{customer.orders}</TableCell>
+                    <TableCell className="text-green-600 font-medium">{customer.totalSpent}</TableCell>
+                    <TableCell>
+                      <Badge variant={customer.status === 'VIP' ? 'default' : 'secondary'}>
+                        {customer.status}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                    No customer data available
                   </TableCell>
                 </TableRow>
-              ))}
+              )}
             </TableBody>
           </Table>
         </CardContent>
@@ -129,14 +269,31 @@ export default function CustomersReportPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {customerSegments.map((segment, idx) => (
-                <TableRow key={idx}>
-                  <TableCell className="font-medium">{segment.segment}</TableCell>
-                  <TableCell>{segment.count}</TableCell>
-                  <TableCell>{segment.avgOrderValue}</TableCell>
-                  <TableCell className="text-green-600 font-medium">{segment.totalRevenue}</TableCell>
+              {isLoading ? (
+                Array.from({ length: 3 }).map((_, idx) => (
+                  <TableRow key={`loading-${idx}`} className="animate-pulse">
+                    <TableCell><div className="h-4 bg-muted rounded w-32" /></TableCell>
+                    <TableCell><div className="h-4 bg-muted rounded w-12" /></TableCell>
+                    <TableCell><div className="h-4 bg-muted rounded w-20" /></TableCell>
+                    <TableCell><div className="h-4 bg-muted rounded w-24" /></TableCell>
+                  </TableRow>
+                ))
+              ) : data && data.customerSegments.length > 0 ? (
+                data.customerSegments.map((segment, idx) => (
+                  <TableRow key={idx}>
+                    <TableCell className="font-medium">{segment.segment}</TableCell>
+                    <TableCell>{segment.count}</TableCell>
+                    <TableCell>{segment.avgOrderValue}</TableCell>
+                    <TableCell className="text-green-600 font-medium">{segment.totalRevenue}</TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                    No segment data available
+                  </TableCell>
                 </TableRow>
-              ))}
+              )}
             </TableBody>
           </Table>
         </CardContent>

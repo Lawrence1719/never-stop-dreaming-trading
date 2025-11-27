@@ -1,17 +1,45 @@
+"use client";
+
 import Link from "next/link";
-import { Facebook, Twitter, Linkedin, Instagram } from 'lucide-react';
+import { Facebook, Twitter, Linkedin, Instagram, Mail, Phone, MapPin } from 'lucide-react';
+import { useSettings } from "@/lib/hooks/use-settings";
 
 export function Footer() {
+  const { settings } = useSettings();
+  const storeName = settings?.general.storeName || 'Never Stop Dreaming';
+  const tagline = settings?.general.tagline || 'Premium trading tools and education for serious investors.';
+  const contactEmail = settings?.general.contactEmail || 'contact@example.com';
+  const contactPhone = settings?.general.contactPhone || '+1 234 567 8900';
+  const businessAddress = settings?.general.businessAddress || '123 Main Street, City, State 12345';
+
   return (
     <footer className="bg-card border-t border-border mt-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
           {/* About */}
           <div>
-            <h3 className="font-bold text-lg mb-4">Never Stop Dreaming</h3>
-            <p className="text-sm text-muted-foreground">
-              Premium trading tools and education for serious investors.
+            <h3 className="font-bold text-lg mb-4">{storeName}</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              {tagline}
             </p>
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <Mail className="w-4 h-4" />
+                <a href={`mailto:${contactEmail}`} className="hover:text-primary transition-colors">
+                  {contactEmail}
+                </a>
+              </div>
+              <div className="flex items-center gap-2">
+                <Phone className="w-4 h-4" />
+                <a href={`tel:${contactPhone}`} className="hover:text-primary transition-colors">
+                  {contactPhone}
+                </a>
+              </div>
+              <div className="flex items-start gap-2">
+                <MapPin className="w-4 h-4 mt-0.5" />
+                <span>{businessAddress}</span>
+              </div>
+            </div>
           </div>
 
           {/* Products */}
@@ -85,7 +113,7 @@ export function Footer() {
         <div className="border-t border-border pt-8">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">
-              © 2025 Never Stop Dreaming Trading. All rights reserved.
+              © {new Date().getFullYear()} {storeName}. All rights reserved.
             </p>
 
             {/* Social Links */}

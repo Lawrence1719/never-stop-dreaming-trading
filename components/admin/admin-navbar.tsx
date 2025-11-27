@@ -60,7 +60,7 @@ export default function AdminNavbar({
     console.error(label, String(error));
   };
 
-  const handleLogout = async (e?: Event) => {
+  const handleLogout = async (e?: React.MouseEvent | Event) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -68,17 +68,31 @@ export default function AdminNavbar({
     
     try {
       console.log("Logging out...");
+      // Clear user state and sign out from Supabase
       await logout();
       console.log("Logout successful");
+      
+      // Clear any local storage or session data
+      if (typeof window !== 'undefined') {
+        localStorage.clear();
+        sessionStorage.clear();
+      }
+      
       addToast("Logged out successfully", "success");
-      // Redirect immediately after logout
+      
+      // Redirect to login page
+      router.push('/login');
+      router.refresh();
+      
+      // Force a hard reload to ensure all state is cleared
       setTimeout(() => {
-        router.push('/login');
-        router.refresh();
-      }, 300);
+        window.location.href = '/login';
+      }, 100);
     } catch (error) {
       console.error("Logout error:", error);
       addToast("Failed to logout. Please try again.", "error");
+      // Even if there's an error, try to redirect
+      router.push('/login');
     }
   };
 
@@ -369,7 +383,7 @@ export default function AdminNavbar({
             </div>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link href="/profile" className="flex gap-2 w-full">
+              <Link href="/admin/profile" className="flex gap-2 w-full">
                 <User className="h-4 w-4" />
                 <span>Profile</span>
               </Link>
@@ -382,9 +396,9 @@ export default function AdminNavbar({
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem 
-              onSelect={(e) => {
+              onClick={(e) => {
                 e.preventDefault();
-                handleLogout(e as any);
+                handleLogout(e);
               }} 
               className="flex gap-2 text-destructive cursor-pointer"
             >

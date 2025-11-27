@@ -7,9 +7,9 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 const mockCoupons = [
-  { id: 1, code: 'SUMMER20', type: 'Percentage', discount: '20%', minPurchase: '$50', usage: '234/500', expires: '2024-08-31', status: 'active' },
-  { id: 2, code: 'SAVE10', type: 'Fixed Amount', discount: '$10', minPurchase: '$30', usage: '189/1000', expires: '2024-12-31', status: 'active' },
-  { id: 3, code: 'FREESHIP', type: 'Free Shipping', discount: 'Free', minPurchase: '$25', usage: '456/999', expires: '2024-07-31', status: 'expired' },
+  { id: 1, code: 'SUMMER20', type: 'Percentage', discount: '20%', minPurchase: '₱50', usage: '234/500', expires: '2024-08-31', status: 'active' },
+  { id: 2, code: 'SAVE10', type: 'Fixed Amount', discount: '₱10', minPurchase: '₱30', usage: '189/1000', expires: '2024-12-31', status: 'active' },
+  { id: 3, code: 'FREESHIP', type: 'Free Shipping', discount: 'Free', minPurchase: '₱25', usage: '456/999', expires: '2024-07-31', status: 'expired' },
   { id: 4, code: 'WELCOME15', type: 'Percentage', discount: '15%', minPurchase: 'None', usage: '0/Unlimited', expires: 'Never', status: 'active' },
 ];
 
