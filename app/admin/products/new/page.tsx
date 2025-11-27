@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { CATEGORY_TREE, MAIN_CATEGORIES } from '@/lib/data/categories';
 
 export default function CreateProductPage() {
   const [formData, setFormData] = useState({
@@ -171,10 +172,20 @@ export default function CreateProductPage() {
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="electronics">Electronics</SelectItem>
-                  <SelectItem value="accessories">Accessories</SelectItem>
-                  <SelectItem value="clothing">Clothing</SelectItem>
-                  <SelectItem value="books">Books</SelectItem>
+                  {/* Main Categories */}
+                  {MAIN_CATEGORIES.map((mainCat) => (
+                    <SelectItem key={mainCat} value={mainCat}>
+                      {mainCat}
+                    </SelectItem>
+                  ))}
+                  {/* Subcategories */}
+                  {Object.entries(CATEGORY_TREE).map(([mainCat, subcats]) =>
+                    subcats.map((subcat) => (
+                      <SelectItem key={`${mainCat}-${subcat}`} value={subcat}>
+                        {mainCat} → {subcat}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </CardContent>

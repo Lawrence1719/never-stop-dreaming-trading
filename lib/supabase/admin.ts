@@ -1,14 +1,29 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-
-const SUPABASE_URL = process.env.SUPABASE_URL || ''
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || ''
+import { createClient, type PostgrestError, type SupabaseClient } from '@supabase/supabase-js'
 
 function getClient(client?: SupabaseClient) {
   if (client) return client
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    throw new Error('Supabase URL or Service Role Key is not defined in environment')
+  
+  // Try multiple possible environment variable names
+  const supabaseUrl = 
+    process.env.NEXT_PUBLIC_SUPABASE_URL || 
+    process.env.SUPABASE_URL || 
+    ''
+  
+  const supabaseServiceKey = 
+    process.env.SUPABASE_SERVICE_ROLE_KEY || 
+    process.env.SUPABASE_KEY || 
+    process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY ||
+    ''
+  
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error(
+      'Supabase URL or Service Role Key is not defined in environment. ' +
+      `URL: ${supabaseUrl ? '✓' : '✗'}, Key: ${supabaseServiceKey ? '✓' : '✗'}. ` +
+      'Please set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in your .env file.'
+    )
   }
-  return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+  
+  return createClient(supabaseUrl, supabaseServiceKey)
 }
 
 type Range = 'day' | 'week' | 'month' | 'all'
@@ -151,38 +166,96 @@ async function getSalesOverview(range: Range = 'week', supabase?: SupabaseClient
   return { series, totalRevenue: Number(totalRevenue.toFixed(2)), totalOrders }
 }
 
+function isMissingRelationError(error: unknown, relation: string) {
+  if (!error || typeof error !== 'object') return false
+  const err = error as PostgrestError
+  return err?.code === '42P01' || err?.message?.toLowerCase().includes(`relation "${relation}" does not exist`)
+}
+
 async function getSalesByCategory(range: Range = 'all', supabase?: SupabaseClient) {
   const sb = getClient(supabase)
   const { start, end } = getDateRange(range)
 
-  // Attempt to select order_items with related product category (requires FK relationship)
-  const { data, error } = await sb
-    .from('order_items')
-    .select('quantity, price, products(category)')
-    .gte('created_at', start)
-    .lte('created_at', end)
+  try {
+    // Query order_items with joins to orders (for date filtering) and products (for category)
+    const { data, error } = await sb
+      .from('order_items')
+      .select('quantity, price, orders!inner(created_at, status), products(category)')
+      .gte('orders.created_at', start)
+      .lte('orders.created_at', end)
+      .neq('orders.status', 'cancelled')
 
-  if (error) throw error
+    if (error) {
+      // If the join syntax fails, try a simpler approach
+      if (error.message?.includes('join') || error.message?.includes('relation')) {
+        // Fallback: query orders first, then get order_items
+        const { data: ordersData, error: ordersError } = await sb
+          .from('orders')
+          .select('id, created_at, status')
+          .gte('created_at', start)
+          .lte('created_at', end)
+          .neq('status', 'cancelled')
 
-  const totals: Record<string, number> = {}
-  let grandTotal = 0
-  ;(data || []).forEach((row: any) => {
-    const category = (row.products && row.products.category) || 'Uncategorized'
-    const amount = (row.price || 0) * (row.quantity || 0)
-    totals[category] = (totals[category] || 0) + amount
-    grandTotal += amount
-  })
+        if (ordersError) throw ordersError
 
-  const result = Object.keys(totals).map((cat) => ({
-    category: cat,
-    revenue: Number(totals[cat].toFixed(2)),
-    percent: grandTotal > 0 ? Number(((totals[cat] / grandTotal) * 100).toFixed(2)) : 0,
-  }))
+        const orderIds = (ordersData || []).map((o: any) => o.id)
+        if (orderIds.length === 0) {
+          return { breakdown: [], totalRevenue: 0 }
+        }
 
-  return { breakdown: result, totalRevenue: Number(grandTotal.toFixed(2)) }
+        const { data: itemsData, error: itemsError } = await sb
+          .from('order_items')
+          .select('quantity, price, product_id, products(category)')
+          .in('order_id', orderIds)
+
+        if (itemsError) throw itemsError
+
+        const totals: Record<string, number> = {}
+        let grandTotal = 0
+        ;(itemsData || []).forEach((row: any) => {
+          const category = (row.products && row.products.category) || 'Uncategorized'
+          const amount = Number(row.price || 0) * Number(row.quantity || 0)
+          totals[category] = (totals[category] || 0) + amount
+          grandTotal += amount
+        })
+
+        const result = Object.keys(totals).map((cat) => ({
+          category: cat,
+          revenue: Number(totals[cat].toFixed(2)),
+          percent: grandTotal > 0 ? Number(((totals[cat] / grandTotal) * 100).toFixed(2)) : 0,
+        }))
+
+        return { breakdown: result, totalRevenue: Number(grandTotal.toFixed(2)) }
+      }
+      throw error
+    }
+
+    const totals: Record<string, number> = {}
+    let grandTotal = 0
+    ;(data || []).forEach((row: any) => {
+      const category = (row.products && row.products.category) || 'Uncategorized'
+      const amount = Number(row.price || 0) * Number(row.quantity || 0)
+      totals[category] = (totals[category] || 0) + amount
+      grandTotal += amount
+    })
+
+    const result = Object.keys(totals).map((cat) => ({
+      category: cat,
+      revenue: Number(totals[cat].toFixed(2)),
+      percent: grandTotal > 0 ? Number(((totals[cat] / grandTotal) * 100).toFixed(2)) : 0,
+    }))
+
+    return { breakdown: result, totalRevenue: Number(grandTotal.toFixed(2)) }
+  } catch (error) {
+    console.error('[admin] Error fetching sales by category:', error)
+    // Return empty breakdown instead of throwing to allow dashboard to still load
+    return { breakdown: [], totalRevenue: 0 }
+  }
 }
 
-async function getGrowthRate(metric: 'revenue' | 'orders' | 'customers' | 'aov', range: Range = 'week', supabase?: SupabaseClient) {
+type GrowthMetric = 'revenue' | 'orders' | 'customers' | 'aov'
+
+async function getGrowthRate(metric: GrowthMetric, range: Range = 'week', supabase?: SupabaseClient) {
   const sb = getClient(supabase)
 
   // compute current period
@@ -198,51 +271,51 @@ async function getGrowthRate(metric: 'revenue' | 'orders' | 'customers' | 'aov',
   const periodToValue = async (start: Date, end: Date) => {
     const s = start.toISOString()
     const e = end.toISOString()
-    if (metric === 'revenue') {
-      const { data, error } = await sb
-        .from('orders')
-        .select('total')
-        .neq('status', 'cancelled')
-        .gte('created_at', s)
-        .lte('created_at', e)
-      if (error) throw error
-      return (data || []).reduce((acc: number, r: any) => acc + (r.total || 0), 0)
+    switch (metric) {
+      case 'revenue': {
+        const { data, error } = await sb
+          .from('orders')
+          .select('total')
+          .neq('status', 'cancelled')
+          .gte('created_at', s)
+          .lte('created_at', e)
+        if (error) throw error
+        return (data || []).reduce((acc: number, r: any) => acc + (Number(r.total) || 0), 0)
+      }
+      case 'orders': {
+        const { count, error } = await sb
+          .from('orders')
+          .select('id', { count: 'exact' })
+          .neq('status', 'cancelled')
+          .gte('created_at', s)
+          .lte('created_at', e)
+        if (error) throw error
+        return count ?? 0
+      }
+      case 'customers': {
+        const { count, error } = await sb
+          .from('profiles')
+          .select('id', { count: 'exact' })
+          .gte('created_at', s)
+          .lte('created_at', e)
+        if (error) throw error
+        return count ?? 0
+      }
+      case 'aov': {
+        const { data, count, error } = await sb
+          .from('orders')
+          .select('total', { count: 'exact' })
+          .neq('status', 'cancelled')
+          .gte('created_at', s)
+          .lte('created_at', e)
+        if (error) throw error
+        const revenue = (data || []).reduce((acc: number, r: any) => acc + (Number(r.total) || 0), 0)
+        const totalOrders = count ?? (data?.length ?? 0)
+        return totalOrders > 0 ? revenue / totalOrders : 0
+      }
+      default:
+        return 0
     }
-
-    if (metric === 'orders') {
-      const { count, error } = await sb
-        .from('orders')
-        .select('id', { count: 'exact' })
-        .neq('status', 'cancelled')
-        .gte('created_at', s)
-        .lte('created_at', e)
-      if (error) throw error
-      return count ?? 0
-    }
-
-    if (metric === 'customers') {
-      const { count, error } = await sb
-        .from('profiles')
-        .select('id', { count: 'exact' })
-        .gte('created_at', s)
-        .lte('created_at', e)
-      if (error) throw error
-      return count ?? 0
-    }
-
-    if (metric === 'aov') {
-      const revenue = await periodToValue(start, end).catch((e) => { throw e })
-      const { count } = await sb
-        .from('orders')
-        .select('id', { count: 'exact' })
-        .neq('status', 'cancelled')
-        .gte('created_at', s)
-        .lte('created_at', e)
-      const orders = count ?? 0
-      return orders > 0 ? revenue / orders : 0
-    }
-
-    return 0
   }
 
   const [currentValue, previousValue] = await Promise.all([
@@ -258,14 +331,63 @@ async function getGrowthRate(metric: 'revenue' | 'orders' | 'customers' | 'aov',
     percent = (delta / Math.abs(previousValue)) * 100
   }
 
+  const ensureNumber = (value: number) => (Number.isFinite(value) ? Number(value) : 0)
+
   return {
     metric,
     range,
-    current: Number(currentValue instanceof Number ? currentValue : Number(currentValue.toFixed?.(2) ?? currentValue)),
-    previous: Number(previousValue instanceof Number ? previousValue : Number(previousValue.toFixed?.(2) ?? previousValue)),
+    current: ensureNumber(currentValue),
+    previous: ensureNumber(previousValue),
     change: Number(percent.toFixed(2)),
     direction: percent > 0 ? 'up' : percent < 0 ? 'down' : 'neutral',
   }
+}
+
+type RecentOrder = {
+  id: string
+  total: number
+  status: string
+  created_at: string
+  user_id: string | null
+  customer_name: string | null
+}
+
+async function getRecentOrders(limit = 5, supabase?: SupabaseClient) {
+  const sb = getClient(supabase)
+  const { data, error } = await sb
+    .from('orders')
+    .select('id, total, status, created_at, user_id')
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  if (error) throw error
+
+  const orders = data || []
+  const userIds = Array.from(new Set(orders.map((order) => order.user_id).filter(Boolean))) as string[]
+
+  let profilesMap: Record<string, { name: string | null }> = {}
+  if (userIds.length > 0) {
+    const { data: profiles, error: profilesError } = await sb
+      .from('profiles')
+      .select('id, name')
+      .in('id', userIds)
+    if (profilesError) throw profilesError
+    profilesMap = (profiles || []).reduce((acc, profile: any) => {
+      acc[profile.id] = { name: profile.name }
+      return acc
+    }, {} as Record<string, { name: string | null }>)
+  }
+
+  const recentOrders: RecentOrder[] = orders.map((order: any) => ({
+    id: order.id,
+    total: Number(order.total || 0),
+    status: order.status,
+    created_at: order.created_at,
+    user_id: order.user_id || null,
+    customer_name: order.user_id ? profilesMap[order.user_id]?.name ?? null : null,
+  }))
+
+  return { orders: recentOrders }
 }
 
 export {
@@ -278,6 +400,7 @@ export {
   getSalesOverview,
   getSalesByCategory,
   getGrowthRate,
+  getRecentOrders,
 }
 
-export type { Range }
+export type { Range, GrowthMetric, RecentOrder }

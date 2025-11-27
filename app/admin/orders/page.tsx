@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Search, Filter, Download, Printer } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,71 +14,113 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { supabase } from '@/lib/supabase/client';
 
-const mockOrders = [
-  {
-    id: '#1024',
-    customer: 'John Doe',
-    email: 'john@example.com',
-    amount: '$124.50',
-    items: 2,
-    orderStatus: 'delivered',
-    paymentStatus: 'paid',
-    date: '2024-01-15',
-  },
-  {
-    id: '#1023',
-    customer: 'Jane Smith',
-    email: 'jane@example.com',
-    amount: '$89.99',
-    items: 1,
-    orderStatus: 'shipped',
-    paymentStatus: 'paid',
-    date: '2024-01-14',
-  },
-  {
-    id: '#1022',
-    customer: 'Bob Johnson',
-    email: 'bob@example.com',
-    amount: '$245.00',
-    items: 3,
-    orderStatus: 'processing',
-    paymentStatus: 'paid',
-    date: '2024-01-14',
-  },
-  {
-    id: '#1021',
-    customer: 'Alice Williams',
-    email: 'alice@example.com',
-    amount: '$156.75',
-    items: 2,
-    orderStatus: 'pending',
-    paymentStatus: 'pending',
-    date: '2024-01-13',
-  },
-];
+interface Order {
+  id: string;
+  orderId: string;
+  customer: string;
+  email: string;
+  amount: string;
+  items: number;
+  orderStatus: string;
+  paymentStatus: string;
+  date: string;
+}
 
 export default function OrdersPage() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [orderStatus, setOrderStatus] = useState('all');
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const filteredOrders = mockOrders.filter(
-    (order) =>
-      (searchTerm === '' ||
-        order.id.includes(searchTerm) ||
-        order.customer.toLowerCase().includes(searchTerm.toLowerCase())) &&
-      (orderStatus === 'all' || order.orderStatus === orderStatus)
-  );
+  // Debounce search term
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchTerm]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    
+    async function fetchOrders() {
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        const params = new URLSearchParams();
+        if (debouncedSearchTerm) params.append('search', debouncedSearchTerm);
+        if (orderStatus !== 'all') params.append('status', orderStatus);
+
+        const res = await fetch(`/api/admin/orders?${params.toString()}`, {
+          method: 'GET',
+          credentials: 'include',
+          signal: controller.signal,
+          headers: session?.access_token
+            ? {
+                Authorization: `Bearer ${session.access_token}`,
+              }
+            : undefined,
+        });
+
+        if (!res.ok) {
+          const payload = await res.json().catch(() => ({}));
+          throw new Error(payload.error || 'Failed to load orders');
+        }
+
+        const payload = await res.json();
+        setOrders(payload.data || []);
+      } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          return;
+        }
+        console.error('Failed to load orders', err);
+        setError(err instanceof Error ? err.message : 'Failed to load orders');
+        setOrders([]);
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    fetchOrders();
+
+    return () => controller.abort();
+  }, [debouncedSearchTerm, orderStatus]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
+      case 'completed':
+        return 'default';
       case 'delivered':
         return 'default';
       case 'shipped':
         return 'secondary';
       case 'processing':
         return 'outline';
+      case 'paid':
+        return 'secondary';
       case 'pending':
+        return 'destructive';
+      case 'cancelled':
         return 'destructive';
       default:
         return 'default';
@@ -120,9 +162,11 @@ export default function OrdersPage() {
               <SelectContent>
                 <SelectItem value="all">All Orders</SelectItem>
                 <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="paid">Paid</SelectItem>
                 <SelectItem value="processing">Processing</SelectItem>
                 <SelectItem value="shipped">Shipped</SelectItem>
-                <SelectItem value="delivered">Delivered</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
               </SelectContent>
             </Select>
             <Button variant="outline" className="gap-2">
@@ -130,6 +174,13 @@ export default function OrdersPage() {
               Export
             </Button>
           </div>
+
+          {/* Error Message */}
+          {error && (
+            <div className="mb-4 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+              <p className="text-sm text-destructive">{error}</p>
+            </div>
+          )}
 
           {/* Table */}
           <div className="border rounded-lg overflow-x-auto">
@@ -146,30 +197,55 @@ export default function OrdersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredOrders.map((order) => (
-                  <TableRow key={order.id}>
-                    <TableCell className="font-medium cursor-pointer hover:text-primary">{order.id}</TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium">{order.customer}</p>
-                        <p className="text-xs text-muted-foreground">{order.email}</p>
-                      </div>
+                {isLoading ? (
+                  Array.from({ length: 5 }).map((_, idx) => (
+                    <TableRow key={`loading-${idx}`} className="animate-pulse">
+                      <TableCell><div className="h-4 bg-muted rounded w-20" /></TableCell>
+                      <TableCell>
+                        <div className="space-y-2">
+                          <div className="h-4 bg-muted rounded w-24" />
+                          <div className="h-3 bg-muted rounded w-32" />
+                        </div>
+                      </TableCell>
+                      <TableCell><div className="h-4 bg-muted rounded w-8" /></TableCell>
+                      <TableCell><div className="h-4 bg-muted rounded w-16" /></TableCell>
+                      <TableCell><div className="h-4 bg-muted rounded w-20" /></TableCell>
+                      <TableCell><div className="h-4 bg-muted rounded w-16" /></TableCell>
+                      <TableCell><div className="h-4 bg-muted rounded w-24" /></TableCell>
+                    </TableRow>
+                  ))
+                ) : orders.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">
+                      No orders found.
                     </TableCell>
-                    <TableCell>{order.items}</TableCell>
-                    <TableCell className="font-medium">{order.amount}</TableCell>
-                    <TableCell>
-                      <Badge variant={getStatusColor(order.orderStatus)}>
-                        {order.orderStatus}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={getPaymentStatusColor(order.paymentStatus)}>
-                        {order.paymentStatus}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{order.date}</TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  orders.map((order) => (
+                    <TableRow key={order.orderId}>
+                      <TableCell className="font-medium cursor-pointer hover:text-primary">{order.id}</TableCell>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium">{order.customer}</p>
+                          <p className="text-xs text-muted-foreground">{order.email}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell>{order.items}</TableCell>
+                      <TableCell className="font-medium">{order.amount}</TableCell>
+                      <TableCell>
+                        <Badge variant={getStatusColor(order.orderStatus)}>
+                          {order.orderStatus}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={getPaymentStatusColor(order.paymentStatus)}>
+                          {order.paymentStatus}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{order.date}</TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
@@ -177,11 +253,11 @@ export default function OrdersPage() {
           {/* Pagination */}
           <div className="flex items-center justify-between mt-6">
             <p className="text-sm text-muted-foreground">
-              Showing {filteredOrders.length} of {mockOrders.length} orders
+              Showing {orders.length} order{orders.length !== 1 ? 's' : ''}
             </p>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm">Previous</Button>
-              <Button variant="outline" size="sm">Next</Button>
+              <Button variant="outline" size="sm" disabled>Previous</Button>
+              <Button variant="outline" size="sm" disabled>Next</Button>
             </div>
           </div>
         </CardContent>

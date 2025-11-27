@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Search, Plus } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,23 +14,126 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { supabase } from '@/lib/supabase/client';
 
-const mockInventory = [
-  { id: 1, product: 'Wireless Headphones', sku: 'WH-001', current: 45, reserved: 5, available: 40, status: 'in_stock', lastUpdate: '2 hours ago' },
-  { id: 2, product: 'USB-C Cable', sku: 'USB-002', current: 5, reserved: 2, available: 3, status: 'low_stock', lastUpdate: '1 hour ago' },
-  { id: 3, product: 'Phone Stand', sku: 'PS-003', current: 0, reserved: 0, available: 0, status: 'out_stock', lastUpdate: '4 hours ago' },
-  { id: 4, product: 'Laptop Bag', sku: 'LB-004', current: 120, reserved: 15, available: 105, status: 'in_stock', lastUpdate: '30 min ago' },
-];
+interface InventoryItem {
+  id: string;
+  product: string;
+  sku: string;
+  current: number;
+  reserved: number;
+  available: number;
+  status: 'in_stock' | 'low_stock' | 'out_stock';
+  lastUpdate: string;
+}
 
 export default function InventoryPage() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const filteredInventory = mockInventory.filter(
+  // Debounce search term
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchTerm]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    
+    async function fetchInventory() {
+      setIsLoading(true);
+      setError(null);
+      
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        const params = new URLSearchParams();
+        if (debouncedSearchTerm) params.append('search', debouncedSearchTerm);
+
+        const res = await fetch(`/api/admin/products?${params.toString()}`, {
+          method: 'GET',
+          credentials: 'include',
+          signal: controller.signal,
+          headers: session?.access_token
+            ? {
+                Authorization: `Bearer ${session.access_token}`,
+              }
+            : undefined,
+        });
+
+        if (!res.ok) {
+          const payload = await res.json().catch(() => ({}));
+          throw new Error(payload.error || 'Failed to load inventory');
+        }
+
+        const payload = await res.json();
+        const products = payload.data || [];
+        
+        // Transform products to inventory items
+        const inventoryItems: InventoryItem[] = products.map((product: any) => {
+          const stock = product.stock || 0;
+          let status: 'in_stock' | 'low_stock' | 'out_stock' = 'in_stock';
+          if (stock === 0) {
+            status = 'out_stock';
+          } else if (stock <= 10) {
+            status = 'low_stock';
+          }
+          
+          // For now, reserved is 0 (can be calculated from cart/orders later)
+          const reserved = 0;
+          const available = Math.max(0, stock - reserved);
+          
+          return {
+            id: product.id,
+            product: product.name,
+            sku: product.sku,
+            current: stock,
+            reserved,
+            available,
+            status,
+            lastUpdate: 'Recently', // Can be enhanced with actual updated_at
+          };
+        });
+        
+        setInventory(inventoryItems);
+      } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          return;
+        }
+        console.error('Failed to load inventory', err);
+        setError(err instanceof Error ? err.message : 'Failed to load inventory');
+        setInventory([]);
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    fetchInventory();
+
+    return () => controller.abort();
+  }, [debouncedSearchTerm, statusFilter]);
+
+  const filteredInventory = inventory.filter(
     (item) =>
-      (searchTerm === '' ||
-        item.product.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.sku.toLowerCase().includes(searchTerm.toLowerCase())) &&
       (statusFilter === 'all' || item.status === statusFilter)
   );
 
@@ -90,6 +193,13 @@ export default function InventoryPage() {
             </Select>
           </div>
 
+          {/* Error Message */}
+          {error && (
+            <div className="mb-4 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+              <p className="text-sm text-destructive">{error}</p>
+            </div>
+          )}
+
           {/* Table */}
           <div className="border rounded-lg overflow-x-auto">
             <Table>
@@ -105,21 +215,41 @@ export default function InventoryPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredInventory.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-medium">{item.product}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{item.sku}</TableCell>
-                    <TableCell>{item.current}</TableCell>
-                    <TableCell>{item.reserved}</TableCell>
-                    <TableCell className="font-medium">{item.available}</TableCell>
-                    <TableCell>
-                      <Badge variant={getStatusColor(item.status)}>
-                        {item.status.replace('_', ' ')}
-                      </Badge>
+                {isLoading ? (
+                  Array.from({ length: 5 }).map((_, idx) => (
+                    <TableRow key={`loading-${idx}`} className="animate-pulse">
+                      <TableCell><div className="h-4 bg-muted rounded w-32" /></TableCell>
+                      <TableCell><div className="h-4 bg-muted rounded w-20" /></TableCell>
+                      <TableCell><div className="h-4 bg-muted rounded w-12" /></TableCell>
+                      <TableCell><div className="h-4 bg-muted rounded w-12" /></TableCell>
+                      <TableCell><div className="h-4 bg-muted rounded w-12" /></TableCell>
+                      <TableCell><div className="h-4 bg-muted rounded w-16" /></TableCell>
+                      <TableCell><div className="h-4 bg-muted rounded w-20" /></TableCell>
+                    </TableRow>
+                  ))
+                ) : filteredInventory.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">
+                      No inventory items found.
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{item.lastUpdate}</TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  filteredInventory.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell className="font-medium">{item.product}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{item.sku}</TableCell>
+                      <TableCell>{item.current}</TableCell>
+                      <TableCell>{item.reserved}</TableCell>
+                      <TableCell className="font-medium">{item.available}</TableCell>
+                      <TableCell>
+                        <Badge variant={getStatusColor(item.status)}>
+                          {item.status.replace('_', ' ')}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{item.lastUpdate}</TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
