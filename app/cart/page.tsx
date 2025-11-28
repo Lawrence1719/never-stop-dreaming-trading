@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
@@ -8,13 +9,65 @@ import { CartSummary } from "@/components/ecommerce/cart-summary";
 import { useCart } from "@/lib/context/cart-context";
 import { Product } from "@/lib/types";
 import { ShoppingCart } from 'lucide-react';
+import { supabase } from '@/lib/supabase/client';
 
 export default function CartPage() {
   const { cart } = useCart();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
 
-  // TODO: Replace with actual API call to fetch products from Supabase
-  // const { data: products } = await supabase.from('products').select('*').in('id', cart.items.map(i => i.productId));
-  const products: Product[] = [];
+  // Fetch product data from Supabase
+  useEffect(() => {
+    const fetchProducts = async () => {
+      if (cart.items.length === 0) {
+        setIsLoadingProducts(false);
+        return;
+      }
+
+      try {
+        const productIds = cart.items.map((item) => item.productId);
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .in('id', productIds);
+
+        if (error) throw error;
+
+        if (data) {
+          // Map DB rows to frontend Product shape
+          const mapped = data.map((row: any) => ({
+            id: row.id,
+            name: row.name,
+            slug: row.slug || row.id,
+            description: row.description || '',
+            price: Number(row.price) || 0,
+            compareAtPrice: row.compare_at_price ? Number(row.compare_at_price) : undefined,
+            images: row.image_url ? [row.image_url] : [],
+            category: row.category || '',
+            stock: row.stock ?? 999, // Use actual stock, fallback to 999 if not set
+            sku: row.sku || '',
+            rating: row.rating ?? 0,
+            reviewCount: row.review_count ?? 0,
+            featured: row.featured ?? false,
+            specifications: row.specifications || {},
+            iot: row.iot || undefined,
+            reorder_threshold: row.reorder_threshold ?? undefined,
+            updated_at: row.updated_at ?? undefined,
+            is_active: row.is_active ?? undefined,
+          })) as Product[];
+
+          setProducts(mapped);
+        }
+      } catch (err) {
+        console.warn('Failed to fetch products from Supabase for cart', err);
+        // Continue with empty products array, will use synthesized products
+      } finally {
+        setIsLoadingProducts(false);
+      }
+    };
+
+    fetchProducts();
+  }, [cart.items]);
 
   // Build product objects for cart display. If we have full product data (from
   // a fetched products list) use that, otherwise synthesize a minimal Product
@@ -33,7 +86,7 @@ export default function CartPage() {
       compareAtPrice: undefined,
       images: item.image ? [item.image] : ["/placeholder.svg"],
       category: "",
-      stock: item.quantity,
+      stock: 999, // Set high default to allow quantity increases (fallback if product not found in DB)
       sku: "",
       rating: 0,
       reviewCount: 0,

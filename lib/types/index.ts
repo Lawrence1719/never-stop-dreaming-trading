@@ -77,6 +77,7 @@ export interface Order {
   total: number;
   shippingAddress: Address;
   paymentMethod: string;
+  shippingMethod?: string;
   trackingNumber?: string;
 }
 

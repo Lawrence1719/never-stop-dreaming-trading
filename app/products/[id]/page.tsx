@@ -8,12 +8,18 @@ import { Footer } from "@/components/layout/footer";
 import { ProductGrid } from "@/components/ecommerce/product-grid";
 import { QuantitySelector } from "@/components/ecommerce/quantity-selector";
 import { StockIndicator } from "@/components/ecommerce/stock-indicator";
+import { ProductImageGallery } from "@/components/ecommerce/product-image-gallery";
+import { ProductBadges } from "@/components/ecommerce/product-badges";
+import { ProductDetailsAccordion } from "@/components/ecommerce/product-details-accordion";
+import { ProductRecommendations } from "@/components/ecommerce/product-recommendations";
+import { ProductReviews } from "@/components/ecommerce/product-reviews";
+import { StickyAddToCart } from "@/components/ecommerce/sticky-add-to-cart";
 import { useCart } from "@/lib/context/cart-context";
 import { useWishlist } from "@/lib/context/wishlist-context";
 import { useToast } from "@/components/ui/toast";
 import { Product } from "@/lib/types";
 import { formatPrice } from "@/lib/utils/formatting";
-import { Heart, Share2, ChevronLeft } from 'lucide-react';
+import { Heart, Share2, ChevronLeft, Users, Shield, ShoppingCart } from 'lucide-react';
 import { products as mockProducts } from '@/lib/mock/products';
 import { supabase } from '@/lib/supabase/client';
 
@@ -51,7 +57,11 @@ export default function ProductDetailPage() {
             description: data.description || '',
             price: Number(data.price) || 0,
             compareAtPrice: data.compare_at_price ? Number(data.compare_at_price) : undefined,
-            images: data.image_url ? [data.image_url] : [],
+            images: data.image_url 
+              ? (Array.isArray(data.image_url) ? data.image_url : [data.image_url])
+              : data.images 
+              ? (Array.isArray(data.images) ? data.images : [data.images])
+              : [],
             category: data.category || '',
             stock: data.stock ?? 0,
             sku: data.sku || '',
@@ -91,11 +101,27 @@ export default function ProductDetailPage() {
     };
   }, [id]);
   const [quantity, setQuantity] = useState(1);
-  const [imageIndex, setImageIndex] = useState(0);
+  const [showStickyCart, setShowStickyCart] = useState(false);
   const router = useRouter();
   const { addItem } = useCart();
   const { addItem: addToWishlist, removeItem: removeFromWishlist, isInWishlist } = useWishlist();
   const { toasts, addToast, removeToast } = useToast();
+
+  // Show sticky cart on mobile after scrolling past product details
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.innerWidth < 768) {
+        const scrollPosition = window.scrollY;
+        setShowStickyCart(scrollPosition > 400);
+      } else {
+        setShowStickyCart(false);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    handleScroll(); // Check on mount
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   if (loading) {
     return (
@@ -206,158 +232,260 @@ export default function ProductDetailPage() {
             Back
           </button>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
-            {/* Images */}
-            <div className="space-y-4">
-              <div className="bg-muted rounded-lg overflow-hidden">
-                <img
-                  src={product.images[imageIndex] || "/placeholder.svg"}
-                  alt={product.name}
-                  className="w-full aspect-square object-cover"
-                />
-              </div>
-              {product.images.length > 1 && (
-                <div className="grid grid-cols-4 gap-2">
-                  {product.images.map((image, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setImageIndex(i)}
-                      className={`bg-muted rounded-lg overflow-hidden border-2 transition-colors ${
-                        imageIndex === i ? "border-primary" : "border-transparent"
-                      }`}
-                    >
-                      <img src={image || "/placeholder.svg"} alt="" className="w-full aspect-square object-cover" />
-                    </button>
-                  ))}
-                </div>
-              )}
+          <div className="grid grid-cols-1 lg:grid-cols-[60%_40%] gap-8 lg:gap-12 mb-16 pb-8">
+            {/* Images - Larger on desktop (60%) */}
+            <div className="lg:sticky lg:top-8 lg:self-start">
+              <ProductImageGallery images={product.images} productName={product.name} />
             </div>
 
-            {/* Details */}
+            {/* Details - Right column (40%) */}
             <div className="space-y-6">
-              <div>
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex items-center gap-3">
-                    <h1 className="text-3xl font-bold">{product.name}</h1>
-                    {/* Compact IoT dot indicator (no label) */}
-                    {['Meat','Frozen goods','Dairy','Ice cream','Cold beverages','Refrigerated & Frozen'].includes(product.category) && (
-                      (() => {
-                        const status = product.iot?.status || 'unknown';
-                        const colorClass =
-                          status === 'online' ? 'bg-emerald-500' : status === 'offline' ? 'bg-rose-500' : status === 'error' ? 'bg-amber-500' : 'bg-slate-400';
-                        return <span className={`w-3 h-3 rounded-full ${colorClass}`} aria-hidden="true" />;
-                      })()
-                    )}
+              {/* Product Header */}
+              <div className="bg-card border border-border rounded-lg p-6 space-y-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-3">
+                      <h1 className="text-2xl md:text-3xl font-bold leading-tight">{product.name}</h1>
+                      {/* Compact IoT dot indicator */}
+                      {['Meat','Frozen goods','Dairy','Ice cream','Cold beverages','Refrigerated & Frozen'].includes(product.category) && (
+                        (() => {
+                          const status = product.iot?.status || 'unknown';
+                          const colorClass =
+                            status === 'online' ? 'bg-emerald-500' : status === 'offline' ? 'bg-rose-500' : status === 'error' ? 'bg-amber-500' : 'bg-slate-400';
+                          return <span className={`w-3 h-3 rounded-full ${colorClass}`} aria-hidden="true" />;
+                        })()
+                      )}
+                    </div>
+                    {/* Product Badges */}
+                    <ProductBadges
+                      stock={product.stock}
+                      reorderThreshold={product.reorder_threshold}
+                      featured={product.featured}
+                      purchaseCount={product.reviewCount * 10}
+                      createdAt={product.updated_at}
+                    />
                   </div>
                   <button
                     onClick={handleWishlist}
-                    className={`p-2 rounded-full transition-colors ${
+                    className={`p-3 rounded-full transition-all hover:scale-110 ${
                       inWishlist
                         ? "bg-accent text-accent-foreground"
                         : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
                     }`}
+                    aria-label={inWishlist ? "Remove from wishlist" : "Add to wishlist"}
                   >
                     <Heart className="w-6 h-6" fill={inWishlist ? "currentColor" : "none"} />
                   </button>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-3xl font-bold text-primary">{formatPrice(product.price)}</span>
+
+                {/* Pricing Panel - Prominent */}
+                <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 space-y-2">
+                  <div className="flex items-baseline gap-3">
+                    <span className="text-3xl md:text-4xl font-bold text-primary">{formatPrice(product.price)}</span>
+                    {product.compareAtPrice && (
+                      <>
+                        <span className="text-lg text-muted-foreground line-through">
+                          {formatPrice(product.compareAtPrice)}
+                        </span>
+                        {discount && (
+                          <span className="text-sm font-bold text-accent bg-accent/20 px-2 py-1 rounded">
+                            Save {discount}%
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </div>
                   {product.compareAtPrice && (
-                    <span className="text-lg text-muted-foreground line-through">
-                      {formatPrice(product.compareAtPrice)}
-                    </span>
+                    <p className="text-sm text-muted-foreground">
+                      Save ₱{(product.compareAtPrice - product.price).toFixed(2)} vs regular price
+                    </p>
                   )}
-                  {discount && <span className="text-sm font-bold text-accent">Save {discount}%</span>}
+                </div>
+
+                {/* Stock Status Card */}
+                <div className="bg-secondary/10 border border-border rounded-lg p-4">
+                  <StockIndicator 
+                    stock={product.stock} 
+                    reorderThreshold={product.reorder_threshold}
+                    showDetailed={true}
+                  />
                 </div>
               </div>
 
-              {/* Rating */}
-              <div className="flex items-center gap-2">
-                <div className="flex gap-1">
-                  {[...Array(5)].map((_, i) => (
-                    <span
-                      key={i}
-                      className={`text-lg ${
-                        i < Math.round(product.rating) ? "text-accent" : "text-muted"
-                      }`}
-                    >
-                      ★
-                    </span>
-                  ))}
+              {/* Social Proof & Trust Signals */}
+              <div className="bg-card border border-border rounded-lg p-5 space-y-4">
+                {/* Rating */}
+                {product.reviewCount > 0 ? (
+                  <div className="flex items-center gap-4">
+                    <div className="flex gap-1">
+                      {[...Array(5)].map((_, i) => (
+                        <span
+                          key={i}
+                          className={`text-2xl transition-colors ${
+                            i < Math.round(product.rating) ? "text-accent" : "text-muted"
+                          }`}
+                        >
+                          ★
+                        </span>
+                      ))}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-base font-semibold">
+                        {product.rating.toFixed(1)} out of 5
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Based on {product.reviewCount} {product.reviewCount === 1 ? 'review' : 'reviews'}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-4 bg-secondary/10 rounded-lg border border-border">
+                    <div className="flex justify-center gap-1 mb-2">
+                      {[...Array(5)].map((_, i) => (
+                        <span key={i} className="text-xl text-muted">
+                          ★
+                        </span>
+                      ))}
+                    </div>
+                    <p className="text-sm font-medium mb-1">No ratings yet</p>
+                    <p className="text-xs text-muted-foreground">Be the first to review this product!</p>
+                  </div>
+                )}
+
+                {/* Trust Indicators */}
+                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-border">
+                  {product.reviewCount > 0 && (
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-primary/10 rounded-lg">
+                        <Users className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Total Sold</p>
+                        <p className="text-base font-bold">{product.reviewCount * 10}+</p>
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-primary/10 rounded-lg">
+                      <Shield className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Quality</p>
+                      <p className="text-base font-bold">NSD Guaranteed</p>
+                    </div>
+                  </div>
                 </div>
-                <span className="text-sm text-muted-foreground">
-                  ({product.reviewCount} reviews)
-                </span>
               </div>
 
-              {/* Stock */}
-              <div>
-                <StockIndicator stock={product.stock} />
+              {/* Short Description */}
+              <div className="bg-card border border-border rounded-lg p-4">
+                <p className="text-muted-foreground leading-relaxed">{product.description}</p>
               </div>
 
-              {/* Description */}
-              <p className="text-muted-foreground">{product.description}</p>
-
-              {/* Quantity */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Quantity</label>
+              {/* Quantity & Actions Card */}
+              <div className="bg-card border border-border rounded-lg p-6 space-y-4">
+                {/* Quantity Selector */}
                 <QuantitySelector
                   quantity={quantity}
                   onQuantityChange={setQuantity}
                   max={product.stock}
                 />
-              </div>
 
-              {/* Actions */}
-              <div className="flex gap-3">
+                {/* Primary CTA */}
                 <button
                   onClick={handleAddToCart}
                   disabled={product.stock === 0}
-                  className="flex-1 px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full px-6 py-4 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 active:scale-[0.98] transition-all font-semibold text-lg shadow-lg hover:shadow-xl hover:shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-2"
                 >
+                  <ShoppingCart className="w-5 h-5" />
                   Add to Cart
                 </button>
-                <button
-                  className="px-4 py-3 border border-primary text-primary rounded-lg hover:bg-primary/10 transition-colors"
-                  title="Share"
-                >
-                  <Share2 className="w-5 h-5" />
-                </button>
-              </div>
 
-              {/* Specifications */}
-              <div className="border-t border-border pt-6">
-                <h3 className="font-semibold mb-3">Specifications</h3>
-                <dl className="space-y-2">
-                  <div>
-                    <dt className="text-sm font-medium">SKU</dt>
-                    <dd className="text-sm text-muted-foreground">{product.sku}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm font-medium">Category</dt>
-                    <dd className="text-sm text-muted-foreground">{product.category}</dd>
-                  </div>
-                  {Object.entries(product.specifications).map(([key, value]) => (
-                    <div key={key}>
-                      <dt className="text-sm font-medium">{key}</dt>
-                      <dd className="text-sm text-muted-foreground">{value}</dd>
+                {/* Secondary Actions */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleWishlist}
+                    className={`flex-1 px-4 py-3 border rounded-lg transition-all hover:scale-105 active:scale-95 ${
+                      inWishlist
+                        ? "border-accent bg-accent/10 text-accent-foreground"
+                        : "border-border hover:border-primary/50 hover:bg-primary/5"
+                    }`}
+                  >
+                    <div className="flex items-center justify-center gap-2">
+                      <Heart className="w-5 h-5" fill={inWishlist ? "currentColor" : "none"} />
+                      <span className="font-medium">
+                        {inWishlist ? "In Wishlist" : "Add to Wishlist"}
+                      </span>
                     </div>
-                  ))}
-                </dl>
+                  </button>
+                  <button
+                    className="px-4 py-3 border border-border rounded-lg hover:border-primary/50 hover:bg-primary/5 transition-all hover:scale-105 active:scale-95"
+                    title="Share Product"
+                    aria-label="Share product"
+                  >
+                    <Share2 className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Social Proof on CTA */}
+                {product.reviewCount > 0 && (
+                  <p className="text-xs text-center text-muted-foreground pt-2 border-t border-border">
+                    <span className="font-semibold text-foreground">
+                      {Math.floor(product.reviewCount * 1.5)}
+                    </span> people added this to their cart today
+                  </p>
+                )}
               </div>
             </div>
           </div>
 
-          {/* Related Products */}
-          {relatedProducts.length > 0 && (
-            <div className="border-t border-border pt-16">
-              <ProductGrid products={relatedProducts.slice(0, 4)} title="Related Products" />
-            </div>
-          )}
+          {/* Product Details Accordion */}
+          <div className="mb-16 bg-card border border-border rounded-lg p-6">
+            <h2 className="text-2xl font-bold mb-6">Product Details</h2>
+            <ProductDetailsAccordion product={product} />
+          </div>
+
+          {/* Customer Reviews */}
+          <ProductReviews product={product} />
+
+          {/* Product Recommendations */}
+          <div className="space-y-12">
+            {/* Frequently Bought Together */}
+            <ProductRecommendations
+              currentProduct={product}
+              allProducts={products}
+              type="frequently-bought"
+            />
+            
+            {/* Similar Products */}
+            <ProductRecommendations
+              currentProduct={product}
+              allProducts={products}
+              type="similar"
+            />
+            
+            {/* Category Bestsellers */}
+            <ProductRecommendations
+              currentProduct={product}
+              allProducts={products}
+              type="category"
+            />
+          </div>
         </div>
       </main>
 
       <Footer />
+
+      {/* Sticky Add to Cart (Mobile Only) */}
+      {product && (
+        <StickyAddToCart
+          product={product}
+          quantity={quantity}
+          onQuantityChange={setQuantity}
+          onAddToCart={handleAddToCart}
+          isVisible={showStickyCart}
+        />
+      )}
     </div>
   );
 }

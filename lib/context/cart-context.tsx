@@ -48,6 +48,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const price = product?.price || 0;
     const image = product?.images?.[0] || "";
 
+    // Capture current user value to avoid stale closure
+    const currentUser = user;
+
     setCart((prev) => {
       const existingItem = prev.items.find((i) => i.productId === productId);
       let newItems: CartItem[];
@@ -65,14 +68,51 @@ export function CartProvider({ children }: { children: ReactNode }) {
         }];
       }
       const newCart = { items: newItems, total: calculateTotal(newItems) };
+      
+      // Sync with database if user is logged in
+      if (currentUser && migratedRef.current) {
+        const updatedItem = newItems.find((i) => i.productId === productId);
+        if (updatedItem) {
+          supabase
+            .from('cart')
+            .upsert(
+              { user_id: currentUser.id, product_id: productId, quantity: updatedItem.quantity },
+              { onConflict: 'user_id,product_id' }
+            )
+            .then(({ error }) => {
+              if (error) {
+                console.error('Error syncing cart item to database', error);
+              }
+            });
+        }
+      }
+      
       return newCart;
     });
   };
 
   const removeItem = (productId: string) => {
+    // Capture current user value to avoid stale closure
+    const currentUser = user;
+    
     setCart((prev) => {
       const newItems = prev.items.filter((i) => i.productId !== productId);
       const newCart = { items: newItems, total: calculateTotal(newItems) };
+      
+      // Sync with database if user is logged in
+      if (currentUser && migratedRef.current) {
+        supabase
+          .from('cart')
+          .delete()
+          .eq('user_id', currentUser.id)
+          .eq('product_id', productId)
+          .then(({ error }) => {
+            if (error) {
+              console.error('Error removing cart item from database', error);
+            }
+          });
+      }
+      
       return newCart;
     });
   };
@@ -82,18 +122,73 @@ export function CartProvider({ children }: { children: ReactNode }) {
       removeItem(productId);
       return;
     }
+    
+    // Capture current user value to avoid stale closure
+    const currentUser = user;
+    
     setCart((prev) => {
-      const newItems = prev.items.map((i) =>
-        i.productId === productId ? { ...i, quantity } : i
-      );
+      // Check if item exists
+      const existingItem = prev.items.find((i) => i.productId === productId);
+      
+      let newItems: CartItem[];
+      if (existingItem) {
+        // Update existing item
+        newItems = prev.items.map((i) =>
+          i.productId === productId ? { ...i, quantity } : i
+        );
+      } else {
+        // Item doesn't exist, this shouldn't happen in cart page but handle gracefully
+        // Try to find product details
+        const product = products.find((p) => p.id === productId);
+        newItems = [...prev.items, {
+          productId,
+          name: product?.name || "",
+          price: product?.price || 0,
+          quantity,
+          image: product?.images?.[0] || "",
+        }];
+      }
+      
       const newCart = { items: newItems, total: calculateTotal(newItems) };
+      
+      // Sync with database if user is logged in
+      if (currentUser && migratedRef.current) {
+        supabase
+          .from('cart')
+          .upsert(
+            { user_id: currentUser.id, product_id: productId, quantity },
+            { onConflict: 'user_id,product_id' }
+          )
+          .then(({ error }) => {
+            if (error) {
+              console.error('Error updating cart quantity in database', error);
+            }
+          });
+      }
+      
       return newCart;
     });
   };
 
   const clearCart = () => {
+    // Capture current user value to avoid stale closure
+    const currentUser = user;
+    
     const newCart = { items: [], total: 0 };
     setCart(newCart);
+    
+    // Sync with database if user is logged in
+    if (currentUser && migratedRef.current) {
+      supabase
+        .from('cart')
+        .delete()
+        .eq('user_id', currentUser.id)
+        .then(({ error }) => {
+          if (error) {
+            console.error('Error clearing cart from database', error);
+          }
+        });
+    }
   };
 
   // When a guest user with items logs in, migrate their in-memory cart to DB

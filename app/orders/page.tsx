@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
@@ -7,6 +8,7 @@ import { useAuth } from "@/lib/context/auth-context";
 import { formatPrice, formatDate } from "@/lib/utils/formatting";
 import { Order } from "@/lib/types";
 import { ChevronRight, Eye } from 'lucide-react';
+import { supabase } from "@/lib/supabase/client";
 
 const statusColors = {
   pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
@@ -18,10 +20,58 @@ const statusColors = {
 
 export default function OrdersPage() {
   const { user } = useAuth();
-  
-  // TODO: Replace with actual API call to fetch user orders from Supabase
-  // const { data: orders } = await supabase.from('orders').select('*').eq('user_id', user.id);
-  const mockOrders: Order[] = [];
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch user orders
+  useEffect(() => {
+    const fetchOrders = async () => {
+      if (!user) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        // Get session token
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session) {
+          setError('Please log in to view your orders');
+          setIsLoading(false);
+          return;
+        }
+
+        // Fetch orders using API endpoint
+        const response = await fetch('/api/orders', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || 'Failed to fetch orders');
+        }
+
+        const { data } = await response.json();
+        setOrders(data || []);
+      } catch (err) {
+        console.error('Failed to fetch orders', err);
+        setError(err instanceof Error ? err.message : 'Failed to load orders');
+        setOrders([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchOrders();
+  }, [user]);
 
   if (!user) {
     return (
@@ -51,7 +101,21 @@ export default function OrdersPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <h1 className="text-3xl font-bold mb-8">My Orders</h1>
 
-          {mockOrders.length === 0 ? (
+          {isLoading ? (
+            <div className="text-center py-16">
+              <p className="text-muted-foreground">Loading your orders...</p>
+            </div>
+          ) : error ? (
+            <div className="text-center py-16">
+              <p className="text-destructive mb-4">{error}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="inline-block px-8 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-semibold"
+              >
+                Try Again
+              </button>
+            </div>
+          ) : orders.length === 0 ? (
             <div className="text-center py-16">
               <p className="text-muted-foreground mb-4">You haven't placed any orders yet.</p>
               <Link
@@ -63,7 +127,7 @@ export default function OrdersPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {mockOrders.map((order) => (
+              {orders.map((order) => (
                 <div
                   key={order.id}
                   className="bg-card border border-border rounded-lg p-6 hover:border-primary/50 transition-colors"

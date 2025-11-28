@@ -13,7 +13,21 @@ import { useToast } from "@/components/ui/toast";
 import { useSettings } from "@/lib/hooks/use-settings";
 import { Product } from "@/lib/types";
 import { supabase } from "@/lib/supabase/client";
-import { validateEmail, validatePhoneNumber, validateZipCode } from "@/lib/utils/validation";
+import { 
+  validateEmail, 
+  validatePhoneNumber, 
+  validateZipCode,
+  validateStreetAddress,
+  validateCity,
+  validateProvince,
+  validateFullName,
+  validateZipCodeForLocation
+} from "@/lib/utils/validation";
+import { 
+  getProvinces, 
+  getCitiesByProvince, 
+  getZipCodesForCity 
+} from "@/lib/data/philippines-addresses";
 import { ChevronLeft } from 'lucide-react';
 
 export default function CheckoutPage() {
@@ -49,6 +63,9 @@ export default function CheckoutPage() {
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [provinces] = useState<string[]>(getProvinces());
+  const [availableCities, setAvailableCities] = useState<string[]>([]);
 
   const [addresses, setAddresses] = useState<any[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
@@ -143,21 +160,73 @@ export default function CheckoutPage() {
     );
   }
 
+  // Real-time validation for individual fields
+  const validateField = (name: string, value: string) => {
+    let error = "";
+
+    switch (name) {
+      case "fullName":
+        const nameValidation = validateFullName(value);
+        if (!nameValidation.valid) {
+          error = nameValidation.error || "Full name is required";
+        }
+        break;
+      case "email":
+        if (!value.trim()) {
+          error = "Email is required";
+        } else if (!validateEmail(value)) {
+          error = "Please enter a valid email address";
+        }
+        break;
+      case "phone":
+        if (!value.trim()) {
+          error = "Phone number is required";
+        } else if (!validatePhoneNumber(value)) {
+          error = "Please enter a valid Philippine phone number (e.g., 0912 345 6789)";
+        }
+        break;
+      case "street":
+        const streetValidation = validateStreetAddress(value);
+        if (!streetValidation.valid) {
+          error = streetValidation.error || "Street address is required";
+        }
+        break;
+      case "city":
+        const cityValidation = validateCity(value);
+        if (!cityValidation.valid) {
+          error = cityValidation.error || "City is required";
+        }
+        break;
+      case "province":
+        const provinceValidation = validateProvince(value);
+        if (!provinceValidation.valid) {
+          error = provinceValidation.error || "Province is required";
+        }
+        break;
+      case "zip":
+        const zipValidation = validateZipCodeForLocation(value, formData.city, formData.province);
+        if (!zipValidation.valid) {
+          error = zipValidation.error || "Valid zip code is required";
+        }
+        break;
+    }
+
+    setErrors((prev) => ({ ...prev, [name]: error }));
+    return !error;
+  };
+
   const validateStep = () => {
     const newErrors: Record<string, string> = {};
 
     if (step === 0) {
-      if (!formData.fullName.trim()) newErrors.fullName = "Full name required";
-      if (!validateEmail(formData.email)) newErrors.email = "Valid email required";
-      if (!formData.phone.trim()) {
-        newErrors.phone = "Phone number is required";
-      } else if (!validatePhoneNumber(formData.phone)) {
-        newErrors.phone = "Please enter a valid Philippine phone number (e.g., 0912 345 6789)";
-      }
-      if (!formData.street.trim()) newErrors.street = "Street address required";
-      if (!formData.city.trim()) newErrors.city = "City required";
-      if (!formData.province.trim()) newErrors.province = "Province required";
-      if (!validateZipCode(formData.zip)) newErrors.zip = "Valid zip code required";
+      // Validate all shipping fields
+      const fields = ["fullName", "email", "phone", "street", "city", "province", "zip"];
+      fields.forEach((field) => {
+        const value = formData[field as keyof typeof formData] as string;
+        validateField(field, value);
+        const error = errors[field] || "";
+        if (error) newErrors[field] = error;
+      });
     } else if (step === 1) {
       if (formData.paymentMethod === "card") {
         if (formData.cardNumber.replace(/\s/g, "").length !== 16)
@@ -276,8 +345,56 @@ export default function CheckoutPage() {
         }
       }
 
-      const orderId = "ord-" + Math.random().toString(36).substr(2, 9);
-      // TODO: Save order with shippingAddressId into orders table (server-side)
+      // Prepare order data
+      const subtotal = cart.total;
+      const shippingCost = calculateShippingCost();
+      const orderTotal = subtotal + shippingCost;
+
+      // Format cart items for database
+      const orderItems = cart.items.map((item) => ({
+        product_id: item.productId,
+        name: item.name || 'Product',
+        quantity: item.quantity,
+        price: item.price || 0,
+        image: item.image || '/placeholder.svg',
+      }));
+
+      // Format shipping address for database
+      const shippingAddressData = {
+        full_name: formData.fullName,
+        email: formData.email,
+        phone: formData.phone,
+        street_address: formData.street,
+        city: formData.city,
+        province: formData.province,
+        zip_code: formData.zip,
+        shipping_method: formData.shippingMethod, // Store shipping method
+      };
+
+      // Determine order status based on payment method
+      // For COD, status is 'pending', for card it's 'paid'
+      const orderStatus = formData.paymentMethod === 'cod' ? 'pending' : 'paid';
+
+      // Create order in database
+      const { data: createdOrder, error: orderError } = await supabase
+        .from('orders')
+        .insert({
+          user_id: user.id,
+          status: orderStatus,
+          total: orderTotal,
+          items: orderItems,
+          shipping_address: shippingAddressData,
+          payment_method: formData.paymentMethod,
+        })
+        .select()
+        .single();
+
+      if (orderError) {
+        console.error('Failed to create order', orderError);
+        throw new Error('Failed to create order. Please try again.');
+      }
+
+      const orderId = createdOrder.id;
       clearCart();
       addToast("Order placed successfully", "success");
       router.push(`/order-confirmation/${orderId}`);
@@ -288,11 +405,59 @@ export default function CheckoutPage() {
     }
   };
 
+  // Update available cities when province changes
+  useEffect(() => {
+    if (formData.province) {
+      const cities = getCitiesByProvince(formData.province);
+      setAvailableCities(cities.map(c => c.name));
+      
+      // If current city is not in the new province's cities, clear it
+      if (formData.city && !cities.some(c => c.name.toLowerCase() === formData.city.toLowerCase())) {
+        setFormData((prev) => ({ ...prev, city: "", zip: "" }));
+      }
+    } else {
+      setAvailableCities([]);
+    }
+  }, [formData.province]);
+
+  // Update zip code suggestions when city changes
+  useEffect(() => {
+    if (formData.city && formData.province && formData.zip) {
+      validateField("zip", formData.zip);
+    }
+  }, [formData.city, formData.province]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    
+    // Mark field as touched
+    setTouched((prev) => ({ ...prev, [name]: true }));
+    
+    // Clear error when user starts typing
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
+    }
+    
+    // Real-time validation for shipping fields (debounced for text inputs)
+    if (step === 0 && ["fullName", "email", "phone", "street", "city", "province", "zip"].includes(name)) {
+      // Immediate validation for zip, phone, and selects
+      if (name === "zip" || name === "phone" || name === "province" || name === "city") {
+        validateField(name, value);
+      } else {
+        // Debounced validation for text fields
+        setTimeout(() => {
+          validateField(name, value);
+        }, 500);
+      }
+    }
+  };
+
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setTouched((prev) => ({ ...prev, [name]: true }));
+    if (step === 0 && ["fullName", "email", "phone", "street", "city", "province", "zip"].includes(name)) {
+      validateField(name, value);
     }
   };
 
@@ -379,17 +544,23 @@ export default function CheckoutPage() {
                     )}
 
                     <div>
-                      <label className="block text-sm font-medium mb-1">Full Name</label>
+                      <label className="block text-sm font-medium mb-1">
+                        Full Name <span className="text-destructive">*</span>
+                      </label>
                       <input
                         type="text"
                         name="fullName"
                         value={formData.fullName}
                         onChange={handleInputChange}
+                        onBlur={handleBlur}
+                        placeholder="Juan Dela Cruz"
                         className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${
-                          errors.fullName ? "border-destructive" : "border-border"
+                          errors.fullName && touched.fullName ? "border-destructive" : "border-border"
                         }`}
                       />
-                      {errors.fullName && <p className="text-xs text-destructive mt-1">{errors.fullName}</p>}
+                      {errors.fullName && touched.fullName && (
+                        <p className="text-xs text-destructive mt-1">{errors.fullName}</p>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
@@ -408,76 +579,145 @@ export default function CheckoutPage() {
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium mb-1">Phone</label>
+                        <label className="block text-sm font-medium mb-1">
+                          Phone <span className="text-destructive">*</span>
+                        </label>
                         <input
                           type="tel"
                           name="phone"
                           value={formData.phone}
                           onChange={handleInputChange}
+                          onBlur={handleBlur}
                           placeholder="0912 345 6789"
                           className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${
-                            errors.phone ? "border-destructive" : "border-border"
+                            errors.phone && touched.phone ? "border-destructive" : "border-border"
                           }`}
                         />
-                        {errors.phone && <p className="text-xs text-destructive mt-1">{errors.phone}</p>}
+                        {errors.phone && touched.phone && (
+                          <p className="text-xs text-destructive mt-1">{errors.phone}</p>
+                        )}
+                        {!errors.phone && touched.phone && formData.phone && (
+                          <p className="text-xs text-muted-foreground mt-1">✓ Valid Philippine phone number</p>
+                        )}
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium mb-1">Street Address</label>
+                      <label className="block text-sm font-medium mb-1">
+                        Street Address <span className="text-destructive">*</span>
+                      </label>
                       <input
                         type="text"
                         name="street"
                         value={formData.street}
                         onChange={handleInputChange}
+                        onBlur={handleBlur}
+                        placeholder="e.g., 123 Main Street, Barangay Name"
                         className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${
-                          errors.street ? "border-destructive" : "border-border"
+                          errors.street && touched.street ? "border-destructive" : "border-border"
                         }`}
                       />
-                      {errors.street && <p className="text-xs text-destructive mt-1">{errors.street}</p>}
+                      {errors.street && touched.street && (
+                        <p className="text-xs text-destructive mt-1">{errors.street}</p>
+                      )}
+                      {!errors.street && touched.street && (
+                        <p className="text-xs text-muted-foreground mt-1">✓ Valid address format</p>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-3 gap-4">
                       <div>
-                        <label className="block text-sm font-medium mb-1">City</label>
-                        <input
-                          type="text"
-                          name="city"
-                          value={formData.city}
-                          onChange={handleInputChange}
-                          className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${
-                            errors.city ? "border-destructive" : "border-border"
-                          }`}
-                        />
-                        {errors.city && <p className="text-xs text-destructive mt-1">{errors.city}</p>}
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium mb-1">Province</label>
-                        <input
-                          type="text"
+                        <label className="block text-sm font-medium mb-1">
+                          Province <span className="text-destructive">*</span>
+                        </label>
+                        <select
                           name="province"
                           value={formData.province}
                           onChange={handleInputChange}
+                          onBlur={handleBlur}
                           className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${
-                            errors.province ? "border-destructive" : "border-border"
+                            errors.province && touched.province ? "border-destructive" : "border-border"
                           }`}
-                        />
-                        {errors.province && <p className="text-xs text-destructive mt-1">{errors.province}</p>}
+                        >
+                          <option value="">Select Province</option>
+                          {provinces.map((prov) => (
+                            <option key={prov} value={prov}>
+                              {prov}
+                            </option>
+                          ))}
+                        </select>
+                        {errors.province && touched.province && (
+                          <p className="text-xs text-destructive mt-1">{errors.province}</p>
+                        )}
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium mb-1">Zip Code</label>
+                        <label className="block text-sm font-medium mb-1">
+                          City <span className="text-destructive">*</span>
+                        </label>
+                        {formData.province ? (
+                          <select
+                            name="city"
+                            value={formData.city}
+                            onChange={handleInputChange}
+                            onBlur={handleBlur}
+                            disabled={!formData.province}
+                            className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${
+                              errors.city && touched.city ? "border-destructive" : "border-border"
+                            } ${!formData.province ? "opacity-50 cursor-not-allowed" : ""}`}
+                          >
+                            <option value="">Select City</option>
+                            {availableCities.map((city) => (
+                              <option key={city} value={city}>
+                                {city}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type="text"
+                            name="city"
+                            value={formData.city}
+                            onChange={handleInputChange}
+                            onBlur={handleBlur}
+                            placeholder="Select province first"
+                            disabled
+                            className="w-full px-4 py-2 bg-input border border-border rounded-md opacity-50 cursor-not-allowed"
+                          />
+                        )}
+                        {errors.city && touched.city && (
+                          <p className="text-xs text-destructive mt-1">{errors.city}</p>
+                        )}
+                        {formData.city && formData.province && !errors.city && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Valid zip codes: {getZipCodesForCity(formData.city, formData.province).slice(0, 3).join(", ")}
+                            {getZipCodesForCity(formData.city, formData.province).length > 3 && "..."}
+                          </p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium mb-1">
+                          Zip Code <span className="text-destructive">*</span>
+                        </label>
                         <input
                           type="text"
                           name="zip"
                           value={formData.zip}
                           onChange={handleInputChange}
+                          onBlur={handleBlur}
+                          placeholder="1630"
+                          maxLength={4}
                           className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${
-                            errors.zip ? "border-destructive" : "border-border"
+                            errors.zip && touched.zip ? "border-destructive" : "border-border"
                           }`}
                         />
-                        {errors.zip && <p className="text-xs text-destructive mt-1">{errors.zip}</p>}
+                        {errors.zip && touched.zip && (
+                          <p className="text-xs text-destructive mt-1">{errors.zip}</p>
+                        )}
+                        {!errors.zip && touched.zip && formData.zip && (
+                          <p className="text-xs text-muted-foreground mt-1">✓ Valid zip code</p>
+                        )}
                       </div>
                     </div>
 
@@ -643,13 +883,28 @@ export default function CheckoutPage() {
                       </div>
                     </div>
 
-                    <div>
+                    <div className="border border-border rounded-lg p-4 bg-secondary/10">
                       <h3 className="font-semibold mb-3">Shipping Address</h3>
-                      <p className="text-sm text-muted-foreground">
-                        {formData.fullName}<br />
-                        {formData.street}<br />
-                        {formData.city}, {formData.province} {formData.zip}
-                      </p>
+                      <div className="space-y-1 text-sm">
+                        <p className="font-medium">{formData.fullName}</p>
+                        <p className="text-muted-foreground">{formData.street}</p>
+                        <p className="text-muted-foreground">
+                          {formData.city}, {formData.province} {formData.zip}
+                        </p>
+                        <p className="text-muted-foreground mt-2">
+                          <span className="font-medium">Phone:</span> {formData.phone}
+                        </p>
+                        <p className="text-muted-foreground">
+                          <span className="font-medium">Email:</span> {formData.email}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setStep(0)}
+                        className="mt-3 text-sm text-primary hover:underline"
+                      >
+                        Edit Address
+                      </button>
                     </div>
 
                     <div>
