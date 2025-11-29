@@ -95,3 +95,4 @@ function isProductNew(createdAt: string): boolean {
   return createdDate >= thirtyDaysAgo;
 }
 
+

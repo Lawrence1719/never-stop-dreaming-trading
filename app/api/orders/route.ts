@@ -34,10 +34,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Fetch orders for this user
+    // Fetch orders for this user with shipping address via JOIN
     const { data: ordersData, error } = await supabaseClient
       .from('orders')
-      .select('*')
+      .select(`
+        *,
+        shipping_address:addresses!shipping_address_id(*)
+      `)
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
 
@@ -51,8 +54,15 @@ export async function GET(request: NextRequest) {
       // Parse items from JSONB
       const items = Array.isArray(row.items) ? row.items : [];
       
-      // Parse shipping address from JSONB
-      const shippingAddressData = row.shipping_address || {};
+      // Get shipping address from JOINed addresses table or fallback to JSONB (for legacy data)
+      const addressRecord = row.shipping_address && typeof row.shipping_address === 'object' && !Array.isArray(row.shipping_address)
+        ? row.shipping_address
+        : null;
+      
+      // Fallback: Try to parse from JSONB column if JOIN didn't return data (legacy orders)
+      const shippingAddressData = addressRecord || 
+        (typeof row.shipping_address === 'string' ? JSON.parse(row.shipping_address) : row.shipping_address) || 
+        {};
       
       // Calculate subtotal from items
       const subtotal = items.reduce((sum: number, item: any) => {
@@ -77,20 +87,21 @@ export async function GET(request: NextRequest) {
         image: item.image || item.image_url || '/placeholder.svg',
       }));
 
-      // Map shipping address to Address format
+      // Map shipping address to Address format (from normalized addresses table or legacy JSONB)
       const shippingAddress = {
-        id: '',
+        id: addressRecord?.id || '',
         label: 'Shipping Address',
-        fullName: shippingAddressData.full_name || shippingAddressData.fullName || '',
-        phone: shippingAddressData.phone || '',
-        street: shippingAddressData.street_address || shippingAddressData.street || shippingAddressData.line1 || '',
-        city: shippingAddressData.city || '',
-        province: shippingAddressData.province || '',
-        zip: shippingAddressData.zip_code || shippingAddressData.zip || shippingAddressData.postal || '',
-        default: false,
+        fullName: addressRecord?.full_name || shippingAddressData.full_name || shippingAddressData.fullName || '',
+        phone: addressRecord?.phone || shippingAddressData.phone || '',
+        street: addressRecord?.street_address || shippingAddressData.street_address || shippingAddressData.street || shippingAddressData.line1 || '',
+        city: addressRecord?.city || shippingAddressData.city || '',
+        province: addressRecord?.province || shippingAddressData.province || '',
+        zip: addressRecord?.zip_code || shippingAddressData.zip_code || shippingAddressData.zip || shippingAddressData.postal || '',
+        default: addressRecord?.is_default || false,
       };
 
-      // Extract shipping method from shipping address data
+      // Extract shipping method (stored separately, not in address table)
+      // For now, default to standard. This could be stored in orders table in future
       const shippingMethod = shippingAddressData.shipping_method || 'standard';
       const shippingMethodDisplay = shippingMethod === 'express' 
         ? 'Express Shipping (2-3 business days)'

@@ -216,3 +216,4 @@ const validateField = (name: string, value: string) => {
 - Validation is designed to be strict enough to prevent invalid addresses while remaining user-friendly
 - Server-side validation provides security layer - never trust client-side validation alone
 
+

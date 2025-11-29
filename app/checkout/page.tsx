@@ -71,6 +71,7 @@ export default function CheckoutPage() {
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [saveAsDefault, setSaveAsDefault] = useState(true);
   const [isSavingAddress, setIsSavingAddress] = useState(false);
+  const [isProcessingOrder, setIsProcessingOrder] = useState(false);
 
   const steps = ["Shipping", "Payment", "Review"];
 
@@ -292,6 +293,14 @@ export default function CheckoutPage() {
     setStep(step - 1);
   };
 
+  // Generate unique idempotency key for this order attempt
+  const generateIdempotencyKey = () => {
+    if (!user) return null;
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substring(2, 15);
+    return `${user.id}-${timestamp}-${random}`;
+  };
+
   const handleSubmit = async () => {
     if (!user) {
       addToast("Please sign in to complete the purchase", "info");
@@ -305,13 +314,27 @@ export default function CheckoutPage() {
       return;
     }
 
+    // Prevent double-submission
+    if (isProcessingOrder) {
+      addToast("Order is already being processed. Please wait...", "info");
+      return;
+    }
+
+    // Generate idempotency key
+    const idempotencyKey = generateIdempotencyKey();
+    if (!idempotencyKey) {
+      addToast("Unable to generate order key. Please try again.", "error");
+      return;
+    }
+
+    setIsProcessingOrder(true);
+
     try {
       let shippingAddressId: string | null = selectedAddressId;
 
       if (user) {
-        // If user chose to save as default or didn't select an existing address,
-        // create a new address record and mark it default if requested.
-        if (!shippingAddressId || saveAsDefault) {
+        // If user didn't select an existing address, create a new address record
+        if (!shippingAddressId) {
           setIsSavingAddress(true);
 
           // If saving as default, unset existing defaults first
@@ -333,6 +356,7 @@ export default function CheckoutPage() {
               city: formData.city,
               province: formData.province,
               zip_code: formData.zip,
+              address_type: 'shipping',
               is_default: saveAsDefault,
             })
             .select()
@@ -340,7 +364,10 @@ export default function CheckoutPage() {
 
           setIsSavingAddress(false);
 
-          if (createErr) throw createErr;
+          if (createErr) {
+            console.error('Failed to create address', createErr);
+            throw new Error('Failed to create address. Please try again.');
+          }
           shippingAddressId = created.id;
         }
       }
@@ -359,49 +386,60 @@ export default function CheckoutPage() {
         image: item.image || '/placeholder.svg',
       }));
 
-      // Format shipping address for database
-      const shippingAddressData = {
-        full_name: formData.fullName,
-        email: formData.email,
-        phone: formData.phone,
-        street_address: formData.street,
-        city: formData.city,
-        province: formData.province,
-        zip_code: formData.zip,
-        shipping_method: formData.shippingMethod, // Store shipping method
-      };
+      // Ensure we have a shipping_address_id
+      if (!shippingAddressId) {
+        throw new Error('Shipping address ID is required');
+      }
 
       // Determine order status based on payment method
       // For COD, status is 'pending', for card it's 'paid'
       const orderStatus = formData.paymentMethod === 'cod' ? 'pending' : 'paid';
 
-      // Create order in database
-      const { data: createdOrder, error: orderError } = await supabase
-        .from('orders')
-        .insert({
+      // Create order via API endpoint with idempotency key
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('Session expired. Please log in again.');
+      }
+
+      const response = await fetch('/api/orders/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+          'Idempotency-Key': idempotencyKey,
+        },
+        body: JSON.stringify({
           user_id: user.id,
           status: orderStatus,
           total: orderTotal,
           items: orderItems,
-          shipping_address: shippingAddressData,
+          shipping_address_id: shippingAddressId,
           payment_method: formData.paymentMethod,
-        })
-        .select()
-        .single();
+        }),
+      });
 
-      if (orderError) {
-        console.error('Failed to create order', orderError);
-        throw new Error('Failed to create order. Please try again.');
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to create order. Please try again.');
       }
 
-      const orderId = createdOrder.id;
+      // Check if this was a duplicate (idempotency returned existing order)
+      if (result.duplicate) {
+        addToast("Order already processed. Redirecting to confirmation...", "info");
+      } else {
+        addToast("Order placed successfully", "success");
+      }
+
+      const orderId = result.data.id;
       clearCart();
-      addToast("Order placed successfully", "success");
       router.push(`/order-confirmation/${orderId}`);
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error('Failed to create address/order', err);
-      addToast('Failed to save address. Please try again.', 'error');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to save address. Please try again.';
+      addToast(errorMessage, 'error');
+      setIsProcessingOrder(false); // Re-enable button on error
     }
   };
 
@@ -947,9 +985,24 @@ export default function CheckoutPage() {
                   ) : (
                     <button
                       onClick={handleSubmit}
-                      className="flex-1 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+                      disabled={isProcessingOrder}
+                      className={`flex-1 px-6 py-2 rounded-lg transition-colors font-medium ${
+                        isProcessingOrder
+                          ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                          : 'bg-green-600 text-white hover:bg-green-700'
+                      }`}
                     >
-                      Place Order
+                      {isProcessingOrder ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Processing Order...
+                        </span>
+                      ) : (
+                        'Place Order'
+                      )}
                     </button>
                   )}
                 </div>
@@ -968,6 +1021,29 @@ export default function CheckoutPage() {
       </main>
 
       <Footer />
+
+      {/* Loading Overlay - Prevents interaction during order processing */}
+      {isProcessingOrder && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="bg-card border border-border rounded-lg p-8 max-w-md mx-4 text-center">
+            <div className="flex flex-col items-center gap-4">
+              <svg className="animate-spin h-12 w-12 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Processing Your Order</h3>
+                <p className="text-sm text-muted-foreground">
+                  Please do not close or refresh this page.
+                </p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  This may take a few seconds...
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

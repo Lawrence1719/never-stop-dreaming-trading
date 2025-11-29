@@ -209,3 +209,4 @@ Include food-specific details in the `specifications` JSONB:
 - Review section is ready for future integration
 - All enhancements maintain accessibility standards
 
+

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Search, Filter, Download, Printer } from 'lucide-react';
+import { Search, Filter, Download, Printer, MoreVertical, Eye, Mail, FileText, X } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { StatusBadge } from '@/components/admin/status-badge';
 import { supabase } from '@/lib/supabase/client';
 
 interface Order {
@@ -35,6 +42,8 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
+  const [revenue, setRevenue] = useState({ total: 0, pending: 0, avg: 0 });
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Debounce search term
@@ -65,6 +74,67 @@ export default function OrdersPage() {
           data: { session },
         } = await supabase.auth.getSession();
 
+        // Fetch ALL orders first to calculate counts (without status filter)
+        const allOrdersParams = new URLSearchParams();
+        if (debouncedSearchTerm) allOrdersParams.append('search', debouncedSearchTerm);
+        // Don't add status filter here - we want all orders for counts
+
+        const allOrdersRes = await fetch(`/api/admin/orders?${allOrdersParams.toString()}`, {
+          method: 'GET',
+          credentials: 'include',
+          signal: controller.signal,
+          headers: session?.access_token
+            ? {
+                Authorization: `Bearer ${session.access_token}`,
+              }
+            : undefined,
+        });
+
+        if (!allOrdersRes.ok) {
+          const payload = await allOrdersRes.json().catch(() => ({}));
+          throw new Error(payload.error || 'Failed to load orders');
+        }
+
+        const allOrdersPayload = await allOrdersRes.json();
+        const allOrdersData = allOrdersPayload.data || [];
+        
+        // Calculate status counts from ALL orders
+        const counts: Record<string, number> = {
+          all: allOrdersData.length,
+          pending: 0,
+          paid: 0,
+          processing: 0,
+          shipped: 0,
+          delivered: 0,
+          cancelled: 0,
+          duplicate: 0,
+        };
+        
+        let totalRevenue = 0;
+        let pendingRevenue = 0;
+        
+        allOrdersData.forEach((order: Order) => {
+          const status = order.orderStatus.toLowerCase();
+          if (counts[status] !== undefined) {
+            counts[status]++;
+          }
+          
+          // Calculate revenue
+          const amount = parseFloat(order.amount.replace('₱', '').replace(',', ''));
+          totalRevenue += amount;
+          if (order.paymentStatus === 'pending') {
+            pendingRevenue += amount;
+          }
+        });
+        
+        setStatusCounts(counts);
+        setRevenue({
+          total: totalRevenue,
+          pending: pendingRevenue,
+          avg: allOrdersData.length > 0 ? totalRevenue / allOrdersData.length : 0,
+        });
+
+        // Now fetch filtered orders for display
         const params = new URLSearchParams();
         if (debouncedSearchTerm) params.append('search', debouncedSearchTerm);
         if (orderStatus !== 'all') params.append('status', orderStatus);
@@ -86,7 +156,8 @@ export default function OrdersPage() {
         }
 
         const payload = await res.json();
-        setOrders(payload.data || []);
+        const ordersData = payload.data || [];
+        setOrders(ordersData);
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') {
           return;
@@ -106,36 +177,62 @@ export default function OrdersPage() {
     return () => controller.abort();
   }, [debouncedSearchTerm, orderStatus]);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'default';
-      case 'delivered':
-        return 'default';
-      case 'shipped':
-        return 'secondary';
-      case 'processing':
-        return 'outline';
-      case 'paid':
-        return 'secondary';
-      case 'pending':
-        return 'destructive';
-      case 'cancelled':
-        return 'destructive';
-      default:
-        return 'default';
-    }
-  };
-
   const getPaymentStatusColor = (status: string) => {
     return status === 'paid' ? 'default' : 'destructive';
   };
+  
+  const formatCurrency = (amount: number) => {
+    return `₱${amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+  };
+
+  const statusFilters = [
+    { value: 'all', label: 'All' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'paid', label: 'Paid' },
+    { value: 'processing', label: 'Processing' },
+    { value: 'shipped', label: 'Shipped' },
+    { value: 'delivered', label: 'Delivered' },
+    { value: 'cancelled', label: 'Cancelled' },
+    { value: 'duplicate', label: 'Duplicate' },
+  ];
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Orders</h1>
         <p className="text-muted-foreground mt-1">Manage and track all customer orders</p>
+      </div>
+
+      {/* Revenue Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-sm font-medium text-muted-foreground">Total Orders</div>
+            <div className="text-2xl font-bold mt-1">{statusCounts.all || 0}</div>
+            <div className="text-xs text-muted-foreground mt-1">orders</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-sm font-medium text-muted-foreground">Total Revenue</div>
+            <div className="text-2xl font-bold mt-1">{formatCurrency(revenue.total)}</div>
+            <div className="text-xs text-muted-foreground mt-1">all time</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-sm font-medium text-muted-foreground">Avg Order Value</div>
+            <div className="text-2xl font-bold mt-1">{formatCurrency(revenue.avg)}</div>
+            <div className="text-xs text-muted-foreground mt-1">per order</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-sm font-medium text-muted-foreground">Pending Payment</div>
+            <div className="text-2xl font-bold mt-1 text-yellow-600 dark:text-yellow-400">{formatCurrency(revenue.pending)}</div>
+            <div className="text-xs text-muted-foreground mt-1">{statusCounts.pending || 0} orders</div>
+          </CardContent>
+        </Card>
       </div>
 
       <Card>
@@ -145,34 +242,69 @@ export default function OrdersPage() {
         </CardHeader>
         <CardContent>
           {/* Filters */}
-          <div className="flex flex-col md:flex-row gap-3 mb-6">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by order # or customer..."
-                className="pl-10"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+          <div className="flex flex-col gap-4 mb-6">
+            <div className="flex flex-col md:flex-row gap-3">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by order # or customer..."
+                  className="pl-10"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <Select value={orderStatus} onValueChange={setOrderStatus}>
+                <SelectTrigger className="w-full md:w-40">
+                  <SelectValue placeholder="Order Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  {statusFilters.map((filter) => (
+                    <SelectItem key={filter.value} value={filter.value}>
+                      {filter.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="gap-2">
+                    <Download className="h-4 w-4" />
+                    Export
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem>Export All as CSV</DropdownMenuItem>
+                  <DropdownMenuItem>Export Pending as CSV</DropdownMenuItem>
+                  <DropdownMenuItem>Export Shipped as CSV</DropdownMenuItem>
+                  <DropdownMenuItem>Export by Date Range</DropdownMenuItem>
+                  <DropdownMenuItem>Export for Accounting</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
-            <Select value={orderStatus} onValueChange={setOrderStatus}>
-              <SelectTrigger className="w-full md:w-40">
-                <SelectValue placeholder="Order Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Orders</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="paid">Paid</SelectItem>
-                <SelectItem value="processing">Processing</SelectItem>
-                <SelectItem value="shipped">Shipped</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="cancelled">Cancelled</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button variant="outline" className="gap-2">
-              <Download className="h-4 w-4" />
-              Export
-            </Button>
+            
+            {/* Quick Filter Buttons */}
+            <div className="flex flex-wrap gap-2">
+              {statusFilters.map((filter) => {
+                const count = statusCounts[filter.value] || 0;
+                const isActive = orderStatus === filter.value;
+                return (
+                  <Button
+                    key={filter.value}
+                    variant={isActive ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setOrderStatus(filter.value)}
+                    className="h-8"
+                  >
+                    {filter.label}
+                    {count > 0 && (
+                      <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-xs">
+                        {count}
+                      </Badge>
+                    )}
+                  </Button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Error Message */}
@@ -194,6 +326,7 @@ export default function OrdersPage() {
                   <TableHead>Order Status</TableHead>
                   <TableHead>Payment</TableHead>
                   <TableHead>Date</TableHead>
+                  <TableHead className="w-[50px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -222,27 +355,87 @@ export default function OrdersPage() {
                   </TableRow>
                 ) : (
                   orders.map((order) => (
-                    <TableRow key={order.orderId}>
-                      <TableCell className="font-medium cursor-pointer hover:text-primary">{order.id}</TableCell>
-                      <TableCell>
+                    <TableRow 
+                      key={order.orderId}
+                      className="hover:bg-muted/50"
+                    >
+                      <TableCell 
+                        className="font-medium cursor-pointer hover:text-primary"
+                        onClick={() => window.location.href = `/admin/orders/${order.orderId}`}
+                      >
+                        {order.id}
+                      </TableCell>
+                      <TableCell
+                        className="cursor-pointer"
+                        onClick={() => window.location.href = `/admin/orders/${order.orderId}`}
+                      >
                         <div>
                           <p className="font-medium">{order.customer}</p>
                           <p className="text-xs text-muted-foreground">{order.email}</p>
                         </div>
                       </TableCell>
-                      <TableCell>{order.items}</TableCell>
-                      <TableCell className="font-medium">{order.amount}</TableCell>
-                      <TableCell>
-                        <Badge variant={getStatusColor(order.orderStatus)}>
-                          {order.orderStatus}
-                        </Badge>
+                      <TableCell
+                        className="cursor-pointer"
+                        onClick={() => window.location.href = `/admin/orders/${order.orderId}`}
+                      >
+                        {order.items}
                       </TableCell>
-                      <TableCell>
+                      <TableCell 
+                        className="font-medium cursor-pointer"
+                        onClick={() => window.location.href = `/admin/orders/${order.orderId}`}
+                      >
+                        {order.amount}
+                      </TableCell>
+                      <TableCell
+                        className="cursor-pointer"
+                        onClick={() => window.location.href = `/admin/orders/${order.orderId}`}
+                      >
+                        <StatusBadge status={order.orderStatus} />
+                      </TableCell>
+                      <TableCell
+                        className="cursor-pointer"
+                        onClick={() => window.location.href = `/admin/orders/${order.orderId}`}
+                      >
                         <Badge variant={getPaymentStatusColor(order.paymentStatus)}>
                           {order.paymentStatus}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{order.date}</TableCell>
+                      <TableCell 
+                        className="text-sm text-muted-foreground cursor-pointer"
+                        onClick={() => window.location.href = `/admin/orders/${order.orderId}`}
+                      >
+                        {order.date}
+                      </TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => window.location.href = `/admin/orders/${order.orderId}`}>
+                              <Eye className="mr-2 h-4 w-4" />
+                              View Details
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => window.location.href = `/admin/orders/${order.orderId}`}>
+                              Update Status
+                            </DropdownMenuItem>
+                            <DropdownMenuItem>
+                              <Mail className="mr-2 h-4 w-4" />
+                              Send Email
+                            </DropdownMenuItem>
+                            <DropdownMenuItem>
+                              <FileText className="mr-2 h-4 w-4" />
+                              Print Label
+                            </DropdownMenuItem>
+                            <DropdownMenuItem className="text-red-600 dark:text-red-400">
+                              <X className="mr-2 h-4 w-4" />
+                              Cancel Order
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -254,6 +447,7 @@ export default function OrdersPage() {
           <div className="flex items-center justify-between mt-6">
             <p className="text-sm text-muted-foreground">
               Showing {orders.length} order{orders.length !== 1 ? 's' : ''}
+              {orderStatus !== 'all' && ` (filtered by ${statusFilters.find(f => f.value === orderStatus)?.label})`}
             </p>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" disabled>Previous</Button>
