@@ -204,3 +204,5 @@ END $$;
 -- DO NOT remove shipping_address column - it contains historical data
 -- You can archive it later if needed, but keep it for now
 
+
+

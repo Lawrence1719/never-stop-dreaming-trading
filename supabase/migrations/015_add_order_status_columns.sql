@@ -30,3 +30,5 @@ COMMENT ON COLUMN public.orders.delivered_at IS 'Timestamp when order was delive
 COMMENT ON COLUMN public.orders.tracking_number IS 'Courier tracking number for shipped orders';
 COMMENT ON COLUMN public.orders.courier IS 'Shipping courier/provider name (2GO, LBC, Lalamove, etc)';
 
+
+

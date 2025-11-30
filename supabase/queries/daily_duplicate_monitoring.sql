@@ -51,3 +51,5 @@ FROM recent_duplicates;
 
 -- If duplicate_count > 0, send alert
 
+
+

@@ -210,3 +210,5 @@ Include food-specific details in the `specifications` JSONB:
 - All enhancements maintain accessibility standards
 
 
+
+

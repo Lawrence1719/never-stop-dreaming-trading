@@ -215,3 +215,5 @@
 - `shipping_address` column is preserved for historical reference
 - Foreign key constraints ensure data integrity going forward
 
+
+

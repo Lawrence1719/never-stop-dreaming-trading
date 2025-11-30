@@ -18,3 +18,5 @@ CREATE INDEX IF NOT EXISTS idx_orders_billing_address_id ON public.orders (billi
 -- Note: We will make shipping_address_id NOT NULL after data migration
 -- This is done in the data migration script (011_migrate_shipping_addresses.sql)
 
+
+
