@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, DollarSign, ShoppingCart, Users, TrendingUp } from 'lucide-react';
+import { useEffect, useMemo, useState, useRef } from 'react';
+import { ArrowDown, ArrowUp, DollarSign, ShoppingCart, Users, TrendingUp, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -70,12 +70,11 @@ export default function AdminDashboard() {
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const previousDateRangeRef = useRef<DashboardRange>('week');
 
   useEffect(() => {
     const controller = new AbortController();
     async function loadDashboard() {
-      setIsLoading(true);
-      setError(null);
       try {
         const {
           data: { session },
@@ -93,22 +92,47 @@ export default function AdminDashboard() {
         });
         if (!res.ok) {
           const payload = await res.json().catch(() => ({}));
-          throw new Error(payload.error || 'Failed to load dashboard data');
+          const errorMessage = 
+            payload.error || 
+            payload.message || 
+            `HTTP ${res.status}: ${res.statusText}` ||
+            'Failed to load dashboard data';
+          
+          console.error('Dashboard API error:', {
+            status: res.status,
+            statusText: res.statusText,
+            message: errorMessage,
+            payload,
+          });
+          
+          throw new Error(errorMessage);
         }
         const payload: DashboardResponse = await res.json();
         setData(payload);
+        setError(null);
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') {
           return;
         }
-        console.error('Failed to load dashboard data', err);
-        setError(err instanceof Error ? err.message : 'Failed to load dashboard data');
+        const errorMessage = err instanceof Error ? err.message : 'Failed to load dashboard data';
+        console.error('Failed to load dashboard data:', {
+          error: err,
+          message: errorMessage,
+          stack: err instanceof Error ? err.stack : undefined,
+        });
+        setError(errorMessage);
         setData(null);
       } finally {
         if (!controller.signal.aborted) {
           setIsLoading(false);
+          previousDateRangeRef.current = dateRange;
         }
       }
+    }
+
+    // Only show loader if date range actually changed from the previous one
+    if (previousDateRangeRef.current !== dateRange) {
+      setIsLoading(true);
     }
 
     loadDashboard();
@@ -179,10 +203,18 @@ export default function AdminDashboard() {
             <Button
               key={range}
               variant={dateRange === range ? 'default' : 'outline'}
-              onClick={() => setDateRange(range)}
-            disabled={isLoading && dateRange === range}
+              onClick={() => setDateRange(range as DashboardRange)}
+              disabled={isLoading}
+              className="relative"
             >
-              {range.charAt(0).toUpperCase() + range.slice(1)}
+              {isLoading && dateRange === range ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Loading...
+                </>
+              ) : (
+                range.charAt(0).toUpperCase() + range.slice(1)
+              )}
             </Button>
           ))}
         </div>

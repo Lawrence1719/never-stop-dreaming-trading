@@ -121,17 +121,40 @@ export default function OrderDetailPage() {
       setIsLoading(true);
       setError(null);
 
-      const { data: { session } } = await supabase.auth.getSession();
+      // Safety timeout wrapper to avoid hanging during network issues
+      const withTimeout = async <T,>(p: Promise<T>, ms = 10000, msg = 'Request timed out') => {
+        return await new Promise<T>((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error(msg)), ms);
+          p.then((res) => {
+            clearTimeout(timer);
+            resolve(res);
+          }).catch((err) => {
+            clearTimeout(timer);
+            reject(err);
+          });
+        });
+      };
+
+      const { data: { session } } = await withTimeout(supabase.auth.getSession(), 10000, 'Auth session request timed out');
       if (!session) {
         setError('Please log in to view order details');
         return;
       }
 
-      const response = await fetch(`/api/admin/orders/${orderId}`, {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-      });
+      // Abortable fetch with timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      let response: Response;
+      try {
+        response = await fetch(`/api/admin/orders/${orderId}`, {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -167,7 +190,21 @@ export default function OrderDetailPage() {
     setIsUpdating(true);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      // Use same timeout wrapper for session
+      const withTimeout = async <T,>(p: Promise<T>, ms = 10000, msg = 'Request timed out') => {
+        return await new Promise<T>((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error(msg)), ms);
+          p.then((res) => {
+            clearTimeout(timer);
+            resolve(res);
+          }).catch((err) => {
+            clearTimeout(timer);
+            reject(err);
+          });
+        });
+      };
+
+      const { data: { session } } = await withTimeout(supabase.auth.getSession(), 10000, 'Auth session request timed out');
       if (!session) {
         throw new Error('Session expired');
       }
@@ -178,37 +215,54 @@ export default function OrderDetailPage() {
 
       console.log('Updating order status:', { orderId, newStatus });
 
-      const response = await fetch(`/api/admin/orders/${orderId}/status`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          status: newStatus,
-          tracking_number: trackingNumber.trim() || null,
-          courier: courier.trim() || null,
-          notes: notes.trim() || null,
-        }),
-      });
+      // Prepare request details and log them for debugging
+      const requestUrl = `/api/admin/orders/${orderId}`;
+      const requestBody = {
+        status: newStatus,
+        tracking_number: trackingNumber.trim() || null,
+        courier: courier.trim() || null,
+        notes: notes.trim() || null,
+      };
+      console.log('Order update request', { url: requestUrl, method: 'PUT', hasToken: !!session.access_token, body: requestBody });
 
-      let result: any = {};
-      const contentType = response.headers.get('content-type');
-      
+      // Abortable fetch with timeout to avoid hanging
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      let response: Response;
       try {
-        if (contentType && contentType.includes('application/json')) {
-          result = await response.json();
-        } else {
-          const text = await response.text();
-          result = { error: text || `HTTP ${response.status}: ${response.statusText}` };
+        response = await fetch(requestUrl, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify(requestBody),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
+      // Parse response robustly: try JSON first via clone(), then fallback to raw text
+      let result: any = {};
+      try {
+        // Try JSON via a clone (safer if the body has been consumed elsewhere)
+        result = await response.clone().json().catch(() => ({}));
+        if (!result || (Object.keys(result).length === 0)) {
+          const text = await response.clone().text().catch(() => '');
+          if (text) {
+            // Try to parse text as JSON if possible
+            try {
+              const parsed = JSON.parse(text);
+              result = parsed;
+            } catch {
+              result = { error: text };
+            }
+          }
         }
       } catch (e) {
-        // If parsing fails, create error object
-        const text = await response.text().catch(() => 'Unknown error');
-        result = { 
-          error: text || `HTTP ${response.status}: ${response.statusText}`,
-          details: e instanceof Error ? e.message : String(e)
-        };
+        const raw = await response.clone().text().catch(() => '');
+        result = { error: raw || `HTTP ${response.status}: ${response.statusText}`, details: e instanceof Error ? e.message : String(e) };
       }
 
       if (!response.ok) {
@@ -247,7 +301,13 @@ export default function OrderDetailPage() {
     } catch (err) {
       console.error('Failed to update status', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to update order status';
-      // Error is already shown via alert in the catch block above
+      setError(errorMessage);
+      // Also show a user-visible alert so admin sees the failure immediately
+      try {
+        // Avoid throwing if alert isn't available in testing environments
+        // eslint-disable-next-line no-alert
+        alert(`Failed to update order: ${errorMessage}`);
+      } catch {}
     } finally {
       setIsUpdating(false);
     }

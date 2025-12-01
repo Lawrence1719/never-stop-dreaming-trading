@@ -29,13 +29,17 @@ export async function PUT(
 
   try {
     const { orderId } = await params;
-    
+
     if (!orderId) {
       return NextResponse.json({ error: 'Order ID is required' }, { status: 400 });
     }
 
-    console.log('Status update request:', { orderId });
-    
+    // Log minimal debug info about incoming request for troubleshooting
+    const authHeader = request.headers.get('authorization') || '';
+    const hasToken = !!authHeader;
+    const tokenPreview = authHeader.startsWith('Bearer ') ? `${(authHeader.length - 7)} chars` : 'none';
+    console.log('[admin][orders][status] incoming request', { orderId, hasToken, tokenPreview });
+
     const supabaseAdmin = getClient();
     
     const {
@@ -64,6 +68,12 @@ export async function PUT(
 
     // Parse request body
     const body = await request.json();
+    // Log request body for debugging (non-sensitive)
+    try {
+      console.debug('[admin][orders][status] request body:', body);
+    } catch (e) {
+      console.debug('[admin][orders][status] request body: <unserializable>');
+    }
     const { status, tracking_number, courier, notes } = body;
 
     // Validate required fields
@@ -106,11 +116,7 @@ export async function PUT(
     }
 
     if (!currentOrder) {
-      console.error('Order not found:', {
-        orderId,
-        searchedOrders: orders?.length || 0,
-        ordersFound: orders
-      });
+      console.error('Order not found:', { orderId });
       return NextResponse.json({ 
         error: 'Order not found',
         details: `No order found with ID: ${orderId}. Please check the order ID and try again.`

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode, useRef } from "react";
 import { User, Profile } from "@/lib/types";
 import { supabase } from "@/lib/supabase/client";
 import type { Session } from "@supabase/supabase-js";
@@ -20,9 +20,23 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const profileFetchInProgressRef = useRef(false);
+  const cachedUserIdRef = useRef<string | null>(null);
 
   // Fetch user profile from Supabase
   const fetchUserProfile = async (session: Session) => {
+    // Skip if already fetching for this user
+    if (profileFetchInProgressRef.current && cachedUserIdRef.current === session.user.id) {
+      return;
+    }
+
+    // Skip if we already have this user's profile
+    if (user && cachedUserIdRef.current === session.user.id) {
+      return;
+    }
+
+    // mark loading and in-progress
+    profileFetchInProgressRef.current = true;
     setIsLoading(true);
     try {
       const { data: profile, error } = await supabase
@@ -57,6 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             role: (userMetadata.role as 'admin' | 'customer') || 'customer',
           };
           setUser(userData);
+          cachedUserIdRef.current = session.user.id;
           return;
         }
 
@@ -71,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             role: newProfile.role,
           };
           setUser(userData);
+          cachedUserIdRef.current = session.user.id;
           return;
         }
       }
@@ -88,6 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           role: (userMetadata.role as 'admin' | 'customer') || 'customer',
         };
         setUser(userData);
+        cachedUserIdRef.current = session.user.id;
         return;
       }
 
@@ -102,6 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           role: profile.role,
         };
         setUser(userData);
+        cachedUserIdRef.current = session.user.id;
       }
     } catch (error) {
       console.error("Error fetching user profile:", error);
@@ -116,7 +134,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role: (userMetadata.role as 'admin' | 'customer') || 'customer',
       };
       setUser(userData);
+      cachedUserIdRef.current = session.user.id;
     } finally {
+      profileFetchInProgressRef.current = false;
+      // done loading profile
       setIsLoading(false);
     }
   };
@@ -136,16 +157,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        // Set a minimal user immediately so the UI responds quickly,
-        // then fetch the full profile in the background to enrich the data.
-        setUser(buildUserFromSession(session));
-        fetchUserProfile(session).catch((err) => console.error('Error fetching profile on init', err));
-      } else {
+    (async () => {
+      try {
+        const result = await supabase.auth.getSession();
+        // Debug log: show whether session exists (don't log tokens)
+        console.debug('[auth] getSession result:', {
+          hasSession: !!result?.data?.session,
+        });
+
+        const { data: { session } } = result;
+        if (session) {
+          // Set a minimal user immediately so the UI responds quickly,
+          // then fetch the full profile in the background to enrich the data.
+          setUser(buildUserFromSession(session));
+          fetchUserProfile(session).catch((err) => console.error('Error fetching profile on init', err));
+        } else {
+          setIsLoading(false);
+        }
+      } catch (err) {
+        console.error('[auth] getSession failed:', err);
+        // Ensure we don't block the app UI if session retrieval fails
         setIsLoading(false);
       }
-    });
+    })();
 
     // Listen for auth changes
     const {
@@ -154,13 +188,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (event === 'SIGNED_OUT') {
         // Immediately clear user state on sign out
         setUser(null);
+        cachedUserIdRef.current = null;
+        profileFetchInProgressRef.current = false;
         setIsLoading(false);
       } else if (session) {
-        // Set minimal user quickly and fetch profile in background
-        setUser(buildUserFromSession(session));
-        fetchUserProfile(session).catch((err) => console.error('Error fetching profile on auth change', err));
+        // Only fetch profile if user ID changed (not on every tab focus)
+        if (cachedUserIdRef.current !== session.user.id) {
+          setUser(buildUserFromSession(session));
+          fetchUserProfile(session).catch((err) => console.error('Error fetching profile on auth change', err));
+        }
       } else {
         setUser(null);
+        cachedUserIdRef.current = null;
         setIsLoading(false);
       }
     });
