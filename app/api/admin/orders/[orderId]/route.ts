@@ -7,7 +7,7 @@ import { getClient } from '@/lib/supabase/admin';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ orderId: string }> }
+  context: { params: Promise<{ orderId: string }> }
 ) {
   const authHeader = request.headers.get('authorization') || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
@@ -17,7 +17,16 @@ export async function GET(
   }
 
   try {
-    const { orderId } = await params;
+    const { orderId } = await context.params;
+    
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized - No token provided' }, { status: 401 });
+    }
+
+    if (!orderId) {
+      return NextResponse.json({ error: 'Order ID is required' }, { status: 400 });
+    }
+
     const supabaseAdmin = getClient();
     
     const {
@@ -55,6 +64,7 @@ export async function GET(
       .single();
 
     if (orderError || !order) {
+      console.error('Order fetch error:', orderError);
       return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     }
 
@@ -77,14 +87,12 @@ export async function GET(
     };
 
     if (order.user_id) {
-      // Get profile
       const { data: customerProfile } = await supabaseAdmin
         .from('profiles')
         .select('name, phone')
         .eq('id', order.user_id)
         .single();
 
-      // Get email from auth.users
       const { data: { user: authUser } } = await supabaseAdmin.auth.admin.getUserById(order.user_id);
 
       customerInfo = {
@@ -94,7 +102,6 @@ export async function GET(
       };
     }
 
-    // Parse items
     const items = Array.isArray(order.items) ? order.items : [];
 
     return NextResponse.json({
@@ -116,28 +123,36 @@ export async function GET(
       status_history: statusHistory || [],
     });
   } catch (error) {
-    console.error('Failed to fetch order', error);
-    return NextResponse.json({ error: 'Failed to fetch order' }, { status: 500 });
+    console.error('Failed to fetch order:', error);
+    return NextResponse.json(
+      { 
+        error: 'Failed to fetch order',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      }, 
+      { status: 500 }
+    );
   }
 }
 
 /**
  * PUT /api/admin/orders/[orderId]
- * Update order status and related fields (paid_at, shipped_at, delivered_at)
+ * Update order status and related fields
  */
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ orderId: string }> }
 ) {
-  const authHeader = request.headers.get('authorization') || '';
-  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
-
-  if (!token) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+  console.log('========== PUT REQUEST RECEIVED ==========');
+  
   try {
+    // Resolve params FIRST before anything else
     const { orderId } = await params;
+    console.log('[PUT] Order ID resolved:', orderId);
+
+    const authHeader = request.headers.get('authorization') || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
+
+    console.log('[PUT] Has token:', !!token);
 
     if (!orderId) {
       return NextResponse.json({ error: 'Order ID is required' }, { status: 400 });
@@ -145,36 +160,61 @@ export async function PUT(
 
     const supabaseAdmin = getClient();
 
+    // Authenticate user
     const {
       data: { user },
       error: userError,
     } = await supabaseAdmin.auth.getUser(token);
 
+    console.log('[PUT] User authenticated:', !!user, 'Error:', userError?.message);
+
     if (userError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ 
+        error: 'Unauthorized - Invalid token',
+        details: userError?.message 
+      }, { status: 401 });
     }
 
+    // Check admin role
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('role')
       .eq('id', user.id)
       .single();
 
+    console.log('[PUT] Profile role:', profile?.role, 'Error:', profileError?.message);
+
     if (profileError) {
-      console.error('Failed to load profile', profileError);
-      return NextResponse.json({ error: 'Unable to verify user role' }, { status: 500 });
+      return NextResponse.json({ 
+        error: 'Unable to verify user role',
+        details: profileError.message 
+      }, { status: 500 });
     }
 
     if (profile?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 });
     }
 
-    const body = await request.json().catch(() => ({}));
-    const { status, tracking_number, courier, notes } = body as any;
+    // Parse request body
+    let body;
+    try {
+      body = await request.json();
+    } catch (e) {
+      console.error('[PUT] Failed to parse JSON body:', e);
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
 
+    const { status, tracking_number, courier, notes } = body;
+    
+    console.log('[PUT] Update data:', { status, tracking_number, courier, notes });
+
+    // Validate status
     const validStatuses = ['pending', 'paid', 'processing', 'shipped', 'delivered', 'cancelled', 'duplicate'];
     if (!status || !validStatuses.includes(status)) {
-      return NextResponse.json({ error: `Invalid status: ${status}` }, { status: 400 });
+      return NextResponse.json({ 
+        error: `Invalid status: ${status}`,
+        validStatuses 
+      }, { status: 400 });
     }
 
     // Fetch current order
@@ -184,9 +224,13 @@ export async function PUT(
       .eq('id', orderId)
       .maybeSingle();
 
+    console.log('[PUT] Current order:', currentOrder, 'Error:', orderError?.message);
+
     if (orderError) {
-      console.error('Error fetching order before update:', orderError);
-      return NextResponse.json({ error: 'Failed to fetch order', details: orderError.message }, { status: 500 });
+      return NextResponse.json({ 
+        error: 'Failed to fetch order',
+        details: orderError.message 
+      }, { status: 500 });
     }
 
     if (!currentOrder) {
@@ -196,28 +240,54 @@ export async function PUT(
     const currentStatus = currentOrder.status;
 
     if (currentStatus === status) {
-      return NextResponse.json({ error: 'Status is already set to this value' }, { status: 400 });
+      return NextResponse.json({ 
+        error: 'Status is already set to this value',
+        currentStatus 
+      }, { status: 400 });
     }
 
-    // Validate tracking info for shipped
+    // Validate tracking info for shipped status
     if (status === 'shipped') {
-      if (!tracking_number || String(tracking_number).trim().length < 3) {
-        return NextResponse.json({ error: 'Tracking number is required for shipped status (minimum 3 characters)' }, { status: 400 });
+      const trimmedTracking = tracking_number?.trim();
+      const trimmedCourier = courier?.trim();
+      
+      if (!trimmedTracking || trimmedTracking.length < 3) {
+        return NextResponse.json({ 
+          error: 'Tracking number is required for shipped status (minimum 3 characters)' 
+        }, { status: 400 });
       }
-      if (!courier || String(courier).trim().length === 0) {
-        return NextResponse.json({ error: 'Courier is required for shipped status' }, { status: 400 });
+      if (!trimmedCourier || trimmedCourier.length === 0) {
+        return NextResponse.json({ 
+          error: 'Courier is required for shipped status' 
+        }, { status: 400 });
       }
     }
 
-    const updateData: any = { status };
-    if (status === 'paid' && !currentOrder.paid_at) updateData.paid_at = new Date().toISOString();
+    // Prepare update data
+    const updateData: any = { 
+      status,
+      updated_at: new Date().toISOString()
+    };
+    
+    if (status === 'paid' && !currentOrder.paid_at) {
+      updateData.paid_at = new Date().toISOString();
+    }
+    
     if (status === 'shipped') {
-      if (!currentOrder.shipped_at) updateData.shipped_at = new Date().toISOString();
+      if (!currentOrder.shipped_at) {
+        updateData.shipped_at = new Date().toISOString();
+      }
       updateData.tracking_number = tracking_number?.trim() || null;
       updateData.courier = courier?.trim() || null;
     }
-    if (status === 'delivered' && !currentOrder.delivered_at) updateData.delivered_at = new Date().toISOString();
+    
+    if (status === 'delivered' && !currentOrder.delivered_at) {
+      updateData.delivered_at = new Date().toISOString();
+    }
 
+    console.log('[PUT] Updating order with data:', updateData);
+
+    // Update order
     const { data: updatedOrder, error: updateError } = await supabaseAdmin
       .from('orders')
       .update(updateData)
@@ -225,14 +295,18 @@ export async function PUT(
       .select()
       .single();
 
+    console.log('[PUT] Update result:', !!updatedOrder, 'Error:', updateError?.message);
+
     if (updateError) {
-      console.error('Failed to update order', updateError);
-      return NextResponse.json({ error: 'Failed to update order', details: updateError.message }, { status: 500 });
+      return NextResponse.json({ 
+        error: 'Failed to update order',
+        details: updateError.message 
+      }, { status: 500 });
     }
 
-    // Log status history (do not fail if history table missing)
+    // Log status history (non-critical)
     try {
-      const { error: historyError } = await supabaseAdmin
+      await supabaseAdmin
         .from('order_status_history')
         .insert({
           order_id: orderId,
@@ -244,13 +318,11 @@ export async function PUT(
           courier: status === 'shipped' ? courier?.trim() : null,
           changed_at: new Date().toISOString(),
         });
-
-      if (historyError) console.error('Failed to log status history', historyError);
     } catch (e) {
-      console.error('Error inserting status history', e);
+      console.error('[PUT] Failed to log status history (non-critical):', e);
     }
 
-    // After update, fetch the order as in GET to return full payload
+    // Fetch updated order with full details
     const { data: order, error: orderFetchError } = await supabaseAdmin
       .from('orders')
       .select(`
@@ -261,8 +333,11 @@ export async function PUT(
       .single();
 
     if (orderFetchError || !order) {
-      console.error('Failed to fetch updated order', orderFetchError);
-      return NextResponse.json({ error: 'Order updated but failed to retrieve updated data' }, { status: 500 });
+      console.error('[PUT] Failed to fetch updated order:', orderFetchError);
+      return NextResponse.json({ 
+        error: 'Order updated but failed to retrieve updated data',
+        details: orderFetchError?.message 
+      }, { status: 500 });
     }
 
     // Fetch status history
@@ -281,7 +356,9 @@ export async function PUT(
         .eq('id', order.user_id)
         .single();
 
-      const { data: { user: authUser } } = await supabaseAdmin.auth.admin.getUserById(order.user_id).catch(() => ({ data: { user: null } }));
+      const { data: { user: authUser } } = await supabaseAdmin.auth.admin
+        .getUserById(order.user_id)
+        .catch(() => ({ data: { user: null } }));
 
       customerInfo = {
         name: customerProfile?.name || 'Guest',
@@ -292,7 +369,7 @@ export async function PUT(
 
     const items = Array.isArray(order.items) ? order.items : [];
 
-    return NextResponse.json({
+    const responseData = {
       id: order.id,
       customer: customerInfo,
       status: order.status,
@@ -309,13 +386,22 @@ export async function PUT(
       created_at: order.created_at,
       updated_at: order.updated_at,
       status_history: statusHistory || [],
-    });
+    };
+
+    console.log('[PUT] Success! Returning updated order');
+
+    return NextResponse.json(responseData);
+    
   } catch (error) {
-    console.error('Failed to update order', error);
-    return NextResponse.json({ error: 'Failed to update order' }, { status: 500 });
+    console.error('[PUT] CRITICAL ERROR:', error);
+    console.error('[PUT] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    return NextResponse.json(
+      { 
+        error: 'Failed to update order',
+        details: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      }, 
+      { status: 500 }
+    );
   }
 }
-
-
-
-

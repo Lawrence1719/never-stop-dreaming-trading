@@ -19,6 +19,7 @@ import {
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { StatusBadge } from '@/components/admin/status-badge';
 import { useAuth } from '@/lib/context/auth-context';
+import { useToast } from '@/components/ui/toast';
 import { supabase } from '@/lib/supabase/client';
 import { formatPrice, formatDate } from '@/lib/utils/formatting';
 
@@ -103,6 +104,8 @@ export default function OrderDetailPage() {
   const [updateSuccess, setUpdateSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
 
+  const { addToast } = useToast();
+
   useEffect(() => {
     if (orderId && user) {
       fetchOrder();
@@ -116,7 +119,7 @@ export default function OrderDetailPage() {
     }
   }, [orderId]);
 
-  const fetchOrder = async () => {
+  const fetchOrder = async (resetNewStatus = true) => {
     try {
       setIsLoading(true);
       setError(null);
@@ -141,19 +144,21 @@ export default function OrderDetailPage() {
         return;
       }
 
-      // Abortable fetch with timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      // Timeout wrapper using Promise.race to avoid AbortController errors
+      const timeoutMs = 10000;
+      const fetchPromise = fetch(`/api/admin/orders/${orderId}`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      });
       let response: Response;
       try {
-        response = await fetch(`/api/admin/orders/${orderId}`, {
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-          },
-          signal: controller.signal,
-        });
+        response = await Promise.race([
+          fetchPromise,
+          new Promise<Response>((_, reject) => setTimeout(() => reject(new Error('Request timed out')), timeoutMs)),
+        ]) as Response;
       } finally {
-        clearTimeout(timeoutId);
+        // no-op; Promise.race handles timeout rejection without aborting underlying fetch
       }
 
       if (!response.ok) {
@@ -163,7 +168,10 @@ export default function OrderDetailPage() {
 
       const data = await response.json();
       setOrder(data);
-      setNewStatus(data.status);
+      // Only reset newStatus if this is an initial load (resetNewStatus = true)
+      if (resetNewStatus) {
+        setNewStatus(data.status);
+      }
     } catch (err) {
       console.error('Failed to fetch order', err);
       setError(err instanceof Error ? err.message : 'Failed to load order');
@@ -175,14 +183,20 @@ export default function OrderDetailPage() {
   const handleStatusUpdate = async () => {
     if (!order || !newStatus) return;
 
+    // Validation: Ensure newStatus is different from current order status
+    if (newStatus === order.status) {
+      addToast('Please select a different status', 'error');
+      return;
+    }
+
     // Validation
     if (newStatus === 'shipped') {
       if (!trackingNumber.trim() || trackingNumber.trim().length < 3) {
-        alert('Tracking number is required for shipped status (minimum 3 characters)');
+        addToast('Tracking number is required for shipped status (minimum 3 characters)', 'error');
         return;
       }
       if (!courier.trim()) {
-        alert('Courier is required for shipped status');
+        addToast('Courier is required for shipped status', 'error');
         return;
       }
     }
@@ -225,22 +239,24 @@ export default function OrderDetailPage() {
       };
       console.log('Order update request', { url: requestUrl, method: 'PUT', hasToken: !!session.access_token, body: requestBody });
 
-      // Abortable fetch with timeout to avoid hanging
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      // Timeout wrapper using Promise.race to avoid AbortController errors
+      const timeoutMs = 10000;
+      const fetchPromise = fetch(requestUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(requestBody),
+      });
       let response: Response;
       try {
-        response = await fetch(requestUrl, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify(requestBody),
-          signal: controller.signal,
-        });
+        response = await Promise.race([
+          fetchPromise,
+          new Promise<Response>((_, reject) => setTimeout(() => reject(new Error('Request timed out')), timeoutMs)),
+        ]) as Response;
       } finally {
-        clearTimeout(timeoutId);
+        // no-op; Promise.race handles timeout rejection without aborting underlying fetch
       }
 
       // Parse response robustly: try JSON first via clone(), then fallback to raw text
@@ -281,12 +297,15 @@ export default function OrderDetailPage() {
         throw new Error(errorMessage);
       }
 
-      // Refresh order data
-      await fetchOrder();
+      // Refresh order data without resetting newStatus, then reset it manually
+      await fetchOrder(false);
+      
+      // Now reset the form after successful update
       setShowConfirmDialog(false);
       setNotes('');
       setTrackingNumber('');
       setCourier('');
+      setNewStatus(order.status);
       setUpdateSuccess(true);
       
       // Show success message
@@ -304,9 +323,7 @@ export default function OrderDetailPage() {
       setError(errorMessage);
       // Also show a user-visible alert so admin sees the failure immediately
       try {
-        // Avoid throwing if alert isn't available in testing environments
-        // eslint-disable-next-line no-alert
-        alert(`Failed to update order: ${errorMessage}`);
+        addToast(`Failed to update order: ${errorMessage}`, 'error');
       } catch {}
     } finally {
       setIsUpdating(false);

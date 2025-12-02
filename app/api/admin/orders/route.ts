@@ -117,7 +117,7 @@ export async function GET(request: NextRequest) {
         
         // Determine payment status based on order status
         // If status is 'paid' or later stages, payment is paid
-        const paymentStatus = ['paid', 'processing', 'shipped', 'completed'].includes(row.status) 
+        const paymentStatus = ['paid', 'processing', 'shipped', 'delivered'].includes(row.status) 
           ? 'paid' 
           : 'pending';
         
