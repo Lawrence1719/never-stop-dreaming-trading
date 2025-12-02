@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { Plus, Search, Filter, Download, Trash2, Edit, Eye } from 'lucide-react';
+import { Plus, Search, Filter, Download, Trash2, Edit, Eye, AlertCircle, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,6 +21,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { supabase } from '@/lib/supabase/client';
 import { MAIN_CATEGORIES } from '@/lib/data/categories';
 
@@ -42,9 +52,9 @@ export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Debounce search term
   useEffect(() => {
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
@@ -59,6 +69,38 @@ export default function ProductsPage() {
       }
     };
   }, [searchTerm]);
+
+  const handleDeleteProduct = async (productId: string) => {
+    setDeletingProductId(productId);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const res = await fetch(`/api/admin/products/${productId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: session?.access_token
+          ? {
+              Authorization: `Bearer ${session.access_token}`,
+            }
+          : undefined,
+      });
+
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.error || 'Failed to delete product');
+      }
+
+      // Remove product from list
+      setProducts((prev) => prev.filter((p) => p.id !== productId));
+    } catch (err) {
+      console.error('Failed to delete product', err);
+      setError(err instanceof Error ? err.message : 'Failed to delete product');
+    } finally {
+      setDeletingProductId(null);
+    }
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -177,8 +219,12 @@ export default function ProductsPage() {
 
           {/* Error Message */}
           {error && (
-            <div className="mb-4 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-              <p className="text-sm text-destructive">{error}</p>
+            <div className="mb-4 p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex gap-3">
+              <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-destructive">Error</p>
+                <p className="text-sm text-muted-foreground mt-1">{error}</p>
+              </div>
             </div>
           )}
 
@@ -240,17 +286,54 @@ export default function ProductsPage() {
                             <Button variant="ghost" size="sm">•••</Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem className="gap-2">
-                              <Eye className="h-4 w-4" />
-                              View
+                            <DropdownMenuItem asChild>
+                              <Link href={`/admin/products/${product.id}`} className="gap-2 cursor-pointer">
+                                <Eye className="h-4 w-4" />
+                                View
+                              </Link>
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="gap-2">
-                              <Edit className="h-4 w-4" />
-                              Edit
+                            <DropdownMenuItem asChild>
+                              <Link href={`/admin/products/${product.id}/edit`} className="gap-2 cursor-pointer">
+                                <Edit className="h-4 w-4" />
+                                Edit
+                              </Link>
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="gap-2 text-destructive">
-                              <Trash2 className="h-4 w-4" />
-                              Delete
+                            <DropdownMenuItem
+                              asChild
+                            >
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <button className="w-full text-left px-2 py-1.5 text-sm text-destructive gap-2 flex items-center hover:bg-accent rounded">
+                                    <Trash2 className="h-4 w-4" />
+                                    Delete
+                                  </button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Delete Product</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Are you sure you want to delete "{product.name}"? This action cannot be undone.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <div className="flex gap-3">
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => handleDeleteProduct(product.id)}
+                                      disabled={deletingProductId === product.id}
+                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    >
+                                      {deletingProductId === product.id ? (
+                                        <>
+                                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                          Deleting...
+                                        </>
+                                      ) : (
+                                        'Delete'
+                                      )}
+                                    </AlertDialogAction>
+                                  </div>
+                                </AlertDialogContent>
+                              </AlertDialog>
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>

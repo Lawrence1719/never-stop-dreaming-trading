@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getClient } from '@/lib/supabase/admin';
 
-export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get('authorization') || '';
-  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
-
+async function verifyAdminAuth(token: string | null) {
   if (!token) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return { error: 'Unauthorized', status: 401, user: null };
   }
 
   try {
@@ -17,7 +14,7 @@ export async function GET(request: NextRequest) {
     } = await supabaseAdmin.auth.getUser(token);
 
     if (userError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return { error: 'Unauthorized', status: 401, user: null };
     }
 
     const { data: profile, error: profileError } = await supabaseAdmin
@@ -26,14 +23,81 @@ export async function GET(request: NextRequest) {
       .eq('id', user.id)
       .single();
 
-    if (profileError) {
-      console.error('Failed to load profile for products', profileError);
-      return NextResponse.json({ error: 'Unable to verify user role' }, { status: 500 });
+    if (profileError || profile?.role !== 'admin') {
+      return { error: 'Forbidden', status: 403, user: null };
     }
 
-    if (profile?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    return { error: null, status: 200, user };
+  } catch (err) {
+    return { error: 'Unauthorized', status: 401, user: null };
+  }
+}
+
+// Generate a SKU from category + name and a numeric suffix ensuring uniqueness.
+async function generateSKU(name?: string, category?: string, supabaseAdmin?: any) {
+  // Short category code: first 2 alphanumeric chars
+  const catCode = category
+    ? (String(category).replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 2) || 'CT')
+    : 'CT';
+
+  // Short name code: prefer initials from up to 3 words, otherwise first 3 letters
+  const nameCode = (() => {
+    if (!name) return 'PRD';
+    const cleaned = String(name).trim();
+    const words = cleaned.split(/\s+/).filter(Boolean);
+    if (words.length >= 2) {
+      return words
+        .slice(0, 3)
+        .map((w) => w[0] || '')
+        .join('')
+        .toUpperCase()
+        .slice(0, 3);
     }
+    const compact = cleaned.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    return compact.slice(0, 3) || 'PRD';
+  })();
+
+  const prefix = `${catCode}-${nameCode}`;
+
+  // Find existing SKUs that start with this prefix to determine the next number
+  let maxNum = 0;
+  try {
+    const { data: existing } = await supabaseAdmin
+      .from('products')
+      .select('sku')
+      .ilike('sku', `${prefix}-%`);
+
+    if (Array.isArray(existing)) {
+      for (const row of existing) {
+        const val = row.sku || '';
+        const parts = String(val).split('-');
+        const last = parts[parts.length - 1];
+        const num = parseInt(last, 10);
+        if (!Number.isNaN(num) && num > maxNum) maxNum = num;
+      }
+    }
+  } catch (e) {
+    // If any error occurs, fall back to timestamp/random approach
+    const rand = Math.random().toString().substring(2, 6);
+    return `${prefix}-${Date.now().toString().slice(-6)}${rand}`;
+  }
+
+  const next = maxNum + 1;
+  const numStr = String(next).padStart(4, '0');
+  return `${prefix}-${numStr}`;
+}
+
+export async function GET(request: NextRequest) {
+  const authHeader = request.headers.get('authorization') || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
+
+  const authResult = await verifyAdminAuth(token);
+  if (authResult.error) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status });
+  }
+
+  try {
+    const supabaseAdmin = getClient();
 
     // Get query parameters for filtering
     const { searchParams } = new URL(request.url);
@@ -82,6 +146,63 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Failed to load products', error);
     return NextResponse.json({ error: 'Failed to load products' }, { status: 500 });
+  }
+}
+
+export async function POST(request: NextRequest) {
+  const authHeader = request.headers.get('authorization') || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
+
+  const authResult = await verifyAdminAuth(token);
+  if (authResult.error) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status });
+  }
+
+  try {
+    const body = await request.json();
+    const supabaseAdmin = getClient();
+
+    // Validate required fields
+    if (!body.name || !body.price || body.stock === undefined) {
+      return NextResponse.json(
+        { error: 'Missing required fields: name, price, stock' },
+        { status: 400 }
+      );
+    }
+
+    // Ensure we have a SKU; if not provided, generate one based on category+name and ensure uniqueness
+    let sku = body.sku && String(body.sku).trim() !== '' ? String(body.sku).trim() : null;
+    if (!sku) {
+      sku = await generateSKU(body.name, body.category, supabaseAdmin);
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('products')
+      .insert([
+        {
+          name: body.name,
+          sku: sku,
+          description: body.description,
+          category: body.category,
+          price: parseFloat(body.price),
+          stock: parseInt(body.stock),
+          is_active: body.status === 'active',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Failed to create product', error);
+      return NextResponse.json({ error: 'Failed to create product' }, { status: 500 });
+    }
+
+    return NextResponse.json({ data }, { status: 201 });
+  } catch (error) {
+    console.error('Failed to create product', error);
+    return NextResponse.json({ error: 'Failed to create product' }, { status: 500 });
   }
 }
 
