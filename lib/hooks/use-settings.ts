@@ -67,7 +67,12 @@ export function useSettings() {
       // Fetch settings
       setIsLoading(true);
       settingsPromise = fetch('/api/settings/public')
-        .then((res) => res.json())
+        .then((res) => {
+          if (!res.ok) {
+            throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+          }
+          return res.json();
+        })
         .then((data) => {
           cachedSettings = data;
           cacheTimestamp = Date.now();
@@ -76,7 +81,7 @@ export function useSettings() {
           return data;
         })
         .catch((error) => {
-          console.error('Failed to load settings', error);
+          console.error('Failed to load settings:', error?.message || error);
           // Return defaults on error
           const defaults: PublicSettings = {
             general: {
@@ -146,14 +151,19 @@ export function refreshSettings(): Promise<PublicSettings> {
   settingsPromise = null;
   
   return fetch('/api/settings/public')
-    .then((res) => res.json())
+    .then((res) => {
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      }
+      return res.json();
+    })
     .then((data) => {
       cachedSettings = data;
       cacheTimestamp = Date.now();
       return data;
     })
     .catch((error) => {
-      console.error('Failed to refresh settings', error);
+      console.error('Failed to refresh settings:', error?.message || error);
       throw error;
     });
 }

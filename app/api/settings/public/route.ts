@@ -10,7 +10,7 @@ export async function GET() {
     const supabase = getClient();
     
     // Fetch only public settings from database
-    const { data: settingsData } = await supabase
+    const { data: settingsData, error: fetchError } = await supabase
       .from('settings')
       .select('key, value')
       .in('key', [
@@ -26,6 +26,10 @@ export async function GET() {
         'payment_cash_on_delivery',
         'payment_bank_transfer',
       ]);
+
+    if (fetchError) {
+      console.error('Error fetching settings from database:', fetchError);
+    }
 
     const settings: Record<string, any> = {};
 
@@ -63,7 +67,7 @@ export async function GET() {
       },
     });
   } catch (error) {
-    console.error('Failed to load public settings', error);
+    console.error('Failed to load public settings:', error instanceof Error ? error.message : error);
     // Return defaults on error
     return NextResponse.json({
       general: {

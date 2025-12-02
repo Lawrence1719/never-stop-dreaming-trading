@@ -176,7 +176,7 @@ export default function ProductsPage() {
                   setSelectedSubcategory("");
                 }}
                 onSubcategoryChange={(sub) => setSelectedSubcategory(sub)}
-                onPriceChange={setPriceRange}
+                onPriceChange={(min, max) => setPriceRange([min, max])}
                 onSortChange={setSortBy}
               />
             </div>
