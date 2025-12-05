@@ -1,26 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getClient } from '@/lib/supabase/admin';
+import { createClient } from '@supabase/supabase-js';
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization') || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
 
   if (!token) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json({ error: 'Unauthorized - No token provided' }, { status: 401 });
   }
 
   try {
-    const supabaseAdmin = getClient();
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('Missing Supabase credentials:', { 
+        hasUrl: !!supabaseUrl, 
+        hasAnonKey: !!supabaseAnonKey 
+      });
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+    }
+    
+    // Create client with user's token for auth check
+    const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    });
+    
     const {
       data: { user },
       error: userError,
-    } = await supabaseAdmin.auth.getUser(token);
+    } = await supabaseUser.auth.getUser();
 
     if (userError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      console.error('Auth error:', userError?.message || 'No user found');
+      return NextResponse.json({ error: 'Unauthorized - Invalid token' }, { status: 401 });
     }
 
-    const { data: profile, error: profileError } = await supabaseAdmin
+    const { data: profile, error: profileError } = await supabaseUser
       .from('profiles')
       .select('role')
       .eq('id', user.id)
@@ -31,10 +48,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unable to verify user role' }, { status: 500 });
     }
 
-    if (profile?.role !== 'admin') {
+    // Check if user is super admin via env var or has admin role in database
+    const superAdminEmail = process.env.SUPER_ADMIN_EMAIL || '';
+    const isSuperAdmin = superAdminEmail && user.email === superAdminEmail;
+    const isAdmin = profile?.role === 'admin' || isSuperAdmin;
+
+    if (!isAdmin) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    // Use admin client for data fetching
+    const supabaseAdmin = getClient();
+    
     // Get query parameters for filtering
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search') || '';
@@ -97,17 +122,22 @@ export async function GET(request: NextRequest) {
       orderStats[order.user_id].total += Number(order.total || 0);
     });
 
-    // Get blocked status for all users at once
-    const blockedUsers = new Set<string>();
-    try {
-      const { data: { users: allUsers } } = await supabaseAdmin.auth.admin.listUsers();
-      (allUsers || []).forEach((user) => {
-        if (user.user_metadata?.blocked === true && userIds.includes(user.id)) {
-          blockedUsers.add(user.id);
+    // Get blocked status from auth.users metadata
+    let blockedUsersMap: Record<string, boolean> = {};
+    if (userIds.length > 0) {
+      try {
+        const { data: { users }, error: usersError } = await supabaseAdmin.auth.admin.listUsers();
+        if (!usersError) {
+          blockedUsersMap = (users || []).reduce((acc, user) => {
+            if (userIds.includes(user.id)) {
+              acc[user.id] = user.user_metadata?.blocked === true;
+            }
+            return acc;
+          }, {} as Record<string, boolean>);
         }
-      });
-    } catch (err) {
-      console.error('Error checking blocked users:', err);
+      } catch (err) {
+        console.error('Error fetching blocked status:', err);
+      }
     }
 
     // Map the data to match the expected format
@@ -115,15 +145,8 @@ export async function GET(request: NextRequest) {
       .map((profile: any) => {
         const stats = orderStats[profile.id] || { count: 0, total: 0 };
         const email = emailsMap[profile.id] || '';
-        
-        // Determine status from blocked users set
-        const customerStatus = blockedUsers.has(profile.id) ? 'blocked' : 'active';
-        
-        // Format join date
-        const joinDate = new Date(profile.created_at).toISOString().split('T')[0];
-        
-        // Format total spent
-        const totalSpent = `₱${stats.total.toFixed(2)}`;
+        const isBlocked = blockedUsersMap[profile.id] || false;
+        const isProfileSuperAdmin = superAdminEmail && email === superAdminEmail;
         
         return {
           id: profile.id,
@@ -131,9 +154,12 @@ export async function GET(request: NextRequest) {
           email,
           phone: profile.phone || '-',
           orders: stats.count,
-          totalSpent,
-          status: customerStatus,
-          joinDate,
+          totalSpent: stats.total,
+          status: isBlocked ? 'blocked' : 'active',
+          joinDate: new Date(profile.created_at).toISOString().split('T')[0],
+          role: profile.role || 'customer',
+          isSuperAdmin: isProfileSuperAdmin,
+          isSuperAdmin: isProfileSuperAdmin,
         };
       })
       .filter((customer: any) => {
@@ -151,7 +177,14 @@ export async function GET(request: NextRequest) {
         return customer.status === status;
       });
 
-    return NextResponse.json({ data: customers });
+    return NextResponse.json({ 
+      data: customers,
+      currentUser: {
+        id: user.id,
+        email: user.email,
+        isSuperAdmin,
+      }
+    });
   } catch (error) {
     console.error('Failed to load customers', error);
     return NextResponse.json({ error: 'Failed to load customers' }, { status: 500 });

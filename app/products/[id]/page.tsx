@@ -16,7 +16,7 @@ import { ProductReviews } from "@/components/ecommerce/product-reviews";
 import { StickyAddToCart } from "@/components/ecommerce/sticky-add-to-cart";
 import { useCart } from "@/lib/context/cart-context";
 import { useWishlist } from "@/lib/context/wishlist-context";
-import { useToast } from "@/components/ui/toast";
+import { useToast } from "@/hooks/use-toast";
 import { Product } from "@/lib/types";
 import { formatPrice } from "@/lib/utils/formatting";
 import { Heart, Share2, ChevronLeft, Users, Shield, ShoppingCart } from 'lucide-react';
@@ -131,7 +131,7 @@ export default function ProductDetailPage() {
   const router = useRouter();
   const { addItem } = useCart();
   const { addItem: addToWishlist, removeItem: removeFromWishlist, isInWishlist } = useWishlist();
-  const { toasts, addToast, removeToast } = useToast();
+  const { toast } = useToast();
 
   // Show sticky cart on mobile after scrolling past product details
   useEffect(() => {
@@ -229,17 +229,26 @@ export default function ProductDetailPage() {
 
   const handleAddToCart = () => {
     addItem(product, quantity);
-    addToast("Added to cart", "success");
+    toast({
+      title: "Added to cart",
+      description: `${quantity} ${quantity === 1 ? 'item' : 'items'} added successfully`,
+    });
     setQuantity(1);
   };
 
   const handleWishlist = () => {
     if (inWishlist) {
       removeFromWishlist(product.id);
-      addToast("Removed from wishlist", "info");
+      toast({
+        title: "Removed from wishlist",
+        description: "Product removed from your wishlist",
+      });
     } else {
       addToWishlist(product.id);
-      addToast("Added to wishlist", "success");
+      toast({
+        title: "Added to wishlist",
+        description: "Product added to your wishlist",
+      });
     }
   };
 

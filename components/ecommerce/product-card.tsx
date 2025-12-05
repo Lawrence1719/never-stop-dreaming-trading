@@ -7,7 +7,7 @@ import { formatPrice } from "@/lib/utils/formatting";
 import { useCart } from "@/lib/context/cart-context";
 import { useWishlist } from "@/lib/context/wishlist-context";
 import { useAuth } from "@/lib/context/auth-context";
-import { useToast } from "@/components/ui/toast";
+import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 
 interface ProductCardProps {

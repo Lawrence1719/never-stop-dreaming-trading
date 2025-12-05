@@ -15,14 +15,45 @@ export default function Home() {
   useEffect(() => {
     const fetchFeaturedProducts = async () => {
       try {
+        // Try fetching from public API first
+        const res = await fetch('/api/public/products');
+        if (res.ok) {
+          const json = await res.json();
+          if (json?.data) {
+            const mapped = (json.data as any[])
+              .slice(0, 8) // Limit to 8 products
+              .map((row: any) => ({
+                id: row.id,
+                name: row.name,
+                slug: row.slug || row.id,
+                description: row.description || '',
+                price: Number(row.price) || 0,
+                compareAtPrice: row.compare_at_price ? Number(row.compare_at_price) : undefined,
+                images: row.image_url ? [row.image_url] : [],
+                category: row.category || '',
+                stock: row.stock ?? 0,
+                sku: row.sku || '',
+                rating: row.rating ?? 0,
+                reviewCount: row.review_count ?? 0,
+                featured: row.featured ?? false,
+              })) as Product[];
+
+            setFeaturedProducts(mapped);
+            return;
+          }
+        }
+
+        // Fallback to direct Supabase query without featured filter
         const { data, error } = await supabase
           .from('products')
           .select('*')
-          .eq('featured', true)
           .order('created_at', { ascending: false })
           .limit(8);
 
-        if (error) throw error;
+        if (error) {
+          console.error('Supabase error:', error);
+          return;
+        }
 
         if (data) {
           const mapped = data.map((row: any) => ({

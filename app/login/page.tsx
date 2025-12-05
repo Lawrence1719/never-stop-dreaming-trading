@@ -7,7 +7,7 @@ import { Footer } from "@/components/layout/footer";
 import { Navbar } from "@/components/layout/navbar";
 import { useAuth } from "@/lib/context/auth-context";
 import { useCart } from "@/lib/context/cart-context";
-import { useToast, ToastContainer } from "@/components/ui/toast";
+import { useToast } from "@/hooks/use-toast";
 import { validateEmail, validatePassword } from "@/lib/utils/validation";
 import { Mail, Lock } from 'lucide-react';
 import { useEffect } from 'react';
@@ -17,7 +17,7 @@ export default function LoginPage() {
   const router = useRouter();
   const { login, user, isLoading: authLoading, resendConfirmationEmail } = useAuth();
   const searchParams = useSearchParams();
-  const { toasts, addToast, removeToast } = useToast();
+  const { toast } = useToast();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -72,7 +72,11 @@ export default function LoginPage() {
     e.preventDefault();
 
     if (!validateForm()) {
-      addToast("Please fix the errors above", "error");
+      toast({
+        title: "Validation Error",
+        description: "Please fix the errors above",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -88,17 +92,32 @@ export default function LoginPage() {
             errorMessage.toLowerCase().includes("email_not_confirmed") ||
             errorMessage.toLowerCase().includes("confirm your email")) {
           setShowResendConfirmation(true);
-          addToast("Please confirm your email address before logging in. Check your inbox for the confirmation link.", "error");
+          toast({
+            title: "Email Not Confirmed",
+            description: "Please confirm your email address before logging in. Check your inbox for the confirmation link.",
+            variant: "destructive",
+          });
         } else {
-          addToast(errorMessage || "Login failed. Please try again.", "error");
+          toast({
+            title: "Login Failed",
+            description: errorMessage || "Login failed. Please try again.",
+            variant: "destructive",
+          });
         }
         return;
       }
 
-      addToast("Logged in successfully", "success");
+      toast({
+        title: "Success",
+        description: "Logged in successfully",
+      });
       setShowResendConfirmation(false);
     } catch (error) {
-      addToast("Login failed. Please try again.", "error");
+      toast({
+        title: "Login Failed",
+        description: "Login failed. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -106,7 +125,11 @@ export default function LoginPage() {
 
   const handleResendConfirmation = async () => {
     if (!email.trim()) {
-      addToast("Please enter your email address first", "error");
+      toast({
+        title: "Email Required",
+        description: "Please enter your email address first",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -115,13 +138,24 @@ export default function LoginPage() {
       const { error } = await resendConfirmationEmail(email.trim());
       
       if (error) {
-        addToast(error.message || "Failed to resend confirmation email. Please try again.", "error");
+        toast({
+          title: "Error",
+          description: error.message || "Failed to resend confirmation email. Please try again.",
+          variant: "destructive",
+        });
       } else {
-        addToast("Confirmation email sent! Please check your inbox.", "success");
+        toast({
+          title: "Email Sent",
+          description: "Confirmation email sent! Please check your inbox.",
+        });
         setShowResendConfirmation(false);
       }
     } catch (error) {
-      addToast("Failed to resend confirmation email. Please try again.", "error");
+      toast({
+        title: "Error",
+        description: "Failed to resend confirmation email. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsResending(false);
     }
@@ -249,9 +283,6 @@ export default function LoginPage() {
       </main>
 
       <Footer />
-      
-      {/* Toast Notifications */}
-      <ToastContainer toasts={toasts} onClose={removeToast} />
     </div>
   );
 }

@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useTheme } from 'next-themes';
 import { useAuth } from '@/lib/context/auth-context';
-import { useToast, ToastContainer } from '@/components/ui/toast';
+import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase/client';
 import { Notification } from '@/lib/types';
 import { formatDistanceToNow } from 'date-fns';
@@ -30,7 +30,7 @@ export default function AdminNavbar({
   const router = useRouter();
   const { theme, setTheme } = useTheme();
   const { user, logout } = useAuth();
-  const { toasts, addToast, removeToast } = useToast();
+  const { toast } = useToast();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
 
@@ -78,7 +78,10 @@ export default function AdminNavbar({
         sessionStorage.clear();
       }
       
-      addToast("Logged out successfully", "success");
+      toast({
+        title: "Logged out",
+        description: "You have been logged out successfully.",
+      });
       
       // Redirect to login page
       router.push('/login');
@@ -90,7 +93,11 @@ export default function AdminNavbar({
       }, 100);
     } catch (error) {
       console.error("Logout error:", error);
-      addToast("Failed to logout. Please try again.", "error");
+      toast({
+        title: "Error",
+        description: "Failed to logout. Please try again.",
+        variant: "destructive",
+      });
       // Even if there's an error, try to redirect
       router.push('/login');
     }
@@ -408,7 +415,6 @@ export default function AdminNavbar({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <ToastContainer toasts={toasts} onClose={removeToast} />
     </nav>
   );
 }
