@@ -1,4 +1,5 @@
 "use client";
+import { useState, useEffect } from "react";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { ProductGrid } from "@/components/ecommerce/product-grid";
@@ -6,12 +7,49 @@ import { Product } from "@/lib/types";
 import Link from "next/link";
 import { ArrowRight } from 'lucide-react';
 import { MAIN_CATEGORIES } from '@/lib/data/categories';
+import { supabase } from '@/lib/supabase/client';
 
 export default function Home() {
-  // TODO: Replace with actual API call to fetch featured products from Supabase
-  // const { data: featuredProducts } = await supabase.from('products').select('*').eq('featured', true);
-  const products: Product[] = [];
-  const featuredProducts = products.filter((p) => p.featured);
+  const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
+
+  useEffect(() => {
+    const fetchFeaturedProducts = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .eq('featured', true)
+          .order('created_at', { ascending: false })
+          .limit(8);
+
+        if (error) throw error;
+
+        if (data) {
+          const mapped = data.map((row: any) => ({
+            id: row.id,
+            name: row.name,
+            slug: row.slug || row.id,
+            description: row.description || '',
+            price: Number(row.price) || 0,
+            compareAtPrice: row.compare_at_price ? Number(row.compare_at_price) : undefined,
+            images: row.image_url ? [row.image_url] : [],
+            category: row.category || '',
+            stock: row.stock ?? 0,
+            sku: row.sku || '',
+            rating: row.rating ?? 0,
+            reviewCount: row.review_count ?? 0,
+            featured: row.featured ?? false,
+          })) as Product[];
+
+          setFeaturedProducts(mapped);
+        }
+      } catch (err) {
+        console.error('Failed to fetch featured products:', err);
+      }
+    };
+
+    fetchFeaturedProducts();
+  }, []);
 
   return (
     <div className="flex flex-col min-h-screen">

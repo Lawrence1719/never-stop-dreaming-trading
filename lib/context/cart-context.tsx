@@ -2,15 +2,14 @@
 
 import { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
 import { Cart, CartItem, Product } from "@/lib/types";
-import { products } from "@/lib/mock/products";
 import { useAuth } from "@/lib/context/auth-context";
 import { supabase } from "@/lib/supabase/client";
 
 interface CartContextType {
   cart: Cart;
-  addItem: (productOrId: string | Product, quantity: number) => void;
+  addItem: (productOrId: string | Product, quantity: number) => Promise<void>;
   removeItem: (productId: string) => void;
-  updateQuantity: (productId: string, quantity: number) => void;
+  updateQuantity: (productId: string, quantity: number) => Promise<void>;
   clearCart: () => void;
   isMigrating: boolean;
 }
@@ -32,12 +31,42 @@ export function CartProvider({ children }: { children: ReactNode }) {
     return items.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
   };
 
-  const addItem = (productOrId: string | Product, quantity: number) => {
+  const addItem = async (productOrId: string | Product, quantity: number) => {
     let product: Product | undefined;
     let productId: string;
+    
     if (typeof productOrId === "string") {
       productId = productOrId;
-      product = products.find((p) => p.id === productId);
+      // Fetch product details from database
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .eq('id', productId)
+          .single();
+        
+        if (error) throw error;
+        
+        if (data) {
+          product = {
+            id: data.id,
+            name: data.name,
+            slug: data.slug || data.id,
+            description: data.description || '',
+            price: Number(data.price) || 0,
+            compareAtPrice: data.compare_at_price ? Number(data.compare_at_price) : undefined,
+            images: data.image_url ? [data.image_url] : [],
+            category: data.category || '',
+            stock: data.stock ?? 0,
+            sku: data.sku || '',
+            rating: data.rating ?? 0,
+            reviewCount: data.review_count ?? 0,
+            featured: data.featured ?? false,
+          };
+        }
+      } catch (err) {
+        console.error('Error fetching product details for cart:', err);
+      }
     } else {
       product = productOrId;
       productId = product.id;
@@ -117,7 +146,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const updateQuantity = (productId: string, quantity: number) => {
+  const updateQuantity = async (productId: string, quantity: number) => {
     if (quantity <= 0) {
       removeItem(productId);
       return;
@@ -137,15 +166,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
           i.productId === productId ? { ...i, quantity } : i
         );
       } else {
-        // Item doesn't exist, this shouldn't happen in cart page but handle gracefully
-        // Try to find product details
-        const product = products.find((p) => p.id === productId);
+        // Item doesn't exist, this shouldn't happen but handle gracefully
+        // Product details should already be in cart items, but if not, create minimal entry
         newItems = [...prev.items, {
           productId,
-          name: product?.name || "",
-          price: product?.price || 0,
+          name: "",
+          price: 0,
           quantity,
-          image: product?.images?.[0] || "",
+          image: "",
         }];
       }
       

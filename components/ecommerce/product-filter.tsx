@@ -12,7 +12,7 @@ interface ProductFilterProps {
 }
 
 export function ProductFilter({ onCategoryChange, onPriceChange, onSortChange, onSubcategoryChange }: ProductFilterProps) {
-  const [priceRange, setPriceRange] = useState([0, 500]);
+  const [priceRange, setPriceRange] = useState([0, 10000]);
   const [selectedMainCategory, setSelectedMainCategory] = useState("");
   const [selectedSubcategory, setSelectedSubcategory] = useState("");
 
@@ -75,7 +75,7 @@ export function ProductFilter({ onCategoryChange, onPriceChange, onSortChange, o
           <input
             type="range"
             min="0"
-            max="500"
+            max="10000"
             value={priceRange[1]}
             onChange={(e) => {
               const newRange = [priceRange[0], Number(e.target.value)];

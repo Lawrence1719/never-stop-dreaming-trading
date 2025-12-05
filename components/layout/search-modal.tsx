@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { Search, X } from 'lucide-react';
-import { products } from "@/lib/mock/products";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase/client";
+import { Product } from "@/lib/types";
 
 interface SearchModalProps {
   isOpen: boolean;
@@ -13,12 +14,50 @@ interface SearchModalProps {
 export function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const [query, setQuery] = useState("");
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
 
   useEffect(() => {
     const saved = localStorage.getItem("recentSearches");
     if (saved) {
       setRecentSearches(JSON.parse(saved));
     }
+  }, []);
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        if (data) {
+          const mapped = data.map((row: any) => ({
+            id: row.id,
+            name: row.name,
+            slug: row.slug || row.id,
+            description: row.description || '',
+            price: Number(row.price) || 0,
+            compareAtPrice: row.compare_at_price ? Number(row.compare_at_price) : undefined,
+            images: row.image_url ? [row.image_url] : [],
+            category: row.category || '',
+            stock: row.stock ?? 0,
+            sku: row.sku || '',
+            rating: row.rating ?? 0,
+            reviewCount: row.review_count ?? 0,
+            featured: row.featured ?? false,
+          })) as Product[];
+
+          setProducts(mapped);
+        }
+      } catch (err) {
+        console.error('Failed to fetch products for search:', err);
+      }
+    };
+
+    fetchProducts();
   }, []);
 
   useEffect(() => {

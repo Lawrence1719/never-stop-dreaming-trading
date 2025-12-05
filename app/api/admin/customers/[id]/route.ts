@@ -14,7 +14,7 @@ export async function DELETE(
 
   try {
     const supabaseAdmin = getClient();
-    const { id } = await params;
+    const { id } = await params;1
     
     const {
       data: { user },

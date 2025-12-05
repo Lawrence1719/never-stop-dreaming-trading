@@ -6,14 +6,13 @@ import { Footer } from "@/components/layout/footer";
 import { ProductGrid } from "@/components/ecommerce/product-grid";
 import { ProductFilter } from "@/components/ecommerce/product-filter";
 import { CATEGORY_TREE } from "@/lib/data/categories";
-import { products as mockProducts } from "@/lib/mock/products";
 import { supabase } from '@/lib/supabase/client';
 import { Product } from "@/lib/types";
 
 export default function ProductsPage() {
   const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedSubcategory, setSelectedSubcategory] = useState("");
-  const [priceRange, setPriceRange] = useState([0, 500]);
+  const [priceRange, setPriceRange] = useState([0, 10000]);
   const [sortBy, setSortBy] = useState("");
 
   // TODO: Replace with actual API call to fetch products from Supabase
@@ -98,13 +97,12 @@ export default function ProductsPage() {
           return;
         }
       } catch (err) {
-        // fallback to mock data
         // eslint-disable-next-line no-console
-        console.warn('Failed to fetch products from Supabase, using mock data.', err);
+        console.error('Failed to fetch products from Supabase:', err);
       }
 
       if (mounted) {
-        setProducts(mockProducts as Product[]);
+        setProducts([]);
         setIsLoadingProducts(false);
       }
     };
@@ -125,8 +123,12 @@ export default function ProductsPage() {
       if (selectedSubcategory) {
         result = result.filter((p) => p.category === selectedSubcategory);
       } else if (subcats && subcats.length > 0) {
-        // If main category has subcategories, show items in any of those subcategories
-        result = result.filter((p) => subcats.includes(p.category));
+        // If main category has subcategories, show items matching EITHER:
+        // - the parent category name directly, OR
+        // - any of the subcategories
+        result = result.filter((p) => 
+          p.category === selectedCategory || subcats.includes(p.category)
+        );
       } else {
         // No subcategories defined for this category - match directly
         result = result.filter((p) => p.category === selectedCategory);

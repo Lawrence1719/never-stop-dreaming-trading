@@ -20,17 +20,14 @@ import { useToast } from "@/components/ui/toast";
 import { Product } from "@/lib/types";
 import { formatPrice } from "@/lib/utils/formatting";
 import { Heart, Share2, ChevronLeft, Users, Shield, ShoppingCart } from 'lucide-react';
-import { products as mockProducts } from '@/lib/mock/products';
 import { supabase } from '@/lib/supabase/client';
 
 export default function ProductDetailPage() {
   const { id } = useParams();
   console.log('ProductDetailPage id:', id);
 
-  // TODO: Replace with actual API call to fetch product from Supabase
-  // const { data: product } = await supabase.from('products').select('*').eq('id', id).single();
-  const products: Product[] = mockProducts as Product[];
   const [product, setProduct] = useState<Product | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -42,6 +39,8 @@ export default function ProductDetailPage() {
     const fetchProduct = async () => {
       try {
         if (!id) return;
+        
+        // Fetch current product
         const { data, error } = await supabase
           .from('products')
           .select('*')
@@ -76,10 +75,37 @@ export default function ProductDetailPage() {
           };
           setProduct(mapped);
         }
+        
+        // Fetch all products for recommendations
+        const { data: allData, error: allError } = await supabase
+          .from('products')
+          .select('*')
+          .order('created_at', { ascending: false });
+          
+        if (!allError && allData && mounted) {
+          const allMapped = allData.map((row: any) => ({
+            id: row.id,
+            name: row.name,
+            slug: row.slug || row.id,
+            description: row.description || '',
+            price: Number(row.price) || 0,
+            compareAtPrice: row.compare_at_price ? Number(row.compare_at_price) : undefined,
+            images: row.image_url ? [row.image_url] : [],
+            category: row.category || '',
+            stock: row.stock ?? 0,
+            sku: row.sku || '',
+            rating: row.rating ?? 0,
+            reviewCount: row.review_count ?? 0,
+            featured: row.featured ?? false,
+            specifications: row.specifications || {},
+          })) as Product[];
+          
+          setProducts(allMapped);
+        }
       } catch (err) {
-        // fallback: keep existing mock product if available
         // eslint-disable-next-line no-console
-        console.warn('Failed to fetch product from Supabase, using mock product if available.', err);
+        console.error('Failed to fetch product from Supabase:', err);
+        if (mounted) setProduct(null);
       } finally {
         const elapsed = Date.now() - start;
         const remaining = MIN_LOADING_MS - elapsed;
