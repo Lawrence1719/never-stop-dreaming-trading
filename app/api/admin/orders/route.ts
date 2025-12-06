@@ -43,8 +43,8 @@ export async function GET(request: NextRequest) {
     // Build query
     let query = supabaseAdmin
       .from('orders')
-      .select('id, status, total, items, payment_method, created_at, updated_at, user_id')
-      .order('created_at', { ascending: false });
+      .select('id, status, total, items, payment_method, payment_status, paid_at, created_at, updated_at, user_id')
+      .order('created_at', { ascending: false});
 
     // Apply filters
     if (status !== 'all') {
@@ -115,11 +115,8 @@ export async function GET(request: NextRequest) {
         const customerName = profile?.name || 'Guest';
         const customerEmail = row.user_id ? (emailsMap[row.user_id] || '') : '';
         
-        // Determine payment status based on order status
-        // If status is 'paid' or later stages, payment is paid
-        const paymentStatus = ['paid', 'processing', 'shipped', 'delivered'].includes(row.status) 
-          ? 'paid' 
-          : 'pending';
+        // Use payment_status from database instead of calculating it
+        const paymentStatus = row.payment_status || 'pending';
         
         // Format order ID
         const orderId = `#${row.id.slice(0, 8).toUpperCase()}`;

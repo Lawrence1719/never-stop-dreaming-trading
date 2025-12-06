@@ -50,6 +50,7 @@ interface Order {
     phone: string;
   };
   status: string;
+  payment_status: string;
   total: number;
   items: OrderItem[];
   shipping_address: any;
@@ -59,17 +60,20 @@ interface Order {
   paid_at: string | null;
   shipped_at: string | null;
   delivered_at: string | null;
+  confirmed_by_customer_at: string | null;
+  auto_confirmed: boolean;
   created_at: string;
   updated_at: string;
   status_history: StatusHistory[];
 }
 
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
-  pending: ['paid', 'cancelled'],
+  pending: ['processing', 'cancelled'],
   paid: ['processing', 'cancelled'],
   processing: ['shipped', 'cancelled'],
   shipped: ['delivered', 'cancelled'],
-  delivered: [],
+  delivered: ['completed'],
+  completed: [],
   cancelled: [],
   duplicate: ['cancelled'],
 };
@@ -80,6 +84,7 @@ const STATUS_COLORS: Record<string, string> = {
   processing: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
   shipped: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400',
   delivered: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+  completed: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400',
   cancelled: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
   duplicate: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400',
 };
@@ -103,14 +108,23 @@ export default function OrderDetailPage() {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [updateSuccess, setUpdateSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [isConfirmingPayment, setIsConfirmingPayment] = useState(false);
 
-  const { addToast } = useToast();
+  const { toast } = useToast();
 
   useEffect(() => {
     if (orderId && user) {
       fetchOrder();
     }
   }, [orderId, user]);
+
+  // Clear tracking fields when status changes away from 'shipped'
+  useEffect(() => {
+    if (newStatus !== 'shipped') {
+      setTrackingNumber('');
+      setCourier('');
+    }
+  }, [newStatus]);
 
   // Debug: Log orderId
   useEffect(() => {
@@ -169,8 +183,9 @@ export default function OrderDetailPage() {
       const data = await response.json();
       setOrder(data);
       // Only reset newStatus if this is an initial load (resetNewStatus = true)
+      // Always set to empty string so user must explicitly select a new status
       if (resetNewStatus) {
-        setNewStatus(data.status);
+        setNewStatus('');
       }
     } catch (err) {
       console.error('Failed to fetch order', err);
@@ -297,15 +312,16 @@ export default function OrderDetailPage() {
         throw new Error(errorMessage);
       }
 
-      // Refresh order data without resetting newStatus, then reset it manually
+      // Refresh order data and get the updated status
       await fetchOrder(false);
       
-      // Now reset the form after successful update
+      // Reset the form after successful update
       setShowConfirmDialog(false);
       setNotes('');
       setTrackingNumber('');
       setCourier('');
-      setNewStatus(order.status);
+      // Reset newStatus to empty string to clear selection
+      setNewStatus('');
       setUpdateSuccess(true);
       
       // Show success message
@@ -323,10 +339,93 @@ export default function OrderDetailPage() {
       setError(errorMessage);
       // Also show a user-visible alert so admin sees the failure immediately
       try {
-        addToast(`Failed to update order: ${errorMessage}`, 'error');
+        toast({ title: 'Failed to update order', description: errorMessage, variant: 'destructive' });
       } catch {}
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  const handleConfirmPayment = async () => {
+    if (!order) return;
+
+    setIsConfirmingPayment(true);
+
+    try {
+      const withTimeout = async <T,>(p: Promise<T>, ms = 10000, msg = 'Request timed out') => {
+        return await new Promise<T>((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error(msg)), ms);
+          p.then((res) => {
+            clearTimeout(timer);
+            resolve(res);
+          }).catch((err) => {
+            clearTimeout(timer);
+            reject(err);
+          });
+        });
+      };
+
+      const { data: { session } } = await withTimeout(supabase.auth.getSession(), 10000, 'Auth session request timed out');
+      if (!session) {
+        throw new Error('Session expired');
+      }
+
+      const timeoutMs = 10000;
+      const fetchPromise = fetch(`/api/admin/orders/${orderId}/confirm-payment`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      });
+
+      let response: Response;
+      try {
+        response = await Promise.race([
+          fetchPromise,
+          new Promise<Response>((_, reject) => setTimeout(() => reject(new Error('Request timed out')), timeoutMs)),
+        ]) as Response;
+      } finally {
+        // no-op
+      }
+
+      let result: any = {};
+      try {
+        result = await response.clone().json().catch(() => ({}));
+      } catch (e) {
+        const raw = await response.clone().text().catch(() => '');
+        result = { error: raw || `HTTP ${response.status}: ${response.statusText}` };
+      }
+
+      if (!response.ok) {
+        const errorMessage = result.error || 'Failed to confirm payment';
+        throw new Error(errorMessage);
+      }
+
+      // Refresh order data
+      await fetchOrder(false);
+      
+      // Show success message
+      setSuccessMessage('Payment confirmed successfully');
+      setUpdateSuccess(true);
+      
+      // Auto-hide success message
+      setTimeout(() => {
+        setUpdateSuccess(false);
+        setSuccessMessage('');
+      }, 5000);
+
+      toast({ title: 'Success!', description: 'Payment confirmed successfully' });
+      
+      // Force page reload to ensure UI updates
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } catch (err) {
+      console.error('Failed to confirm payment', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to confirm payment';
+      toast({ title: 'Failed to confirm payment', description: errorMessage, variant: 'destructive' });
+    } finally {
+      setIsConfirmingPayment(false);
     }
   };
 
@@ -587,6 +686,21 @@ export default function OrderDetailPage() {
                 <p className="font-medium capitalize">{order.payment_method}</p>
               </div>
               <div>
+                <Label className="text-muted-foreground">Payment Status</Label>
+                <div className="mt-1">
+                  <Badge 
+                    variant={order.payment_status === 'paid' ? 'default' : 'destructive'}
+                    className={
+                      order.payment_status === 'paid' 
+                        ? 'bg-cyan-500 text-white hover:bg-cyan-600 dark:bg-cyan-600 dark:text-white font-medium rounded-full px-3' 
+                        : 'bg-red-500 text-white hover:bg-red-600 dark:bg-red-600 dark:text-white font-medium rounded-full px-3'
+                    }
+                  >
+                    {order.payment_status === 'paid' ? 'Paid' : 'Pending'}
+                  </Badge>
+                </div>
+              </div>
+              <div>
                 <Label className="text-muted-foreground">Current Status</Label>
                 <div className="mt-1">
                   <StatusBadge status={order.status} />
@@ -620,8 +734,85 @@ export default function OrderDetailPage() {
                   {order.courier && <p className="text-xs text-muted-foreground">{order.courier}</p>}
                 </div>
               )}
+              {order.delivered_at && (
+                <div>
+                  <Label className="text-muted-foreground">Customer Confirmation</Label>
+                  {order.confirmed_by_customer_at ? (
+                    <div className="mt-1">
+                      <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
+                        ✓ {order.auto_confirmed ? 'Auto-confirmed' : 'Confirmed'}
+                      </Badge>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {formatDate(order.confirmed_by_customer_at)}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="mt-1">
+                      <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400">
+                        ⏳ Pending
+                      </Badge>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Awaiting customer confirmation
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
+
+          {/* COD Payment Pending Warning & Confirm Button */}
+          {order.payment_method === 'cod' && order.payment_status === 'pending' && ['delivered', 'completed'].includes(order.status) && (
+            <Card className="border-2 border-orange-300 dark:border-orange-700 bg-orange-50/50 dark:bg-orange-950/20">
+              <CardHeader>
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 w-10 h-10 bg-orange-100 dark:bg-orange-900/50 rounded-full flex items-center justify-center">
+                    <span className="text-xl">⚠️</span>
+                  </div>
+                  <div className="flex-1">
+                    <CardTitle className="text-orange-700 dark:text-orange-400 flex items-center gap-2">
+                      COD Payment Pending
+                    </CardTitle>
+                    <CardDescription className="text-orange-600 dark:text-orange-500">
+                      Cash payment has not been confirmed yet
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="p-4 bg-orange-100 dark:bg-orange-900/30 border border-orange-300 dark:border-orange-700 rounded-lg">
+                  <p className="text-sm text-orange-900 dark:text-orange-300 font-medium mb-2">
+                    Order Status: <span className="capitalize">{order.status}</span>
+                  </p>
+                  {order.delivered_at && (
+                    <p className="text-sm text-orange-800 dark:text-orange-400">
+                      Delivered on {formatDate(order.delivered_at)}
+                    </p>
+                  )}
+                  <p className="text-sm text-orange-800 dark:text-orange-400 mt-2">
+                    Confirm payment once cash has been collected from the customer.
+                  </p>
+                </div>
+                <Button
+                  onClick={handleConfirmPayment}
+                  disabled={isConfirmingPayment}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold"
+                >
+                  {isConfirmingPayment ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Confirming Payment...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Confirm Payment Received
+                    </>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Status Update */}
           {canUpdateStatus && (
@@ -643,6 +834,13 @@ export default function OrderDetailPage() {
                 
                 <div>
                   <Label className="mb-2 block">Change To</Label>
+                  {newStatus && newStatus !== order.status && (
+                    <div className="mb-3 p-2 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-md">
+                      <p className="text-sm text-blue-800 dark:text-blue-200 font-medium">
+                        Selected: <span className="capitalize font-bold">{newStatus}</span>
+                      </p>
+                    </div>
+                  )}
                   <RadioGroup value={newStatus} onValueChange={setNewStatus} className="mt-2 space-y-2">
                     {availableStatuses.map((status) => {
                       const descriptions: Record<string, string> = {
@@ -652,18 +850,30 @@ export default function OrderDetailPage() {
                         delivered: 'Customer received',
                         cancelled: 'Cancel this order',
                       };
+                      const isSelected = newStatus === status;
                       return (
-                        <div key={status} className="flex items-start space-x-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
+                        <label 
+                          key={status} 
+                          htmlFor={status}
+                          className={`flex items-start space-x-3 p-3 rounded-lg border-2 transition-all cursor-pointer ${
+                            isSelected 
+                              ? 'bg-blue-500/20 border-blue-500 shadow-md' 
+                              : 'border-border hover:bg-muted/50 hover:border-muted-foreground/30'
+                          }`}
+                        >
                           <RadioGroupItem value={status} id={status} className="mt-0.5" />
-                          <Label htmlFor={status} className="font-normal cursor-pointer flex-1">
-                            <span className="capitalize font-medium">{status}</span>
+                          <div className="flex-1">
+                            <span className={`capitalize ${isSelected ? 'font-bold text-blue-600 dark:text-blue-400' : 'font-medium'}`}>
+                              {status}
+                              {isSelected && ' ✓'}
+                            </span>
                             {descriptions[status] && (
                               <span className="text-xs text-muted-foreground block mt-0.5">
                                 {descriptions[status]}
                               </span>
                             )}
-                          </Label>
-                        </div>
+                          </div>
+                        </label>
                       );
                     })}
                   </RadioGroup>

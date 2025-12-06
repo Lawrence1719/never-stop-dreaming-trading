@@ -70,7 +70,7 @@ export interface Order {
   id: string;
   orderNumber: string;
   date: string;
-  status: "pending" | "processing" | "shipped" | "delivered" | "cancelled";
+  status: "pending" | "processing" | "shipped" | "delivered" | "completed" | "cancelled";
   items: OrderItem[];
   subtotal: number;
   shipping: number;
@@ -79,6 +79,9 @@ export interface Order {
   paymentMethod: string;
   shippingMethod?: string;
   trackingNumber?: string;
+  deliveredAt?: string;
+  confirmedByCustomerAt?: string;
+  autoConfirmed?: boolean;
 }
 
 export interface Profile {

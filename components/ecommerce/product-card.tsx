@@ -17,28 +17,28 @@ interface ProductCardProps {
 export function ProductCard({ product }: ProductCardProps) {
   const { addItem } = useCart();
   const { addItem: addToWishlist, removeItem: removeFromWishlist, isInWishlist } = useWishlist();
-  const { toasts, addToast, removeToast } = useToast();
+  const { toast } = useToast();
   const { user } = useAuth();
   const inWishlist = isInWishlist(product.id);
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
     addItem(product, 1);
-    addToast("Added to cart", "success");
+    toast({ title: "Added to cart", description: "Item added to your cart successfully" });
   };
 
   const handleWishlist = (e: React.MouseEvent) => {
     e.preventDefault();
     if (!user) {
-      addToast("Please log in to add items to your wishlist.", "info");
+      toast({ title: "Login Required", description: "Please log in to add items to your wishlist." });
       return;
     }
     if (inWishlist) {
       removeFromWishlist(product.id);
-      addToast("Removed from wishlist", "info");
+      toast({ title: "Removed from wishlist" });
     } else {
       addToWishlist(product.id);
-      addToast("Added to wishlist", "success");
+      toast({ title: "Added to wishlist" });
     }
   };
 

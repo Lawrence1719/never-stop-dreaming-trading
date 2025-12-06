@@ -120,6 +120,9 @@ export async function GET(request: NextRequest) {
         paymentMethod: row.payment_method || 'card',
         shippingMethod: shippingMethodDisplay,
         trackingNumber: row.tracking_number || null,
+        deliveredAt: row.delivered_at || null,
+        confirmedByCustomerAt: row.confirmed_by_customer_at || null,
+        autoConfirmed: row.auto_confirmed || false,
       };
     });
 

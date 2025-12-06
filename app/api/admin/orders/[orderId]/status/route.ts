@@ -3,7 +3,7 @@ import { getClient } from '@/lib/supabase/admin';
 
 // Allowed status transitions
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
-  pending: ['paid', 'cancelled'],
+  pending: ['processing', 'cancelled'],
   paid: ['processing', 'cancelled'],
   processing: ['shipped', 'cancelled'],
   shipped: ['delivered', 'cancelled'],

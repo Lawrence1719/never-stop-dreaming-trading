@@ -106,6 +106,7 @@ export default function OrdersPage() {
           processing: 0,
           shipped: 0,
           delivered: 0,
+          completed: 0,
           cancelled: 0,
           duplicate: 0,
         };
@@ -178,7 +179,27 @@ export default function OrdersPage() {
   }, [debouncedSearchTerm, orderStatus]);
 
   const getPaymentStatusColor = (status: string) => {
-    return status === 'paid' ? 'default' : 'destructive';
+    if (status === 'paid') {
+      return 'default';
+    }
+    // For pending payments, use warning/orange color
+    return 'destructive';
+  };
+
+  const getPaymentStatusBadge = (status: string) => {
+    const isPaid = status === 'paid';
+    return (
+      <Badge 
+        variant={isPaid ? 'default' : 'destructive'}
+        className={
+          isPaid
+            ? 'bg-cyan-500 text-white hover:bg-cyan-600 dark:bg-cyan-600 dark:text-white font-medium rounded-full px-3'
+            : 'bg-red-500 text-white hover:bg-red-600 dark:bg-red-600 dark:text-white font-medium rounded-full px-3'
+        }
+      >
+        {isPaid ? 'Paid' : 'Pending'}
+      </Badge>
+    );
   };
   
   const formatCurrency = (amount: number) => {
@@ -192,6 +213,7 @@ export default function OrdersPage() {
     { value: 'processing', label: 'Processing' },
     { value: 'shipped', label: 'Shipped' },
     { value: 'delivered', label: 'Delivered' },
+    { value: 'completed', label: 'Completed' },
     { value: 'cancelled', label: 'Cancelled' },
     { value: 'duplicate', label: 'Duplicate' },
   ];
@@ -396,9 +418,7 @@ export default function OrdersPage() {
                         className="cursor-pointer"
                         onClick={() => window.location.href = `/admin/orders/${order.orderId}`}
                       >
-                        <Badge variant={getPaymentStatusColor(order.paymentStatus)}>
-                          {order.paymentStatus}
-                        </Badge>
+                        {getPaymentStatusBadge(order.paymentStatus)}
                       </TableCell>
                       <TableCell 
                         className="text-sm text-muted-foreground cursor-pointer"
