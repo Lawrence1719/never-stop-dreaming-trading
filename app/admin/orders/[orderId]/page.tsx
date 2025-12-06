@@ -19,7 +19,7 @@ import {
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { StatusBadge } from '@/components/admin/status-badge';
 import { useAuth } from '@/lib/context/auth-context';
-import { useToast } from '@/components/ui/toast';
+import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase/client';
 import { formatPrice, formatDate } from '@/lib/utils/formatting';
 

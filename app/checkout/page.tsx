@@ -6,10 +6,12 @@ import Link from "next/link";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { CartSummary } from "@/components/ecommerce/cart-summary";
+import { ShippingOptions } from "@/components/ecommerce/shipping-options";
 import { CheckoutStepper } from "@/components/ecommerce/checkout-stepper";
 import { useCart } from "@/lib/context/cart-context";
 import { useAuth } from "@/lib/context/auth-context";
-import { useToast } from "@/components/ui/toast";
+import { useShipping } from "@/lib/context/shipping-context";
+import { useToast } from "@/hooks/use-toast";
 import { useSettings } from "@/lib/hooks/use-settings";
 import { Product } from "@/lib/types";
 import { supabase } from "@/lib/supabase/client";
@@ -34,7 +36,8 @@ export default function CheckoutPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { cart, clearCart } = useCart();
-  const { toasts, addToast, removeToast } = useToast();
+  const { shippingMethod, setShippingMethod, calculateShipping } = useShipping();
+  const { toast } = useToast();
   const { settings } = useSettings();
 
   const [step, setStep] = useState(0);
@@ -55,7 +58,6 @@ export default function CheckoutPage() {
     city: "",
     province: "",
     zip: "",
-    shippingMethod: "standard",
     paymentMethod: getInitialPaymentMethod(),
     cardNumber: "",
     cardExpiry: "",
@@ -80,24 +82,7 @@ export default function CheckoutPage() {
   const products: Product[] = [];
 
   // Calculate shipping cost based on selected method and settings
-  const calculateShippingCost = () => {
-    if (!settings) return 10; // Default fallback
-    
-    const subtotal = cart.items.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
-    const freeThreshold = parseFloat(settings.shipping.freeShippingThreshold || '50.00');
-    
-    // Free shipping if subtotal exceeds threshold
-    if (subtotal >= freeThreshold) {
-      return 0;
-    }
-    
-    if (formData.shippingMethod === "standard") {
-      return parseFloat(settings.shipping.standardRate || '5.00');
-    } else if (formData.shippingMethod === "express") {
-      return parseFloat(settings.shipping.expressRate || '15.00');
-    }
-    return 0;
-  };
+  const shippingCost = calculateShipping(cart.total);
 
   // Build product objects for the checkout summary. If we have full product
   // data (from a server fetch) use that, otherwise synthesize a minimal Product
@@ -285,7 +270,11 @@ export default function CheckoutPage() {
     if (validateStep()) {
       setStep(step + 1);
     } else {
-      addToast("Please fix the errors above", "error");
+      toast({
+        title: "Validation Error",
+        description: "Please fix the errors above",
+        variant: "destructive",
+      });
     }
   };
 
@@ -303,27 +292,41 @@ export default function CheckoutPage() {
 
   const handleSubmit = async () => {
     if (!user) {
-      addToast("Please sign in to complete the purchase", "info");
+      toast({
+        title: "Authentication Required",
+        description: "Please sign in to complete the purchase",
+      });
       // send user to login and return to checkout after auth
       router.push(`/login?next=/checkout`);
       return;
     }
 
     if (!validateStep()) {
-      addToast("Please fix the errors above", "error");
+      toast({
+        title: "Validation Error",
+        description: "Please fix the errors above",
+        variant: "destructive",
+      });
       return;
     }
 
     // Prevent double-submission
     if (isProcessingOrder) {
-      addToast("Order is already being processed. Please wait...", "info");
+      toast({
+        title: "Processing",
+        description: "Order is already being processed. Please wait...",
+      });
       return;
     }
 
     // Generate idempotency key
     const idempotencyKey = generateIdempotencyKey();
     if (!idempotencyKey) {
-      addToast("Unable to generate order key. Please try again.", "error");
+      toast({
+        title: "Error",
+        description: "Unable to generate order key. Please try again.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -374,8 +377,8 @@ export default function CheckoutPage() {
 
       // Prepare order data
       const subtotal = cart.total;
-      const shippingCost = calculateShippingCost();
-      const orderTotal = subtotal + shippingCost;
+      const shipping = shippingCost;
+      const orderTotal = subtotal + shipping;
 
       // Format cart items for database
       const orderItems = cart.items.map((item) => ({
@@ -414,6 +417,8 @@ export default function CheckoutPage() {
           total: orderTotal,
           items: orderItems,
           shipping_address_id: shippingAddressId,
+          shipping_method: shippingMethod,
+          shipping_cost: shipping,
           payment_method: formData.paymentMethod,
         }),
       });
@@ -426,9 +431,15 @@ export default function CheckoutPage() {
 
       // Check if this was a duplicate (idempotency returned existing order)
       if (result.duplicate) {
-        addToast("Order already processed. Redirecting to confirmation...", "info");
+        toast({
+          title: "Order Already Processed",
+          description: "Redirecting to confirmation...",
+        });
       } else {
-        addToast("Order placed successfully", "success");
+        toast({
+          title: "Success",
+          description: "Order placed successfully",
+        });
       }
 
       const orderId = result.data.id;
@@ -438,7 +449,11 @@ export default function CheckoutPage() {
       // eslint-disable-next-line no-console
       console.error('Failed to create address/order', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to save address. Please try again.';
-      addToast(errorMessage, 'error');
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
       setIsProcessingOrder(false); // Re-enable button on error
     }
   };
@@ -773,34 +788,8 @@ export default function CheckoutPage() {
                       </div>
                     )}
 
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Shipping Method</label>
-                      <select
-                        name="shippingMethod"
-                        value={formData.shippingMethod}
-                        onChange={handleInputChange}
-                        className="w-full px-4 py-2 bg-input border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                      >
-                        {(() => {
-                          const subtotal = cart.items.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
-                          const freeThreshold = settings ? parseFloat(settings.shipping.freeShippingThreshold || '50.00') : 50;
-                          const standardRate = settings ? parseFloat(settings.shipping.standardRate || '5.00') : 5;
-                          const expressRate = settings ? parseFloat(settings.shipping.expressRate || '15.00') : 15;
-                          const isFreeShipping = subtotal >= freeThreshold;
-                          
-                          return (
-                            <>
-                              <option value="standard">
-                                Standard (5-7 business days) - {isFreeShipping ? 'FREE' : `₱${standardRate.toFixed(2)}`}
-                              </option>
-                              <option value="express">
-                                Express (2-3 business days) - {isFreeShipping ? 'FREE' : `₱${expressRate.toFixed(2)}`}
-                              </option>
-                            </>
-                          );
-                        })()}
-                      </select>
-                    </div>
+                    {/* Shipping Method Selection */}
+                    <ShippingOptions subtotal={cart.total} />
                   </div>
                 )}
 
@@ -948,8 +937,8 @@ export default function CheckoutPage() {
                     <div>
                       <h3 className="font-semibold mb-3">Shipping Method</h3>
                       <p className="text-sm text-muted-foreground">
-                        {formData.shippingMethod === "standard" && `Standard (5-7 business days) - ${calculateShippingCost() === 0 ? 'FREE' : `₱${calculateShippingCost().toFixed(2)}`}`}
-                        {formData.shippingMethod === "express" && `Express (2-3 business days) - ${calculateShippingCost() === 0 ? 'FREE' : `₱${calculateShippingCost().toFixed(2)}`}`}
+                        {shippingMethod === "standard" && `Standard (5-7 business days) - ${shippingCost === 0 ? 'FREE' : `₱${shippingCost.toFixed(2)}`}`}
+                        {shippingMethod === "express" && `Express (2-3 business days) - ${shippingCost === 0 ? 'FREE' : `₱${shippingCost.toFixed(2)}`}`}
                       </p>
                     </div>
 
@@ -1012,8 +1001,7 @@ export default function CheckoutPage() {
             {/* Order Summary Sidebar */}
             <div className="lg:col-span-1 h-fit">
               <CartSummary 
-                subtotal={cart.total} 
-                shipping={calculateShippingCost()}
+                subtotal={cart.total}
               />
             </div>
           </div>

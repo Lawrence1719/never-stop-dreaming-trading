@@ -6,6 +6,7 @@ import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { CartItem } from "@/components/ecommerce/cart-item";
 import { CartSummary } from "@/components/ecommerce/cart-summary";
+import { ShippingOptions } from "@/components/ecommerce/shipping-options";
 import { useCart } from "@/lib/context/cart-context";
 import { Product } from "@/lib/types";
 import { ShoppingCart } from 'lucide-react';
@@ -142,6 +143,10 @@ export default function CartPage() {
 
             {/* Sidebar */}
             <div className="lg:col-span-1 space-y-4 h-fit">
+              {/* Shipping Options */}
+              <ShippingOptions subtotal={cart.total} />
+              
+              {/* Cart Summary */}
               <CartSummary subtotal={cart.total} />
 
               <Link

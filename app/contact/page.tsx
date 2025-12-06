@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
-import { useToast } from "@/components/ui/toast";
+import { useToast } from "@/hooks/use-toast";
 import { Mail, Phone, MapPin } from 'lucide-react';
 
 export default function ContactPage() {

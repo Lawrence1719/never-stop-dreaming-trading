@@ -6,14 +6,14 @@ import Link from "next/link";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { useAuth } from "@/lib/context/auth-context";
-import { useToast, ToastContainer } from "@/components/ui/toast";
+import { useToast } from "@/hooks/use-toast";
 import { validateEmail, validatePassword, validatePhoneNumber } from "@/lib/utils/validation";
 import { User, Mail, Lock, Phone, CheckCircle2 } from 'lucide-react';
 
 export default function RegisterPage() {
   const router = useRouter();
   const { register, user, isLoading: authLoading } = useAuth();
-  const { toasts, addToast, removeToast } = useToast();
+  const { toast } = useToast();
 
   const [formData, setFormData] = useState({
     name: "",
@@ -139,18 +139,29 @@ export default function RegisterPage() {
           }
         }
         
-        addToast(errorMessage, "error");
+        toast({
+          title: "Registration Failed",
+          description: errorMessage,
+          variant: "destructive",
+        });
         setIsLoading(false);
         return;
       }
 
       // Success - show success toast
-      addToast("Account created successfully! Redirecting...", "success");
+      toast({
+        title: "Success",
+        description: "Account created successfully! Redirecting...",
+      });
       // Redirect will be handled by useEffect when user state updates
     } catch (error) {
       // Handle unexpected errors
       const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred. Please try again.";
-      addToast(errorMessage, "error");
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -308,9 +319,6 @@ export default function RegisterPage() {
       </main>
 
       <Footer />
-      
-      {/* Toast Notifications */}
-      <ToastContainer toasts={toasts} onClose={removeToast} />
     </div>
   );
 }

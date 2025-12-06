@@ -6,7 +6,7 @@
   import { Navbar } from "@/components/layout/navbar";
   import { Footer } from "@/components/layout/footer";
   import { useAuth } from "@/lib/context/auth-context";
-  import { useToast } from "@/components/ui/toast";
+  import { useToast } from "@/hooks/use-toast";
   import { validatePhoneNumber } from "@/lib/utils/validation";
   import { ChevronLeft } from 'lucide-react';
 

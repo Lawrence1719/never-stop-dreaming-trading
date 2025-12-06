@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from "next/link";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
-import { useToast } from "@/components/ui/toast";
+import { useToast } from "@/hooks/use-toast";
 import { validateEmail } from "@/lib/utils/validation";
 import { Mail } from 'lucide-react';
 
