@@ -38,7 +38,10 @@ export default function ProductDetailPage() {
 
     const fetchProduct = async () => {
       try {
-        if (!id) return;
+        if (!id) {
+          console.warn('No product ID provided');
+          return;
+        }
         
         // Fetch current product
         const { data, error } = await supabase
@@ -47,7 +50,16 @@ export default function ProductDetailPage() {
           .eq('id', id)
           .single();
         console.log('Supabase fetch result:', { data, error });
-        if (error) throw error;
+        
+        if (error) {
+          console.error('Supabase error details:', {
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+            code: error.code
+          });
+          throw error;
+        }
         if (data && mounted) {
           const mapped: Product = {
             id: data.id,
@@ -105,6 +117,19 @@ export default function ProductDetailPage() {
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error('Failed to fetch product from Supabase:', err);
+        
+        // Check if Supabase is properly configured
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        
+        if (!supabaseUrl || !supabaseKey) {
+          console.error(
+            '❌ Supabase is not configured properly. ' +
+            'Please create a .env.local file with NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY. ' +
+            'See .env.local.example for reference.'
+          );
+        }
+        
         if (mounted) setProduct(null);
       } finally {
         const elapsed = Date.now() - start;
@@ -209,11 +234,27 @@ export default function ProductDetailPage() {
       <div className="flex flex-col min-h-screen">
         <Navbar />
         <main className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold mb-4">Product not found</h1>
-            <Link href="/products" className="text-primary hover:underline">
-              Back to products
-            </Link>
+          <div className="text-center max-w-md mx-auto px-4">
+            <div className="mb-4 text-6xl">🔍</div>
+            <h1 className="text-2xl font-bold mb-2">Product not found</h1>
+            <p className="text-muted-foreground mb-6">
+              The product you&apos;re looking for doesn&apos;t exist or may have been removed.
+            </p>
+            <div className="flex gap-3 justify-center">
+              <Link 
+                href="/products" 
+                className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-2 rounded-lg hover:bg-primary/90 transition-colors"
+              >
+                Browse Products
+              </Link>
+              <button
+                onClick={() => router.back()}
+                className="inline-flex items-center gap-2 border border-input px-6 py-2 rounded-lg hover:bg-accent transition-colors"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Go Back
+              </button>
+            </div>
           </div>
         </main>
         <Footer />

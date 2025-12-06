@@ -10,11 +10,35 @@ import { useToast } from "@/hooks/use-toast";
 import { ChevronLeft, Plus, MapPin, Edit, Trash2 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { AddressDialog, AddressFormData } from "@/components/ecommerce/address-dialog";
+import { Address } from "@/lib/types";
+import { supabase } from "@/lib/supabase/client";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function AddressesPage() {
   const router = useRouter();
   const { user, isLoading: authLoading } = useAuth();
-  const { addToast } = useToast();
+  const { toast } = useToast();
+
+  const MAX_ADDRESSES = 5; // Realistic limit for saved addresses
+
+  const [addresses, setAddresses] = useState<Address[]>([]);
+  const [isLoadingAddresses, setIsLoadingAddresses] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingAddress, setEditingAddress] = useState<Address | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [addressToDelete, setAddressToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -22,7 +46,191 @@ export default function AddressesPage() {
     }
   }, [user, authLoading, router]);
 
-  if (authLoading) {
+  // Fetch addresses
+  useEffect(() => {
+    if (user) {
+      fetchAddresses();
+    }
+  }, [user]);
+
+  const fetchAddresses = async () => {
+    try {
+      setIsLoadingAddresses(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        toast({ title: "Error", description: "Session expired. Please log in again.", variant: "destructive" });
+        router.push("/login");
+        return;
+      }
+
+      const response = await fetch('/api/addresses', {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch addresses');
+      }
+
+      const data = await response.json();
+      setAddresses(data.addresses || []);
+    } catch (error) {
+      console.error('Error fetching addresses:', error);
+      toast({ title: "Error", description: "Failed to load addresses", variant: "destructive" });
+    } finally {
+      setIsLoadingAddresses(false);
+    }
+  };
+
+  const handleAddNew = () => {
+    if (addresses.length >= MAX_ADDRESSES) {
+      toast({ 
+        title: "Address Limit Reached", 
+        description: `You can only save up to ${MAX_ADDRESSES} addresses. Please delete an existing address to add a new one.`, 
+        variant: "destructive" 
+      });
+      return;
+    }
+    setEditingAddress(null);
+    setDialogOpen(true);
+  };
+
+  const handleEdit = (address: Address) => {
+    setEditingAddress(address);
+    setDialogOpen(true);
+  };
+
+  const handleSaveAddress = async (formData: AddressFormData) => {
+    try {
+      setIsSaving(true);
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        toast({ title: "Error", description: "Session expired. Please log in again.", variant: "destructive" });
+        router.push("/login");
+        return;
+      }
+
+      if (editingAddress) {
+        // Update existing address
+        const response = await fetch(`/api/addresses/${editingAddress.id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify(formData),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to update address');
+        }
+
+        toast({ title: "Success", description: "Address updated successfully" });
+      } else {
+        // Create new address
+        const response = await fetch('/api/addresses', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify(formData),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to create address');
+        }
+
+        toast({ title: "Success", description: "Address added successfully" });
+      }
+
+      setDialogOpen(false);
+      setEditingAddress(null);
+      await fetchAddresses();
+    } catch (error) {
+      console.error('Error saving address:', error);
+      toast({ title: "Error", description: "Failed to save address", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteClick = (addressId: string) => {
+    setAddressToDelete(addressId);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!addressToDelete) return;
+
+    try {
+      setIsDeleting(true);
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        toast({ title: "Error", description: "Session expired. Please log in again.", variant: "destructive" });
+        router.push("/login");
+        return;
+      }
+
+      const response = await fetch(`/api/addresses/${addressToDelete}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete address');
+      }
+
+      toast({ title: "Success", description: "Address deleted successfully" });
+      await fetchAddresses();
+    } catch (error) {
+      console.error('Error deleting address:', error);
+      toast({ title: "Error", description: "Failed to delete address", variant: "destructive" });
+    } finally {
+      setIsDeleting(false);
+      setDeleteDialogOpen(false);
+      setAddressToDelete(null);
+    }
+  };
+
+  const handleSetDefault = async (addressId: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        toast({ title: "Error", description: "Session expired. Please log in again.", variant: "destructive" });
+        router.push("/login");
+        return;
+      }
+
+      const response = await fetch(`/api/addresses/${addressId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ isDefault: true }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update default address');
+      }
+
+      toast({ title: "Success", description: "Default address updated successfully" });
+      await fetchAddresses();
+    } catch (error) {
+      console.error('Error setting default address:', error);
+      toast({ title: "Error", description: "Failed to update default address", variant: "destructive" });
+    }
+  };
+
+  if (authLoading || isLoadingAddresses) {
     return (
       <div className="flex flex-col min-h-screen">
         <Navbar />
@@ -40,18 +248,6 @@ export default function AddressesPage() {
     return null;
   }
 
-  const addresses = user.addresses || [];
-
-  const handleDelete = (addressId: string) => {
-    // In a real app, delete address from backend
-    addToast("Address deleted", "success");
-  };
-
-  const handleSetDefault = (addressId: string) => {
-    // In a real app, set default address in backend
-    addToast("Default address updated", "success");
-  };
-
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
@@ -66,13 +262,22 @@ export default function AddressesPage() {
               <ChevronLeft className="w-4 h-4" />
               Back
             </button>
-            <Button className="gap-2">
-              <Plus className="w-4 h-4" />
-              Add New Address
-            </Button>
+            {addresses.length > 0 && addresses.length < MAX_ADDRESSES && (
+              <Button className="gap-2" onClick={handleAddNew}>
+                <Plus className="w-4 h-4" />
+                Add New Address
+              </Button>
+            )}
           </div>
 
-          <h1 className="text-3xl font-bold mb-8">Address Book</h1>
+          <div className="flex items-center justify-between mb-8">
+            <h1 className="text-3xl font-bold">Address Book</h1>
+            {addresses.length > 0 && (
+              <p className="text-sm text-muted-foreground">
+                {addresses.length} of {MAX_ADDRESSES} addresses saved
+              </p>
+            )}
+          </div>
 
           {addresses.length === 0 ? (
             <div className="bg-card border border-border rounded-lg p-12 text-center">
@@ -81,66 +286,121 @@ export default function AddressesPage() {
               <p className="text-muted-foreground mb-6">
                 Add an address to make checkout faster and easier.
               </p>
-              <Button className="gap-2">
+              <Button className="gap-2" onClick={handleAddNew}>
                 <Plus className="w-4 h-4" />
                 Add Your First Address
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {addresses.map((address) => (
-                <div
-                  key={address.id}
-                  className="bg-card border border-border rounded-lg p-6 hover:border-primary/50 transition-colors"
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                      <MapPin className="w-5 h-5 text-primary" />
-                      <h3 className="font-semibold">{address.label}</h3>
-                      {address.default && (
-                        <Badge variant="default" className="text-xs">Default</Badge>
-                      )}
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {addresses.map((address) => (
+                  <div
+                    key={address.id}
+                    className="bg-card border border-border rounded-lg p-6 hover:border-primary/50 transition-colors"
+                  >
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <MapPin className="w-5 h-5 text-primary" />
+                        <h3 className="font-semibold">{address.label}</h3>
+                        {address.default && (
+                          <Badge variant="default">Default</Badge>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={() => handleEdit(address)}
+                          title="Edit address"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-destructive"
+                          onClick={() => handleDeleteClick(address.id)}
+                          title="Delete address"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                        <Edit className="w-4 h-4" />
-                      </Button>
+                    <div className="space-y-1 text-sm text-muted-foreground">
+                      <p>{address.fullName}</p>
+                      <p>{address.street}</p>
+                      <p>
+                        {address.city}, {address.province} {address.zip}
+                      </p>
+                      <p>{address.phone}</p>
+                    </div>
+                    {!address.default && (
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
-                        className="h-8 w-8 p-0 text-destructive"
-                        onClick={() => handleDelete(address.id)}
+                        className="w-full mt-4"
+                        onClick={() => handleSetDefault(address.id)}
                       >
-                        <Trash2 className="w-4 h-4" />
+                        Set as Default
                       </Button>
-                    </div>
+                    )}
                   </div>
-                  <div className="space-y-1 text-sm text-muted-foreground">
-                    <p>{address.fullName}</p>
-                    <p>{address.street}</p>
-                    <p>
-                      {address.city}, {address.province} {address.zip}
-                    </p>
-                    <p>{address.phone}</p>
-                  </div>
-                  {!address.default && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full mt-4"
-                      onClick={() => handleSetDefault(address.id)}
-                    >
-                      Set as Default
-                    </Button>
-                  )}
+                ))}
+              </div>
+              
+              {addresses.length < MAX_ADDRESSES && (
+                <div className="mt-6 flex justify-center">
+                  <Button variant="outline" className="gap-2" onClick={handleAddNew}>
+                    <Plus className="w-4 h-4" />
+                    Add Another Address
+                  </Button>
                 </div>
-              ))}
-            </div>
+              )}
+              
+              {addresses.length >= MAX_ADDRESSES && (
+                <div className="mt-6 text-center">
+                  <p className="text-sm text-muted-foreground">
+                    You've reached the maximum of {MAX_ADDRESSES} saved addresses. Delete an address to add a new one.
+                  </p>
+                </div>
+              )}
+            </>
           )}
         </div>
       </main>
 
       <Footer />
+      
+      <AddressDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onSave={handleSaveAddress}
+        address={editingAddress}
+        isLoading={isSaving}
+      />
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Address</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this address? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
