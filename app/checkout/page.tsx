@@ -333,6 +333,9 @@ export default function CheckoutPage() {
     setIsProcessingOrder(true);
 
     try {
+      // Debug log: Check form data before processing
+      console.log('Processing order with formData:', formData);
+      
       let shippingAddressId: string | null = selectedAddressId;
 
       if (user) {
@@ -347,6 +350,20 @@ export default function CheckoutPage() {
               .update({ is_default: false })
               .eq('user_id', user.id);
           }
+
+          // Log the data being inserted for debugging
+          console.log('Creating new address with data:', {
+            user_id: user.id,
+            full_name: formData.fullName,
+            email: formData.email,
+            phone: formData.phone,
+            street_address: formData.street,
+            city: formData.city,
+            province: formData.province,
+            zip_code: formData.zip,
+            address_type: 'shipping',
+            is_default: saveAsDefault,
+          });
 
           const { data: created, error: createErr } = await supabase
             .from('addresses')
@@ -364,6 +381,8 @@ export default function CheckoutPage() {
             })
             .select()
             .single();
+
+          console.log('Address creation result:', { created, error: createErr });
 
           setIsSavingAddress(false);
 
@@ -482,6 +501,12 @@ export default function CheckoutPage() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
+    
+    // Debug logging for street address
+    if (name === 'street') {
+      console.log('Street address changed:', value);
+    }
+    
     setFormData((prev) => ({ ...prev, [name]: value }));
     
     // Mark field as touched

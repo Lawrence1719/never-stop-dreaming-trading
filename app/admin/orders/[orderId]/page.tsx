@@ -89,7 +89,7 @@ const STATUS_COLORS: Record<string, string> = {
   duplicate: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400',
 };
 
-const COURIERS = ['2GO', 'LBC', 'Lalamove', 'J&T Express', 'Flash Express', 'Ninja Van', 'Others'];
+const COURIERS = ['NSD Delivery', '2GO', 'LBC', 'Lalamove', 'J&T Express', 'Flash Express', 'Ninja Van', 'Others'];
 
 export default function OrderDetailPage() {
   const router = useRouter();
@@ -118,13 +118,24 @@ export default function OrderDetailPage() {
     }
   }, [orderId, user]);
 
-  // Clear tracking fields when status changes away from 'shipped'
+  // Auto-generate tracking number when status changes to 'shipped'
   useEffect(() => {
-    if (newStatus !== 'shipped') {
+    if (newStatus === 'shipped' && !trackingNumber) {
+      // Auto-generate tracking number: NSD-{DATE}-{ORDER_ID}-{RANDOM}
+      const date = new Date().toISOString().split('T')[0].replace(/-/g, '');
+      const orderIdShort = order?.id.slice(0, 8).toUpperCase() || '';
+      const random = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const autoTrackingNumber = `NSD-${date}-${orderIdShort}-${random}`;
+      setTrackingNumber(autoTrackingNumber);
+      // Set default courier to in-house delivery
+      if (!courier) {
+        setCourier('NSD Delivery');
+      }
+    } else if (newStatus !== 'shipped') {
       setTrackingNumber('');
       setCourier('');
     }
-  }, [newStatus]);
+  }, [newStatus, order?.id]);
 
   // Debug: Log orderId
   useEffect(() => {
@@ -200,18 +211,18 @@ export default function OrderDetailPage() {
 
     // Validation: Ensure newStatus is different from current order status
     if (newStatus === order.status) {
-      addToast('Please select a different status', 'error');
+      toast({ title: 'Error', description: 'Please select a different status', variant: 'destructive' });
       return;
     }
 
     // Validation
     if (newStatus === 'shipped') {
       if (!trackingNumber.trim() || trackingNumber.trim().length < 3) {
-        addToast('Tracking number is required for shipped status (minimum 3 characters)', 'error');
+        toast({ title: 'Error', description: 'Tracking number is required for shipped status (minimum 3 characters)', variant: 'destructive' });
         return;
       }
       if (!courier.trim()) {
-        addToast('Courier is required for shipped status', 'error');
+        toast({ title: 'Error', description: 'Courier is required for shipped status', variant: 'destructive' });
         return;
       }
     }
@@ -688,14 +699,7 @@ export default function OrderDetailPage() {
               <div>
                 <Label className="text-muted-foreground">Payment Status</Label>
                 <div className="mt-1">
-                  <Badge 
-                    variant={order.payment_status === 'paid' ? 'default' : 'destructive'}
-                    className={
-                      order.payment_status === 'paid' 
-                        ? 'bg-cyan-500 text-white hover:bg-cyan-600 dark:bg-cyan-600 dark:text-white font-medium rounded-full px-3' 
-                        : 'bg-red-500 text-white hover:bg-red-600 dark:bg-red-600 dark:text-white font-medium rounded-full px-3'
-                    }
-                  >
+                  <Badge variant={order.payment_status === 'paid' ? 'default' : 'destructive'}>
                     {order.payment_status === 'paid' ? 'Paid' : 'Pending'}
                   </Badge>
                 </div>
@@ -739,7 +743,7 @@ export default function OrderDetailPage() {
                   <Label className="text-muted-foreground">Customer Confirmation</Label>
                   {order.confirmed_by_customer_at ? (
                     <div className="mt-1">
-                      <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
+                      <Badge variant="default">
                         ✓ {order.auto_confirmed ? 'Auto-confirmed' : 'Confirmed'}
                       </Badge>
                       <p className="text-xs text-muted-foreground mt-1">
@@ -748,7 +752,7 @@ export default function OrderDetailPage() {
                     </div>
                   ) : (
                     <div className="mt-1">
-                      <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400">
+                      <Badge variant="secondary">
                         ⏳ Pending
                       </Badge>
                       <p className="text-xs text-muted-foreground mt-1">
@@ -766,7 +770,7 @@ export default function OrderDetailPage() {
             <Card className="border-2 border-orange-300 dark:border-orange-700 bg-orange-50/50 dark:bg-orange-950/20">
               <CardHeader>
                 <div className="flex items-start gap-3">
-                  <div className="flex-shrink-0 w-10 h-10 bg-orange-100 dark:bg-orange-900/50 rounded-full flex items-center justify-center">
+                  <div className="shrink-0 w-10 h-10 bg-orange-100 dark:bg-orange-900/50 rounded-full flex items-center justify-center">
                     <span className="text-xl">⚠️</span>
                   </div>
                   <div className="flex-1">
@@ -900,9 +904,12 @@ export default function OrderDetailPage() {
                         id="tracking"
                         value={trackingNumber}
                         onChange={(e) => setTrackingNumber(e.target.value)}
-                        placeholder="Enter tracking number"
+                        placeholder="Auto-generated tracking number"
                         minLength={3}
                       />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Auto-generated. You can edit if needed.
+                      </p>
                     </div>
                   </>
                 )}

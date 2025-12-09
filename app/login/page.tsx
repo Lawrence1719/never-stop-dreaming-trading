@@ -81,13 +81,23 @@ export default function LoginPage() {
     }
 
     setIsLoading(true);
+    setErrors({}); // Clear previous errors
 
     try {
       const trimmedEmail = email.trim().toLowerCase();
+      console.log('Attempting login with email:', trimmedEmail);
+      
       const { error } = await login(trimmedEmail, password);
       
+      console.log('Login result:', { error });
+      
       if (error) {
-        const errorMessage = error.message || "";
+        const errorMessage = error.message || "Invalid email or password";
+        console.error('Login error:', errorMessage);
+        
+        // Set form error
+        setErrors({ form: errorMessage });
+        
         if (errorMessage.toLowerCase().includes("email not confirmed") || 
             errorMessage.toLowerCase().includes("email_not_confirmed") ||
             errorMessage.toLowerCase().includes("confirm your email")) {
@@ -97,10 +107,18 @@ export default function LoginPage() {
             description: "Please confirm your email address before logging in. Check your inbox for the confirmation link.",
             variant: "destructive",
           });
+        } else if (errorMessage.toLowerCase().includes("invalid") || 
+                   errorMessage.toLowerCase().includes("credentials") ||
+                   errorMessage.toLowerCase().includes("password")) {
+          toast({
+            title: "Invalid Credentials",
+            description: "The email or password you entered is incorrect. Please try again.",
+            variant: "destructive",
+          });
         } else {
           toast({
             title: "Login Failed",
-            description: errorMessage || "Login failed. Please try again.",
+            description: errorMessage,
             variant: "destructive",
           });
         }
@@ -113,9 +131,12 @@ export default function LoginPage() {
       });
       setShowResendConfirmation(false);
     } catch (error) {
+      console.error('Unexpected login error:', error);
+      const errorMsg = error instanceof Error ? error.message : "An unexpected error occurred";
+      setErrors({ form: errorMsg });
       toast({
         title: "Login Failed",
-        description: "Login failed. Please try again.",
+        description: errorMsg,
         variant: "destructive",
       });
     } finally {
@@ -187,6 +208,13 @@ export default function LoginPage() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* General Form Error */}
+            {errors.form && (
+              <div className="p-4 bg-destructive/10 border border-destructive rounded-lg">
+                <p className="text-sm text-destructive font-medium">{errors.form}</p>
+              </div>
+            )}
+
             {/* Email */}
             <div>
               <label className="block text-sm font-medium mb-2">Email Address</label>
@@ -198,11 +226,13 @@ export default function LoginPage() {
                   onChange={(e) => {
                     setEmail(e.target.value);
                     if (errors.email) setErrors((prev) => ({ ...prev, email: "" }));
+                    if (errors.form) setErrors((prev) => ({ ...prev, form: "" }));
                   }}
                   placeholder="you@example.com"
                   className={`w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
                     errors.email ? "border-destructive" : "border-border"
                   }`}
+                  autoComplete="email"
                 />
               </div>
               {errors.email && <p className="text-xs text-destructive mt-1">{errors.email}</p>}
@@ -219,11 +249,13 @@ export default function LoginPage() {
                   onChange={(e) => {
                     setPassword(e.target.value);
                     if (errors.password) setErrors((prev) => ({ ...prev, password: "" }));
+                    if (errors.form) setErrors((prev) => ({ ...prev, form: "" }));
                   }}
                   placeholder="••••••••"
                   className={`w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
                     errors.password ? "border-destructive" : "border-border"
                   }`}
+                  autoComplete="current-password"
                 />
               </div>
               {errors.password && <p className="text-xs text-destructive mt-1">{errors.password}</p>}

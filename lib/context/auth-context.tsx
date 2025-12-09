@@ -211,12 +211,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
+      console.log('Auth context: Attempting login for email:', email);
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
+      console.log('Auth context: Login response:', { 
+        hasData: !!data, 
+        hasSession: !!data?.session, 
+        error: error?.message 
+      });
+
       if (error) {
+        console.error('Auth context: Login error:', error);
         return { error };
       }
 
@@ -229,6 +238,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       return { error: null };
     } catch (error) {
+      console.error('Auth context: Unexpected error during login:', error);
       return { error: error as Error };
     }
   };
