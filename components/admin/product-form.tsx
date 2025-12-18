@@ -552,17 +552,7 @@ export function ProductForm({
           </div>
         ) : (
           /* Upload Zone */
-          <div
-            onDragEnter={handleDrag}
-            onDragLeave={handleDrag}
-            onDragOver={handleDrag}
-            onDrop={handleDrop}
-            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-              dragActive 
-                ? 'border-primary bg-primary/5' 
-                : 'border-border hover:border-primary/50'
-            } ${errors.imageFile ? 'border-destructive' : ''}`}
-          >
+          <div className="space-y-0">
             <input
               ref={fileInputRef}
               type="file"
@@ -573,9 +563,17 @@ export function ProductForm({
             />
             <label
               htmlFor="image-upload"
-              className="cursor-pointer flex flex-col items-center gap-2"
+              onDragEnter={handleDrag}
+              onDragLeave={handleDrag}
+              onDragOver={handleDrag}
+              onDrop={handleDrop}
+              className={`block border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${
+                dragActive 
+                  ? 'border-primary bg-primary/5' 
+                  : 'border-border hover:border-primary/50'
+              } ${errors.imageFile ? 'border-destructive' : ''}`}
             >
-              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-2">
+              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-2 mx-auto">
                 {isUploadingImage ? (
                   <Loader2 className="w-8 h-8 text-primary animate-spin" />
                 ) : (

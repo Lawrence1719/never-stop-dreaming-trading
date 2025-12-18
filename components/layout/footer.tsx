@@ -47,18 +47,23 @@ export function Footer() {
             <h4 className="font-semibold mb-4">Products</h4>
             <ul className="space-y-2 text-sm">
               <li>
-                <Link href="/products?category=software" className="hover:text-primary transition-colors">
-                  Software
+                <Link href="/products?category=fresh-produce" className="hover:text-primary transition-colors">
+                  Fresh Produce
                 </Link>
               </li>
               <li>
-                <Link href="/products?category=education" className="hover:text-primary transition-colors">
-                  Education
+                <Link href="/products?category=dairy-eggs" className="hover:text-primary transition-colors">
+                  Dairy & Eggs
                 </Link>
               </li>
               <li>
-                <Link href="/products?category=subscription" className="hover:text-primary transition-colors">
-                  Subscriptions
+                <Link href="/products?category=pantry-staples" className="hover:text-primary transition-colors">
+                  Pantry Staples
+                </Link>
+              </li>
+              <li>
+                <Link href="/products?category=beverages" className="hover:text-primary transition-colors">
+                  Beverages
                 </Link>
               </li>
             </ul>

@@ -14,10 +14,11 @@ import { ProductDetailsAccordion } from "@/components/ecommerce/product-details-
 import { ProductRecommendations } from "@/components/ecommerce/product-recommendations";
 import { ProductReviews } from "@/components/ecommerce/product-reviews";
 import { StickyAddToCart } from "@/components/ecommerce/sticky-add-to-cart";
+import { VariantSelector } from "@/components/ecommerce/variant-selector";
 import { useCart } from "@/lib/context/cart-context";
 import { useWishlist } from "@/lib/context/wishlist-context";
 import { useToast } from "@/hooks/use-toast";
-import { Product } from "@/lib/types";
+import { Product, ProductVariant } from "@/lib/types";
 import { formatPrice } from "@/lib/utils/formatting";
 import { Heart, Share2, ChevronLeft, Users, Shield, ShoppingCart } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
@@ -27,6 +28,8 @@ export default function ProductDetailPage() {
   console.log('ProductDetailPage id:', id);
 
   const [product, setProduct] = useState<Product | null>(null);
+  const [variants, setVariants] = useState<ProductVariant[]>([]);
+  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -43,10 +46,20 @@ export default function ProductDetailPage() {
           return;
         }
         
-        // Fetch current product
+        // Fetch current product with variants
         const { data, error } = await supabase
           .from('products')
-          .select('*')
+          .select(`
+            *,
+            product_variants (
+              id,
+              variant_label,
+              price,
+              stock,
+              sku,
+              is_active
+            )
+          `)
           .eq('id', id)
           .single();
         console.log('Supabase fetch result:', { data, error });
@@ -84,8 +97,16 @@ export default function ProductDetailPage() {
             reorder_threshold: data.reorder_threshold ?? undefined,
             updated_at: data.updated_at ?? undefined,
             is_active: data.is_active ?? undefined,
+            variants: data.product_variants?.filter((v: any) => v.is_active) || [],
           };
           setProduct(mapped);
+          
+          // Set first active variant as selected
+          const activeVariants = data.product_variants?.filter((v: any) => v.is_active) || [];
+          if (activeVariants.length > 0) {
+            setSelectedVariant(activeVariants[0]);
+            setVariants(activeVariants);
+          }
         }
         
         // Fetch all products for recommendations
@@ -269,12 +290,35 @@ export default function ProductDetailPage() {
     : null;
 
   const handleAddToCart = () => {
-    addItem(product, quantity);
+    if (variants.length > 0 && !selectedVariant) {
+      toast({
+        title: "Select a variant",
+        description: "Please choose a variant before adding to cart",
+      });
+      return;
+    }
+    
+    // Add product with selected variant info
+    addItem(product, quantity, selectedVariant);
     toast({
       title: "Added to cart",
-      description: `${quantity} ${quantity === 1 ? 'item' : 'items'} added successfully`,
+      description: `${quantity} ${quantity === 1 ? 'item' : 'items'} added successfully${selectedVariant ? ` (${selectedVariant.variant_label})` : ''}`,
     });
     setQuantity(1);
+  };
+
+  const handleBuyNow = () => {
+    if (variants.length > 0 && !selectedVariant) {
+      toast({
+        title: "Select a variant",
+        description: "Please choose a variant before checkout",
+      });
+      return;
+    }
+    
+    // For Buy Now, go directly to checkout without adding to cart
+    // The checkout page will handle adding the item
+    router.push(`/checkout?product=${product.id}&quantity=${quantity}${selectedVariant ? `&variant=${selectedVariant.id}` : ''}`);
   };
 
   const handleWishlist = () => {
@@ -357,15 +401,17 @@ export default function ProductDetailPage() {
                 {/* Pricing Panel - Prominent */}
                 <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 space-y-2">
                   <div className="flex items-baseline gap-3">
-                    <span className="text-3xl md:text-4xl font-bold text-primary">{formatPrice(product.price)}</span>
+                    <span className="text-3xl md:text-4xl font-bold text-primary">
+                      {formatPrice(selectedVariant?.price || product.price || 0)}
+                    </span>
                     {product.compareAtPrice && (
                       <>
                         <span className="text-lg text-muted-foreground line-through">
                           {formatPrice(product.compareAtPrice)}
                         </span>
-                        {discount && (
+                        {((product.compareAtPrice - (selectedVariant?.price || product.price)) / product.compareAtPrice * 100) > 0 && (
                           <span className="text-sm font-bold text-accent bg-accent/20 px-2 py-1 rounded">
-                            Save {discount}%
+                            Save {Math.round(((product.compareAtPrice - (selectedVariant?.price || product.price)) / product.compareAtPrice) * 100)}%
                           </span>
                         )}
                       </>
@@ -373,15 +419,24 @@ export default function ProductDetailPage() {
                   </div>
                   {product.compareAtPrice && (
                     <p className="text-sm text-muted-foreground">
-                      Save ₱{(product.compareAtPrice - product.price).toFixed(2)} vs regular price
+                      Save ₱{(product.compareAtPrice - (selectedVariant?.price || product.price)).toFixed(2)} vs regular price
                     </p>
                   )}
                 </div>
 
+                {/* Variant Selector */}
+                {variants.length > 0 && (
+                  <VariantSelector 
+                    variants={variants}
+                    selectedVariant={selectedVariant}
+                    onVariantChange={setSelectedVariant}
+                  />
+                )}
+
                 {/* Stock Status Card */}
                 <div className="bg-secondary/10 border border-border rounded-lg p-4">
                   <StockIndicator 
-                    stock={product.stock} 
+                    stock={selectedVariant?.stock || product.stock} 
                     reorderThreshold={product.reorder_threshold}
                     showDetailed={true}
                   />
@@ -464,18 +519,30 @@ export default function ProductDetailPage() {
                 <QuantitySelector
                   quantity={quantity}
                   onQuantityChange={setQuantity}
-                  max={product.stock}
+                  max={selectedVariant?.stock || product.stock}
                 />
 
-                {/* Primary CTA */}
-                <button
-                  onClick={handleAddToCart}
-                  disabled={product.stock === 0}
-                  className="w-full px-6 py-4 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 active:scale-[0.98] transition-all font-semibold text-lg shadow-lg hover:shadow-xl hover:shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-2"
-                >
-                  <ShoppingCart className="w-5 h-5" />
-                  Add to Cart
-                </button>
+                {/* Primary CTAs */}
+                <div className="flex gap-3">
+                  {/* Add to Cart */}
+                  <button
+                    onClick={handleAddToCart}
+                    disabled={(selectedVariant?.stock || product.stock) === 0}
+                    className="flex-1 px-6 py-4 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 active:scale-[0.98] transition-all font-semibold text-lg shadow-lg hover:shadow-xl hover:shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-2"
+                  >
+                    <ShoppingCart className="w-5 h-5" />
+                    Add to Cart
+                  </button>
+
+                  {/* Buy Now */}
+                  <button
+                    onClick={handleBuyNow}
+                    disabled={(selectedVariant?.stock || product.stock) === 0}
+                    className="flex-1 px-6 py-4 bg-accent text-accent-foreground rounded-lg hover:bg-accent/90 active:scale-[0.98] transition-all font-semibold text-lg shadow-lg hover:shadow-xl hover:shadow-accent/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-2"
+                  >
+                    💳 Buy Now
+                  </button>
+                </div>
 
                 {/* Secondary Actions */}
                 <div className="flex gap-3">

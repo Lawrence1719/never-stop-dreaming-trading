@@ -23,39 +23,12 @@ export default function CreateProductPage() {
   const router = useRouter();
   const [formData, setFormData] = useState({
     name: '',
-    sku: '',
     description: '',
     category: '',
-    price: '',
-    stock: '',
-    status: 'active',
+    image_url: '',
+    is_active: true,
   });
   
-  // Generate a provisional SKU from category + name + random numeric suffix (server will ensure uniqueness)
-  function generateSku(name?: string, category?: string) {
-    const catCode = category
-      ? (String(category).replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 2) || 'CT')
-      : 'CT';
-
-    const nameCode = (() => {
-      if (!name) return 'PRD';
-      const cleaned = String(name).trim();
-      const words = cleaned.split(/\s+/).filter(Boolean);
-      if (words.length >= 2) {
-        return words
-          .slice(0, 3)
-          .map((w) => (w[0] || '').toUpperCase())
-          .join('')
-          .slice(0, 3);
-      }
-      const compact = cleaned.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-      return compact.slice(0, 3) || 'PRD';
-    })();
-
-    const randNum = Math.floor(Math.random() * 9999) + 1;
-    const numStr = String(randNum).padStart(4, '0');
-    return `${catCode}-${nameCode}-${numStr}`;
-  }
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -76,13 +49,10 @@ export default function CreateProductPage() {
     setSuccessMessage(null);
 
     try {
-      // Validation
-      if (!formData.name || !formData.price || !formData.stock) {
-        throw new Error('Missing required fields: name, price, stock');
+      // Validation - product only needs name and category
+      if (!formData.name.trim()) {
+        throw new Error('Product name is required');
       }
-
-      // Ensure SKU exists (generate if user left it empty)
-      const skuToUse = formData.sku && formData.sku.trim() !== '' ? formData.sku.trim() : generateSku(formData.name, formData.category);
 
       const {
         data: { session },
@@ -96,13 +66,11 @@ export default function CreateProductPage() {
           ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
         },
         body: JSON.stringify({
-          name: formData.name,
-          sku: skuToUse,
+          name: formData.name.trim(),
           description: formData.description,
           category: formData.category,
-          price: parseFloat(formData.price),
-          stock: parseInt(formData.stock),
-          status: formData.status,
+          image_url: formData.image_url || null,
+          is_active: formData.is_active,
         }),
       });
 
@@ -112,10 +80,10 @@ export default function CreateProductPage() {
       }
 
       const payload = await res.json();
-      setSuccessMessage('Product created successfully!');
+      setSuccessMessage('Product created! Redirecting to variants...');
       setTimeout(() => {
-        router.push(`/admin/products/${payload.data.id}`);
-      }, 1500);
+        router.push(`/admin/products/${payload.data.id}/variants`);
+      }, 1000);
     } catch (err) {
       console.error('Failed to create product', err);
       setError(err instanceof Error ? err.message : 'Failed to create product');
@@ -163,6 +131,9 @@ export default function CreateProductPage() {
             <Card>
               <CardHeader>
                 <CardTitle>Basic Information</CardTitle>
+                <CardDescription>
+                  Add basic product details. Pricing and inventory (variants) will be added in the next step.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
@@ -170,7 +141,7 @@ export default function CreateProductPage() {
                   <Input
                     id="name"
                     name="name"
-                    placeholder="Enter product name"
+                    placeholder="Enter product name (e.g., Basmati Rice)"
                     value={formData.name}
                     onChange={handleChange}
                     className="mt-2"
@@ -178,68 +149,14 @@ export default function CreateProductPage() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="sku">SKU</Label>
-                  <div className="flex gap-2 mt-2">
-                    <Input
-                      id="sku"
-                      name="sku"
-                      placeholder="Enter SKU or leave empty to auto-generate"
-                      value={formData.sku}
-                      onChange={handleChange}
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setFormData((prev) => ({ ...prev, sku: generateSku(prev.name) }))}
-                    >
-                      Generate
-                    </Button>
-                  </div>
-                </div>
-                <div>
                   <Label htmlFor="description">Description</Label>
                   <Textarea
                     id="description"
                     name="description"
-                    placeholder="Product description..."
+                    placeholder="Product description and details..."
                     value={formData.description}
                     onChange={handleChange}
                     className="mt-2 h-32"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Pricing & Inventory</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="price">Regular Price *</Label>
-                  <Input
-                    id="price"
-                    name="price"
-                    type="number"
-                    step="0.01"
-                    placeholder="0.00"
-                    value={formData.price}
-                    onChange={handleChange}
-                    className="mt-2"
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="stock">Stock Quantity *</Label>
-                  <Input
-                    id="stock"
-                    name="stock"
-                    type="number"
-                    placeholder="0"
-                    value={formData.stock}
-                    onChange={handleChange}
-                    className="mt-2"
-                    required
                   />
                 </div>
               </CardContent>
@@ -295,15 +212,28 @@ export default function CreateProductPage() {
               <CardTitle>Status</CardTitle>
             </CardHeader>
             <CardContent>
-              <Select value={formData.status} onValueChange={(value) => handleSelectChange('status', value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.is_active}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, is_active: e.target.checked }))}
+                  className="w-4 h-4 rounded border-input"
+                />
+                <span className="text-sm font-medium">Active (visible to customers)</span>
+              </label>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Next Steps</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ol className="text-sm space-y-2 text-muted-foreground">
+                <li>1. Create the product</li>
+                <li className="font-medium text-foreground">2. Add variants (sizes, prices, SKUs)</li>
+                <li>3. Manage inventory</li>
+              </ol>
             </CardContent>
           </Card>
 

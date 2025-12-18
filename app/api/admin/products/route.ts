@@ -33,60 +33,6 @@ async function verifyAdminAuth(token: string | null) {
   }
 }
 
-// Generate a SKU from category + name and a numeric suffix ensuring uniqueness.
-async function generateSKU(name?: string, category?: string, supabaseAdmin?: any) {
-  // Short category code: first 2 alphanumeric chars
-  const catCode = category
-    ? (String(category).replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 2) || 'CT')
-    : 'CT';
-
-  // Short name code: prefer initials from up to 3 words, otherwise first 3 letters
-  const nameCode = (() => {
-    if (!name) return 'PRD';
-    const cleaned = String(name).trim();
-    const words = cleaned.split(/\s+/).filter(Boolean);
-    if (words.length >= 2) {
-      return words
-        .slice(0, 3)
-        .map((w) => w[0] || '')
-        .join('')
-        .toUpperCase()
-        .slice(0, 3);
-    }
-    const compact = cleaned.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-    return compact.slice(0, 3) || 'PRD';
-  })();
-
-  const prefix = `${catCode}-${nameCode}`;
-
-  // Find existing SKUs that start with this prefix to determine the next number
-  let maxNum = 0;
-  try {
-    const { data: existing } = await supabaseAdmin
-      .from('products')
-      .select('sku')
-      .ilike('sku', `${prefix}-%`);
-
-    if (Array.isArray(existing)) {
-      for (const row of existing) {
-        const val = row.sku || '';
-        const parts = String(val).split('-');
-        const last = parts[parts.length - 1];
-        const num = parseInt(last, 10);
-        if (!Number.isNaN(num) && num > maxNum) maxNum = num;
-      }
-    }
-  } catch (e) {
-    // If any error occurs, fall back to timestamp/random approach
-    const rand = Math.random().toString().substring(2, 6);
-    return `${prefix}-${Date.now().toString().slice(-6)}${rand}`;
-  }
-
-  const next = maxNum + 1;
-  const numStr = String(next).padStart(4, '0');
-  return `${prefix}-${numStr}`;
-}
-
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization') || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
@@ -105,15 +51,35 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status') || 'all';
     const category = searchParams.get('category') || 'all';
 
-    // Build query
+    // Build query to fetch products (base info only, no price/stock at product level)
     let query = supabaseAdmin
       .from('products')
-      .select('*')
+      .select(
+        `
+        id,
+        name,
+        description,
+        category,
+        image_url,
+        is_active,
+        created_at,
+        updated_at,
+        product_variants (
+          id,
+          variant_label,
+          price,
+          stock,
+          sku,
+          reorder_threshold,
+          is_active
+        )
+        `
+      )
       .order('created_at', { ascending: false });
 
     // Apply filters
     if (search) {
-      query = query.or(`name.ilike.%${search}%,sku.ilike.%${search}%`);
+      query = query.or(`name.ilike.%${search}%`);
     }
 
     if (status !== 'all') {
@@ -131,16 +97,31 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Map the data to match the expected format
-    const products = (data || []).map((row: any) => ({
-      id: row.id,
-      name: row.name,
-      sku: row.sku || '',
-      category: row.category || '',
-      price: `$${Number(row.price).toFixed(2)}`,
-      stock: row.stock ?? 0,
-      status: row.is_active ? 'active' : 'inactive',
-    }));
+    // Transform the data for the admin UI
+    const products = (data || []).map((row: any) => {
+      const variants = row.product_variants || [];
+      const totalStock = variants.reduce((sum: number, v: any) => sum + (v.stock ?? 0), 0);
+      const prices = variants
+        .filter((v: any) => v.is_active)
+        .map((v: any) => Number(v.price))
+        .sort((a: number, b: number) => a - b);
+      const minPrice = prices.length > 0 ? prices[0] : null;
+      const maxPrice = prices.length > 0 ? prices[prices.length - 1] : null;
+
+      return {
+        id: row.id,
+        name: row.name,
+        category: row.category || '',
+        variant_count: variants.length,
+        total_stock: totalStock,
+        price_range: minPrice !== null && maxPrice !== null 
+          ? minPrice === maxPrice 
+            ? `$${minPrice.toFixed(2)}`
+            : `$${minPrice.toFixed(2)} - $${maxPrice.toFixed(2)}`
+          : 'N/A',
+        status: row.is_active ? 'active' : 'inactive',
+      };
+    });
 
     return NextResponse.json({ data: products });
   } catch (error) {
@@ -162,31 +143,24 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const supabaseAdmin = getClient();
 
-    // Validate required fields
-    if (!body.name || !body.price || body.stock === undefined) {
+    // Validate required fields (only product base info)
+    if (!body.name) {
       return NextResponse.json(
-        { error: 'Missing required fields: name, price, stock' },
+        { error: 'Missing required field: name' },
         { status: 400 }
       );
     }
 
-    // Ensure we have a SKU; if not provided, generate one based on category+name and ensure uniqueness
-    let sku = body.sku && String(body.sku).trim() !== '' ? String(body.sku).trim() : null;
-    if (!sku) {
-      sku = await generateSKU(body.name, body.category, supabaseAdmin);
-    }
-
+    // Create product WITHOUT price, stock, or SKU (those go in variants)
     const { data, error } = await supabaseAdmin
       .from('products')
       .insert([
         {
           name: body.name,
-          sku: sku,
-          description: body.description,
-          category: body.category,
-          price: parseFloat(body.price),
-          stock: parseInt(body.stock),
-          is_active: body.status === 'active',
+          description: body.description || '',
+          category: body.category || '',
+          image_url: body.image_url || null,
+          is_active: body.is_active !== false,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },
@@ -196,7 +170,7 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('Failed to create product', error);
-      return NextResponse.json({ error: 'Failed to create product' }, { status: 500 });
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json({ data }, { status: 201 });

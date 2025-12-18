@@ -1,21 +1,41 @@
+// Product variant: represents size, weight, format, quantity, etc.
+export interface ProductVariant {
+  id: string;
+  product_id: string;
+  variant_label: string;        // e.g. "1kg", "5kg", "150g", "1L", "6-pack"
+  price: number;
+  stock: number;
+  sku: string;
+  reorder_threshold?: number;
+  is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// Product: base product information only (price/stock moved to variants)
 export interface Product {
   id: string;
   name: string;
   slug: string;
   description: string;
-  price: number;
-  compareAtPrice?: number;
   images: string[];
   category: string;
-  stock: number;
-  sku: string;
-  reorder_threshold?: number;
-  updated_at?: string;
   is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
   rating: number;
   reviewCount: number;
   featured: boolean;
   specifications: Record<string, string>;
+  
+  // Nested variants (returned from API joins)
+  variants?: ProductVariant[];
+  
+  // Computed fields for convenience
+  totalStock?: number;           // sum of all variant stocks
+  minPrice?: number;              // lowest variant price
+  maxPrice?: number;              // highest variant price
+  
   // Optional IoT metadata for refrigerated / frozen items
   iot?: {
     status: 'online' | 'offline' | 'unknown' | 'error';
@@ -35,10 +55,13 @@ export interface Category {
 
 export interface CartItem {
   productId: string;
+  variantId: string;             // Reference to product_variants.id
   quantity: number;
   name?: string;
   price?: number;
   image?: string;
+  variantLabel?: string;         // e.g. "1kg", "5kg"
+  sku?: string;
 }
 
 export interface Cart {
@@ -59,11 +82,14 @@ export interface Address {
 }
 
 export interface OrderItem {
-  productId: string;
+  variantId: string;             // Reference to product_variants.id (primary identifier)
+  productId?: string;            // Reference to product (optional, for context)
   name: string;
   price: number;
   quantity: number;
   image: string;
+  sku?: string;
+  variantLabel?: string;         // e.g. "1kg", "5kg"
 }
 
 export interface Order {

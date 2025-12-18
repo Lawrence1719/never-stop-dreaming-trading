@@ -20,6 +20,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
@@ -234,10 +235,10 @@ export default function ProductsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Product Name</TableHead>
-                  <TableHead>SKU</TableHead>
                   <TableHead>Category</TableHead>
-                  <TableHead>Price</TableHead>
-                  <TableHead>Stock</TableHead>
+                  <TableHead>Variants</TableHead>
+                  <TableHead className="text-right">Total Stock</TableHead>
+                  <TableHead>Price Range</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -247,10 +248,10 @@ export default function ProductsPage() {
                   Array.from({ length: 5 }).map((_, idx) => (
                     <TableRow key={`loading-${idx}`} className="animate-pulse">
                       <TableCell><div className="h-4 bg-muted rounded w-32" /></TableCell>
-                      <TableCell><div className="h-4 bg-muted rounded w-20" /></TableCell>
                       <TableCell><div className="h-4 bg-muted rounded w-24" /></TableCell>
                       <TableCell><div className="h-4 bg-muted rounded w-16" /></TableCell>
                       <TableCell><div className="h-4 bg-muted rounded w-16" /></TableCell>
+                      <TableCell><div className="h-4 bg-muted rounded w-20" /></TableCell>
                       <TableCell><div className="h-4 bg-muted rounded w-16" /></TableCell>
                       <TableCell><div className="h-4 bg-muted rounded w-12" /></TableCell>
                     </TableRow>
@@ -265,16 +266,18 @@ export default function ProductsPage() {
                   products.map((product) => (
                     <TableRow key={product.id}>
                       <TableCell className="font-medium">{product.name}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{product.sku}</TableCell>
                       <TableCell>{product.category}</TableCell>
-                      <TableCell>{product.price}</TableCell>
                       <TableCell>
+                        <Badge variant="outline">{product.variant_count}</Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
                         <Badge
-                          variant={product.stock > 10 ? 'default' : product.stock > 0 ? 'secondary' : 'destructive'}
+                          variant={product.total_stock > 10 ? 'default' : product.total_stock > 0 ? 'secondary' : 'destructive'}
                         >
-                          {product.stock} units
+                          {product.total_stock}
                         </Badge>
                       </TableCell>
+                      <TableCell className="text-sm">{product.price_range}</TableCell>
                       <TableCell>
                         <Badge variant={product.status === 'active' ? 'default' : 'outline'}>
                           {product.status}
@@ -286,6 +289,13 @@ export default function ProductsPage() {
                             <Button variant="ghost" size="sm">•••</Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            <DropdownMenuItem asChild>
+                              <Link href={`/admin/products/${product.id}/variants`} className="gap-2 cursor-pointer">
+                                <Eye className="h-4 w-4" />
+                                Manage Variants
+                              </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
                             <DropdownMenuItem asChild>
                               <Link href={`/admin/products/${product.id}`} className="gap-2 cursor-pointer">
                                 <Eye className="h-4 w-4" />

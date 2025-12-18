@@ -1,10 +1,9 @@
 "use client";
 
+import { Heart } from 'lucide-react';
 import Link from "next/link";
-import { Heart, ShoppingCart } from 'lucide-react';
 import { Product } from "@/lib/types";
 import { formatPrice } from "@/lib/utils/formatting";
-import { useCart } from "@/lib/context/cart-context";
 import { useWishlist } from "@/lib/context/wishlist-context";
 import { useAuth } from "@/lib/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
@@ -15,20 +14,17 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product }: ProductCardProps) {
-  const { addItem } = useCart();
   const { addItem: addToWishlist, removeItem: removeFromWishlist, isInWishlist } = useWishlist();
   const { toast } = useToast();
   const { user } = useAuth();
   const inWishlist = isInWishlist(product.id);
 
-  const handleAddToCart = (e: React.MouseEvent) => {
-    e.preventDefault();
-    addItem(product, 1);
-    toast({ title: "Added to cart", description: "Item added to your cart successfully" });
-  };
+  // Determine if product has multiple variants
+  const hasVariants = (product.variants?.length ?? 0) > 1;
 
   const handleWishlist = (e: React.MouseEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     if (!user) {
       toast({ title: "Login Required", description: "Please log in to add items to your wishlist." });
       return;
@@ -46,9 +42,27 @@ export function ProductCard({ product }: ProductCardProps) {
     ? Math.round(((product.compareAtPrice - product.price) / product.compareAtPrice) * 100)
     : null;
 
+  // Determine price display based on variants
+  const getPriceDisplay = () => {
+    if (!hasVariants) {
+      return formatPrice(product.price);
+    }
+    
+    // For variant products, show price range or "From" price
+    const prices = (product.variants || []).map(v => v.price);
+    const minPrice = Math.min(...prices);
+    const maxPrice = Math.max(...prices);
+    
+    if (minPrice === maxPrice) {
+      return formatPrice(minPrice);
+    }
+    
+    return `From ${formatPrice(minPrice)}`;
+  };
+
   return (
     <Link href={`/products/${product.id}`}>
-      <div className="group cursor-pointer">
+      <div className="group cursor-pointer flex flex-col h-full">
         <div className="relative bg-muted rounded-lg overflow-hidden mb-4">
           <img
             src={product.images[0] || "/placeholder.svg"}
@@ -84,26 +98,15 @@ export function ProductCard({ product }: ProductCardProps) {
               -{discount}%
             </Badge>
           )}
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300 flex items-end justify-center opacity-0 group-hover:opacity-100">
-            <div className="flex gap-2 pb-4">
-              <button
-                onClick={handleAddToCart}
-                className="bg-primary text-primary-foreground p-2 rounded-full hover:bg-primary/90 transition-colors"
-              >
-                <ShoppingCart className="w-5 h-5" />
-              </button>
-              <button
-                onClick={handleWishlist}
-                className={`p-2 rounded-full transition-colors ${
-                  inWishlist
-                    ? "bg-accent text-accent-foreground"
-                    : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-                }`}
-              >
-                <Heart className="w-5 h-5" fill={inWishlist ? "currentColor" : "none"} />
-              </button>
-            </div>
-          </div>
+
+          {/* Wishlist button - top right */}
+          <button
+            onClick={handleWishlist}
+            className={`absolute top-3 right-3 ${discount ? 'top-12' : ''} p-2 rounded-lg transition-colors bg-white/90 hover:bg-white shadow-md`}
+            aria-label={inWishlist ? "Remove from wishlist" : "Add to wishlist"}
+          >
+            <Heart className="w-5 h-5 text-rose-500" fill={inWishlist ? "currentColor" : "none"} />
+          </button>
         </div>
 
         <h3 className="font-semibold text-sm line-clamp-2 group-hover:text-primary transition-colors">
@@ -112,21 +115,21 @@ export function ProductCard({ product }: ProductCardProps) {
         <div className="flex items-center gap-2 mt-1">
           <span className="text-xs text-muted-foreground">{product.category}</span>
         </div>
-        <div className="flex items-center justify-between mt-2">
+        <div className="flex items-center justify-between mt-2 mb-3">
           <div className="flex items-center gap-2">
-            <span className="font-bold text-primary">{formatPrice(product.price)}</span>
+            <span className="font-bold text-primary text-lg">{getPriceDisplay()}</span>
             {product.compareAtPrice && (
               <span className="text-xs text-muted-foreground line-through">
                 {formatPrice(product.compareAtPrice)}
               </span>
             )}
           </div>
-          <div className="flex items-center gap-1">
-            <span className="text-xs font-medium">{product.rating}</span>
-            <span className="text-xs text-accent">★</span>
-          </div>
         </div>
-        <p className="text-xs text-muted-foreground mt-1">{product.reviewCount} reviews</p>
+        <div className="flex items-center gap-1">
+          <span className="text-xs font-medium">{product.rating}</span>
+          <span className="text-xs text-accent">★</span>
+          <span className="text-xs text-muted-foreground">({product.reviewCount})</span>
+        </div>
       </div>
     </Link>
   );

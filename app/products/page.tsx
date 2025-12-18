@@ -37,11 +37,11 @@ export default function ProductsPage() {
               name: row.name,
               slug: row.slug || row.id,
               description: row.description || '',
-              price: Number(row.price) || 0,
+              price: row.minPrice || Number(row.price) || 0,
               compareAtPrice: row.compare_at_price ? Number(row.compare_at_price) : undefined,
-              images: row.image_url ? [row.image_url] : [],
+              images: row.images || (row.image_url ? [row.image_url] : []),
               category: row.category || '',
-              stock: row.stock ?? 0,
+              stock: row.totalStock ?? 0,
               sku: row.sku || '',
               rating: row.rating ?? 0,
               reviewCount: row.review_count ?? 0,
@@ -51,6 +51,7 @@ export default function ProductsPage() {
               reorder_threshold: row.reorder_threshold ?? undefined,
               updated_at: row.updated_at ?? undefined,
               is_active: row.is_active ?? undefined,
+              variants: row.variants || [],
             })) as Product[];
 
             setProducts(mapped);
@@ -64,33 +65,51 @@ export default function ProductsPage() {
       try {
         const { data, error } = await supabase
           .from('products')
-          .select('*')
+          .select(`
+            *,
+            product_variants (
+              id,
+              variant_label,
+              price,
+              stock,
+              sku,
+              is_active
+            )
+          `)
           .order('created_at', { ascending: false });
 
         if (error) throw error;
 
         if (data && mounted) {
           // Map DB rows to frontend Product shape
-          const mapped = data.map((row: any) => ({
-            id: row.id,
-            name: row.name,
-            slug: row.slug || row.id,
-            description: row.description || '',
-            price: Number(row.price) || 0,
-            compareAtPrice: row.compare_at_price ? Number(row.compare_at_price) : undefined,
-            images: row.image_url ? [row.image_url] : [],
-            category: row.category || '',
-            stock: row.stock ?? 0,
-            sku: row.sku || '',
-            rating: row.rating ?? 0,
-            reviewCount: row.review_count ?? 0,
-            featured: row.featured ?? false,
-            specifications: row.specifications || {},
-            iot: row.iot || undefined,
-            reorder_threshold: row.reorder_threshold ?? undefined,
-            updated_at: row.updated_at ?? undefined,
-            is_active: row.is_active ?? undefined,
-          })) as Product[];
+          const mapped = data.map((row: any) => {
+            const variants = (row.product_variants || []).filter((v: any) => v.is_active);
+            const prices = variants.map((v: any) => Number(v.price)).sort((a: number, b: number) => a - b);
+            const minPrice = prices.length > 0 ? prices[0] : Number(row.price) || 0;
+            const totalStock = variants.reduce((sum: number, v: any) => sum + (v.stock ?? 0), 0);
+
+            return {
+              id: row.id,
+              name: row.name,
+              slug: row.slug || row.id,
+              description: row.description || '',
+              price: minPrice,
+              compareAtPrice: row.compare_at_price ? Number(row.compare_at_price) : undefined,
+              images: row.image_url ? [row.image_url] : [],
+              category: row.category || '',
+              stock: totalStock,
+              sku: row.sku || '',
+              rating: row.rating ?? 0,
+              reviewCount: row.review_count ?? 0,
+              featured: row.featured ?? false,
+              specifications: row.specifications || {},
+              iot: row.iot || undefined,
+              reorder_threshold: row.reorder_threshold ?? undefined,
+              updated_at: row.updated_at ?? undefined,
+              is_active: row.is_active ?? undefined,
+              variants: variants,
+            };
+          }) as Product[];
 
           setProducts(mapped);
           setIsLoadingProducts(false);
@@ -169,8 +188,45 @@ export default function ProductsPage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-            {/* Filters */}
+          {/* Top Category Navigation */}
+          <div className="mb-8">
+            <div className="overflow-x-auto pb-4">
+              <div className="flex gap-2 min-w-max">
+                <button
+                  onClick={() => {
+                    setSelectedCategory("");
+                    setSelectedSubcategory("");
+                  }}
+                  className={`rounded-full px-4 py-2 border-2 font-medium transition-all whitespace-nowrap ${
+                    selectedCategory === ""
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "border-border bg-background hover:border-primary/50"
+                  }`}
+                >
+                  All
+                </button>
+                {Object.keys(CATEGORY_TREE).map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => {
+                      setSelectedCategory(cat);
+                      setSelectedSubcategory("");
+                    }}
+                    className={`rounded-full px-4 py-2 border-2 font-medium transition-all whitespace-nowrap ${
+                      selectedCategory === cat
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "border-border bg-background hover:border-primary/50"
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+            {/* Filters Sidebar */}
             <div className="lg:col-span-1">
               <ProductFilter
                 onCategoryChange={(cat) => {
@@ -183,29 +239,36 @@ export default function ProductsPage() {
               />
             </div>
 
-            {/* Products */}
-            <div className="lg:col-span-3">
-              {/* Subcategory chips (visible above products) */}
+            {/* Products Grid */}
+            <div className="lg:col-span-4">
+              {/* Subcategory chips (visible when category selected) */}
               {selectedCategory && CATEGORY_TREE[selectedCategory] && (
-                <div className="mb-4">
-                  <div className="overflow-x-auto py-2">
-                    <div className="flex gap-2 px-2">
+                <div className="mb-6 pb-6 border-b border-border">
+                  <p className="text-sm font-medium text-muted-foreground mb-3">Subcategories</p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => setSelectedSubcategory("")}
+                      className={`rounded-lg px-3 py-2 text-sm font-medium transition-all border ${
+                        selectedSubcategory === ""
+                          ? "bg-primary/10 text-primary border-primary"
+                          : "border-border bg-background hover:bg-muted hover:border-primary/30"
+                      }`}
+                    >
+                      All {selectedCategory}
+                    </button>
+                    {CATEGORY_TREE[selectedCategory].map((sub) => (
                       <button
-                        onClick={() => setSelectedSubcategory("")}
-                        className={`rounded-full px-3 py-1 border ${selectedSubcategory === "" ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
+                        key={sub}
+                        onClick={() => setSelectedSubcategory(sub)}
+                        className={`rounded-lg px-3 py-2 text-sm font-medium transition-all border ${
+                          selectedSubcategory === sub
+                            ? "bg-primary/10 text-primary border-primary"
+                            : "border-border bg-background hover:bg-muted hover:border-primary/30"
+                        }`}
                       >
-                        All
+                        {sub}
                       </button>
-                      {CATEGORY_TREE[selectedCategory].map((sub) => (
-                        <button
-                          key={sub}
-                          onClick={() => setSelectedSubcategory(sub)}
-                          className={`rounded-full px-3 py-1 border ${selectedSubcategory === sub ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
-                        >
-                          {sub}
-                        </button>
-                      ))}
-                    </div>
+                    ))}
                   </div>
                 </div>
               )}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from "next/link";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
@@ -13,7 +13,7 @@ import { useAuth } from "@/lib/context/auth-context";
 import { useShipping } from "@/lib/context/shipping-context";
 import { useToast } from "@/hooks/use-toast";
 import { useSettings } from "@/lib/hooks/use-settings";
-import { Product } from "@/lib/types";
+import { Product, CartItem } from "@/lib/types";
 import { supabase } from "@/lib/supabase/client";
 import { 
   validateEmail, 
@@ -34,11 +34,89 @@ import { ChevronLeft } from 'lucide-react';
 
 export default function CheckoutPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const { cart, clearCart } = useCart();
   const { shippingMethod, setShippingMethod, calculateShipping } = useShipping();
   const { toast } = useToast();
   const { settings } = useSettings();
+
+  // Handle "Buy Now" flow with query parameters
+  const buyNowProductId = searchParams.get('product');
+  const buyNowQuantity = parseInt(searchParams.get('quantity') || '1', 10);
+  const buyNowVariantId = searchParams.get('variant');
+  const [buyNowCart, setBuyNowCart] = useState<CartItem[] | null>(null);
+  const [isLoadingBuyNow, setIsLoadingBuyNow] = useState(!!buyNowProductId);
+
+  // Fetch product details for Buy Now flow
+  useEffect(() => {
+    if (!buyNowProductId) {
+      setIsLoadingBuyNow(false);
+      return;
+    }
+
+    const fetchBuyNowProduct = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select(`
+            *,
+            product_variants (
+              id,
+              variant_label,
+              price,
+              stock,
+              sku,
+              is_active
+            )
+          `)
+          .eq('id', buyNowProductId)
+          .single();
+
+        if (error) throw error;
+
+        if (data) {
+          // Find the variant if specified, otherwise use the first active one
+          let selectedVariant = null;
+          if (buyNowVariantId) {
+            selectedVariant = data.product_variants?.find((v: any) => v.id === buyNowVariantId && v.is_active);
+          } else if (data.product_variants?.length > 0) {
+            selectedVariant = data.product_variants.find((v: any) => v.is_active);
+          }
+
+          const price = selectedVariant?.price ?? Number(data.price) ?? 0;
+          const cartItem: CartItem = {
+            productId: data.id,
+            variantId: selectedVariant?.id || "",
+            quantity: buyNowQuantity,
+            name: data.name,
+            price,
+            image: data.image_url || data.images?.[0] || "",
+            variantLabel: selectedVariant?.variant_label || "",
+            sku: selectedVariant?.sku || data.sku || "",
+          };
+
+          setBuyNowCart([cartItem]);
+          console.debug('[Checkout] Buy Now cart created:', cartItem);
+        }
+      } catch (err) {
+        console.error('Failed to load Buy Now product:', err);
+        toast({
+          title: "Error",
+          description: "Failed to load product. Please go back and try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoadingBuyNow(false);
+      }
+    };
+
+    fetchBuyNowProduct();
+  }, [buyNowProductId, buyNowQuantity, buyNowVariantId, toast]);
+
+  // Use either Buy Now cart or regular cart
+  const checkoutCart = buyNowCart !== null ? buyNowCart : cart.items;
+  const isBuyNow = buyNowCart !== null;
 
   const [step, setStep] = useState(0);
   // Initialize payment method based on available options
@@ -78,16 +156,19 @@ export default function CheckoutPage() {
   const steps = ["Shipping", "Payment", "Review"];
 
   // TODO: Replace with actual API call to fetch products from Supabase
-  // const { data: products } = await supabase.from('products').select('*').in('id', cart.items.map(i => i.productId));
+  // const { data: products } = await supabase.from('products').select('*').in('id', checkoutCart.map(i => i.productId));
   const products: Product[] = [];
 
+  // Calculate checkout totals
+  const checkoutTotal = checkoutCart.reduce((sum, item) => sum + ((item.price ?? 0) * item.quantity), 0);
+  
   // Calculate shipping cost based on selected method and settings
-  const shippingCost = calculateShipping(cart.total);
+  const shippingCost = calculateShipping(checkoutTotal);
 
   // Build product objects for the checkout summary. If we have full product
   // data (from a server fetch) use that, otherwise synthesize a minimal Product
   // object from the cart item's stored details so the checkout can render.
-  const cartProducts = cart.items.map((item) => {
+  const cartProducts = checkoutCart.map((item) => {
     const full = products.find((p) => p.id === item.productId);
     if (full) return { product: full, quantity: item.quantity };
 
@@ -113,7 +194,7 @@ export default function CheckoutPage() {
   });
 
   // If user has items in cart but is not authenticated, require login before checkout
-  if (cart.items.length > 0 && !user) {
+  if (checkoutCart.length > 0 && !user && !isLoadingBuyNow) {
     return (
       <div className="flex flex-col min-h-screen">
         <Navbar />
@@ -395,12 +476,12 @@ export default function CheckoutPage() {
       }
 
       // Prepare order data
-      const subtotal = cart.total;
+      const subtotal = checkoutTotal;
       const shipping = shippingCost;
       const orderTotal = subtotal + shipping;
 
       // Format cart items for database
-      const orderItems = cart.items.map((item) => ({
+      const orderItems = checkoutCart.map((item) => ({
         product_id: item.productId,
         name: item.name || 'Product',
         quantity: item.quantity,
@@ -462,7 +543,10 @@ export default function CheckoutPage() {
       }
 
       const orderId = result.data.id;
-      clearCart();
+      // Only clear cart if not using Buy Now flow (Buy Now uses temporary cart)
+      if (!isBuyNow) {
+        clearCart();
+      }
       router.push(`/order-confirmation/${orderId}`);
     } catch (err) {
       // eslint-disable-next-line no-console
@@ -814,7 +898,7 @@ export default function CheckoutPage() {
                     )}
 
                     {/* Shipping Method Selection */}
-                    <ShippingOptions subtotal={cart.total} />
+                    <ShippingOptions subtotal={checkoutTotal} />
                   </div>
                 )}
 
@@ -1026,7 +1110,7 @@ export default function CheckoutPage() {
             {/* Order Summary Sidebar */}
             <div className="lg:col-span-1 h-fit">
               <CartSummary 
-                subtotal={cart.total}
+                subtotal={checkoutTotal}
               />
             </div>
           </div>

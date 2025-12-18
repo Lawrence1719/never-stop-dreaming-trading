@@ -1,15 +1,15 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
-import { Cart, CartItem, Product } from "@/lib/types";
+import { Cart, CartItem, Product, ProductVariant } from "@/lib/types";
 import { useAuth } from "@/lib/context/auth-context";
 import { supabase } from "@/lib/supabase/client";
 
 interface CartContextType {
   cart: Cart;
-  addItem: (productOrId: string | Product, quantity: number) => Promise<void>;
-  removeItem: (productId: string) => void;
-  updateQuantity: (productId: string, quantity: number) => Promise<void>;
+  addItem: (productOrId: string | Product, quantity: number, variant?: ProductVariant) => Promise<void>;
+  removeItem: (productId: string, variantId?: string) => void;
+  updateQuantity: (productId: string, quantity: number, variantId?: string) => Promise<void>;
   clearCart: () => void;
   isMigrating: boolean;
 }
@@ -31,7 +31,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     return items.reduce((sum, item) => sum + (item.price || 0) * item.quantity, 0);
   };
 
-  const addItem = async (productOrId: string | Product, quantity: number) => {
+  const addItem = async (productOrId: string | Product, quantity: number, variant?: ProductVariant) => {
     let product: Product | undefined;
     let productId: string;
     
@@ -72,47 +72,77 @@ export function CartProvider({ children }: { children: ReactNode }) {
       productId = product.id;
     }
 
-    // If we couldn't resolve product details, still allow adding a minimal item
+    // If variant is provided, use its price; otherwise use product price
     const name = product?.name || "";
-    const price = product?.price || 0;
+    const price = Number(variant?.price ?? product?.price ?? 0);
     const image = product?.images?.[0] || "";
+    const variantId = variant?.id || "";
+    const variantLabel = variant?.variant_label || "";
+    const sku = variant?.sku || product?.sku || "";
+    
+    console.debug('[Cart] addItem called:', {
+      productId,
+      productName: name,
+      variant: variant ? { id: variant.id, label: variant.variant_label, price: variant.price } : null,
+      calculatedPrice: price,
+      quantity
+    });
 
     // Capture current user value to avoid stale closure
     const currentUser = user;
 
     setCart((prev) => {
-      const existingItem = prev.items.find((i) => i.productId === productId);
+      // When looking for existing item, match both productId and variantId (if variant is used)
+      const existingItem = prev.items.find((i) => 
+        i.productId === productId && (!variantId || i.variantId === variantId)
+      );
+      
       let newItems: CartItem[];
       if (existingItem) {
         newItems = prev.items.map((i) =>
-          i.productId === productId ? { ...i, quantity: i.quantity + quantity } : i
+          i.productId === productId && (!variantId || i.variantId === variantId)
+            ? { ...i, quantity: i.quantity + quantity, price, variantLabel, sku }
+            : i
         );
       } else {
-        newItems = [...prev.items, {
+        const newItem: CartItem = {
           productId,
+          variantId,
+          quantity,
           name,
           price,
-          quantity,
           image,
-        }];
+          variantLabel,
+          sku,
+        };
+        newItems = [...prev.items, newItem];
       }
       const newCart = { items: newItems, total: calculateTotal(newItems) };
       
       // Sync with database if user is logged in
       if (currentUser && migratedRef.current) {
-        const updatedItem = newItems.find((i) => i.productId === productId);
+        const updatedItem = newItems.find((i) => i.productId === productId && (!variantId || i.variantId === variantId));
         if (updatedItem) {
-          supabase
-            .from('cart')
-            .upsert(
-              { user_id: currentUser.id, product_id: productId, quantity: updatedItem.quantity },
-              { onConflict: 'user_id,product_id' }
-            )
-            .then(({ error }) => {
-              if (error) {
-                console.error('Error syncing cart item to database', error);
-              }
-            });
+          try {
+            supabase
+              .from('cart')
+              .upsert(
+                { 
+                  user_id: currentUser.id, 
+                  product_id: productId,
+                  variant_id: variantId || null,
+                  quantity: updatedItem.quantity 
+                },
+                { onConflict: 'user_id,product_id' }
+              )
+              .then(({ error }) => {
+                if (error) {
+                  console.debug('Cart sync skipped (non-critical):', error?.message);
+                }
+              });
+          } catch (err) {
+            console.debug('Cart sync to database skipped or failed (non-critical)');
+          }
         }
       }
       
@@ -120,35 +150,41 @@ export function CartProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const removeItem = (productId: string) => {
+  const removeItem = (productId: string, variantId?: string) => {
     // Capture current user value to avoid stale closure
     const currentUser = user;
     
     setCart((prev) => {
-      const newItems = prev.items.filter((i) => i.productId !== productId);
+      const newItems = prev.items.filter((i) => 
+        !(i.productId === productId && (!variantId || i.variantId === variantId))
+      );
       const newCart = { items: newItems, total: calculateTotal(newItems) };
       
       // Sync with database if user is logged in
       if (currentUser && migratedRef.current) {
-        supabase
-          .from('cart')
-          .delete()
-          .eq('user_id', currentUser.id)
-          .eq('product_id', productId)
-          .then(({ error }) => {
-            if (error) {
-              console.error('Error removing cart item from database', error);
-            }
-          });
+        try {
+          supabase
+            .from('cart')
+            .delete()
+            .eq('user_id', currentUser.id)
+            .eq('product_id', productId)
+            .then(({ error }) => {
+              if (error) {
+                console.debug('Cart item removal sync skipped (non-critical):', error?.message);
+              }
+            });
+        } catch (err) {
+          console.debug('Cart item removal sync to database skipped or failed (non-critical)');
+        }
       }
       
       return newCart;
     });
   };
 
-  const updateQuantity = async (productId: string, quantity: number) => {
+  const updateQuantity = async (productId: string, quantity: number, variantId?: string) => {
     if (quantity <= 0) {
-      removeItem(productId);
+      removeItem(productId, variantId);
       return;
     }
     
@@ -157,19 +193,24 @@ export function CartProvider({ children }: { children: ReactNode }) {
     
     setCart((prev) => {
       // Check if item exists
-      const existingItem = prev.items.find((i) => i.productId === productId);
+      const existingItem = prev.items.find((i) => 
+        i.productId === productId && (!variantId || i.variantId === variantId)
+      );
       
       let newItems: CartItem[];
       if (existingItem) {
         // Update existing item
         newItems = prev.items.map((i) =>
-          i.productId === productId ? { ...i, quantity } : i
+          i.productId === productId && (!variantId || i.variantId === variantId)
+            ? { ...i, quantity }
+            : i
         );
       } else {
         // Item doesn't exist, this shouldn't happen but handle gracefully
         // Product details should already be in cart items, but if not, create minimal entry
         newItems = [...prev.items, {
           productId,
+          variantId: variantId || "",
           name: "",
           price: 0,
           quantity,
@@ -181,17 +222,26 @@ export function CartProvider({ children }: { children: ReactNode }) {
       
       // Sync with database if user is logged in
       if (currentUser && migratedRef.current) {
-        supabase
-          .from('cart')
-          .upsert(
-            { user_id: currentUser.id, product_id: productId, quantity },
-            { onConflict: 'user_id,product_id' }
-          )
-          .then(({ error }) => {
-            if (error) {
-              console.error('Error updating cart quantity in database', error);
-            }
-          });
+        try {
+          supabase
+            .from('cart')
+            .upsert(
+              { 
+                user_id: currentUser.id, 
+                product_id: productId,
+                variant_id: variantId || null,
+                quantity 
+              },
+              { onConflict: 'user_id,product_id' }
+            )
+            .then(({ error }) => {
+              if (error) {
+                console.debug('Cart quantity update sync skipped (non-critical):', error?.message);
+              }
+            });
+        } catch (err) {
+          console.debug('Cart quantity update sync to database skipped or failed (non-critical)');
+        }
       }
       
       return newCart;

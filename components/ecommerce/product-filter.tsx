@@ -29,7 +29,7 @@ export function ProductFilter({ onCategoryChange, onPriceChange, onSortChange, o
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 sticky top-20">
       {/* Sort */}
       <div>
         <h3 className="font-semibold mb-3">Sort By</h3>
@@ -51,7 +51,7 @@ export function ProductFilter({ onCategoryChange, onPriceChange, onSortChange, o
         <div className="space-y-2">
           <button
             onClick={() => handleMainSelect("")}
-            className={`w-full text-left px-3 py-2 rounded-md border ${selectedMainCategory === "" ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+            className={`w-full text-left px-4 py-2 rounded-lg border-2 transition-all font-medium ${selectedMainCategory === "" ? "bg-primary text-primary-foreground border-primary" : "border-border hover:border-primary/50"}`}
           >
             All Products
           </button>
@@ -60,13 +60,37 @@ export function ProductFilter({ onCategoryChange, onPriceChange, onSortChange, o
             <button
               key={cat}
               onClick={() => handleMainSelect(cat)}
-              className={`w-full text-left px-3 py-2 rounded-md border ${selectedMainCategory === cat ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+              className={`w-full text-left px-4 py-2 rounded-lg border-2 transition-all font-medium ${selectedMainCategory === cat ? "bg-primary text-primary-foreground border-primary" : "border-border hover:border-primary/50"}`}
             >
               {cat}
             </button>
           ))}
         </div>
       </div>
+
+      {/* Subcategories (shown when main category selected) */}
+      {selectedMainCategory && CATEGORY_TREE[selectedMainCategory] && (
+        <div>
+          <h3 className="font-semibold mb-3 text-sm">{selectedMainCategory}</h3>
+          <div className="space-y-2">
+            <button
+              onClick={() => handleSubSelect("")}
+              className={`w-full text-left px-3 py-2 rounded-md text-sm transition-all ${selectedSubcategory === "" ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted"}`}
+            >
+              All {selectedMainCategory}
+            </button>
+            {CATEGORY_TREE[selectedMainCategory].map((sub) => (
+              <button
+                key={sub}
+                onClick={() => handleSubSelect(sub)}
+                className={`w-full text-left px-3 py-2 rounded-md text-sm transition-all ${selectedSubcategory === sub ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted"}`}
+              >
+                {sub}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Price Range */}
       <div>
@@ -91,19 +115,6 @@ export function ProductFilter({ onCategoryChange, onPriceChange, onSortChange, o
           </div>
         </div>
       </div>
-
-      {/* Hidden subcategory selector for accessibility on sidebar (actual chips shown above products) */}
-      {selectedMainCategory && CATEGORY_TREE[selectedMainCategory] && (
-        <div className="sr-only">
-          <label>Selected subcategory</label>
-          <select value={selectedSubcategory} onChange={(e) => handleSubSelect(e.target.value)}>
-            <option value="">All</option>
-            {CATEGORY_TREE[selectedMainCategory].map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-        </div>
-      )}
     </div>
   );
 }
