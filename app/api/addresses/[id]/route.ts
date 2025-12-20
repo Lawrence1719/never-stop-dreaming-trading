@@ -33,7 +33,7 @@ export async function PATCH(
     const body = await request.json();
     const { street, city, province, zip, isDefault } = body;
 
-    // Build update object with only provided fields (address only, not name/phone)
+    // Build update object with only provided fields
     const updates: any = {};
     if (street !== undefined) updates.street_address = street;
     if (city !== undefined) updates.city = city;

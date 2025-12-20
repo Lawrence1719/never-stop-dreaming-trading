@@ -17,7 +17,7 @@ export function CartItem({ product, quantity }: CartItemProps) {
 
   return (
     <div className="flex gap-4 pb-4 border-b border-border">
-      <Link href={`/products/${product.id}`} className="flex-shrink-0">
+      <Link href={`/products/${product.id}`} className="shrink-0">
         <img
           src={product.images[0] || "/placeholder.svg"}
           alt={product.name}

@@ -472,6 +472,35 @@ export default function CheckoutPage() {
             throw new Error('Failed to create address. Please try again.');
           }
           shippingAddressId = created.id;
+        } else if (shippingAddressId) {
+          // User selected an existing address. Update its default status if saveAsDefault changed
+          const selectedAddress = addresses.find((a) => a.id === shippingAddressId);
+          if (selectedAddress && selectedAddress.is_default !== saveAsDefault) {
+            console.log('Updating address default status:', {
+              address_id: shippingAddressId,
+              is_default: saveAsDefault,
+            });
+
+            // If setting this address as default, unset others first
+            if (saveAsDefault) {
+              await supabase
+                .from('addresses')
+                .update({ is_default: false })
+                .eq('user_id', user.id)
+                .neq('id', shippingAddressId);
+            }
+
+            // Update this address's default status
+            const { error: updateErr } = await supabase
+              .from('addresses')
+              .update({ is_default: saveAsDefault })
+              .eq('id', shippingAddressId);
+
+            if (updateErr) {
+              console.error('Failed to update address default status', updateErr);
+              throw new Error('Failed to update address. Please try again.');
+            }
+          }
         }
       }
 
@@ -681,9 +710,14 @@ export default function CheckoutPage() {
                           onChange={(e) => {
                             const id = e.target.value || null;
                             setSelectedAddressId(id);
-                            if (!id) return;
+                            if (!id) {
+                              // When deselecting, reset saveAsDefault to true for new address
+                              setSaveAsDefault(true);
+                              return;
+                            }
                             const a = addresses.find((ad) => ad.id === id);
                             if (a) {
+                              // Update form data with selected address
                               setFormData((prev) => ({
                                 ...prev,
                                 fullName: a.full_name,
@@ -694,6 +728,8 @@ export default function CheckoutPage() {
                                 province: a.province,
                                 zip: a.zip_code,
                               }));
+                              // Set saveAsDefault based on whether this address is the default
+                              setSaveAsDefault(a.is_default || false);
                             }
                           }}
                         >

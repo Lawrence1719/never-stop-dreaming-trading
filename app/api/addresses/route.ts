@@ -89,6 +89,7 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!street || !city || !province || !zip) {
+      console.error('Missing fields:', { street, city, province, zip });
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 

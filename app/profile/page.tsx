@@ -1,23 +1,77 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from 'next/navigation';
 import Link from "next/link";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { useAuth } from "@/lib/context/auth-context";
 import { formatDate, formatPrice } from "@/lib/utils/formatting";
+import { supabase } from "@/lib/supabase/client";
 import { User, Settings, LogOut, MapPin, CreditCard, Package, Shield } from 'lucide-react';
 
 export default function ProfilePage() {
   const router = useRouter();
   const { user, logout, isLoading } = useAuth();
+  const [totalOrders, setTotalOrders] = useState(0);
+  const [totalSpent, setTotalSpent] = useState(0);
+  const [savedAddresses, setSavedAddresses] = useState(0);
+  const [isLoadingStats, setIsLoadingStats] = useState(true);
 
   useEffect(() => {
     if (!isLoading && !user) {
       router.push("/login");
     }
   }, [user, isLoading, router]);
+
+  // Fetch user statistics
+  useEffect(() => {
+    if (user) {
+      fetchUserStats();
+    }
+  }, [user]);
+
+  const fetchUserStats = async () => {
+    try {
+      setIsLoadingStats(true);
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        return;
+      }
+
+      // Fetch orders
+      const ordersResponse = await fetch('/api/orders', {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (ordersResponse.ok) {
+        const ordersData = await ordersResponse.json();
+        const orders = ordersData.data || ordersData.orders || [];
+        setTotalOrders(orders.length);
+        setTotalSpent(orders.reduce((sum: number, order: any) => sum + (order.total || 0), 0));
+      }
+
+      // Fetch addresses
+      const addressesResponse = await fetch('/api/addresses', {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (addressesResponse.ok) {
+        const addressesData = await addressesResponse.json();
+        const addresses = addressesData.addresses || [];
+        setSavedAddresses(addresses.length);
+      }
+    } catch (error) {
+      console.error('Error fetching user stats:', error);
+    } finally {
+      setIsLoadingStats(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -36,13 +90,6 @@ export default function ProfilePage() {
   if (!user) {
     return null;
   }
-
-  // Calculate dynamic order statistics
-  // TODO: Replace with actual API call to fetch user orders
-  const userOrders: any[] = []; // Fetch from Supabase: select * from orders where user_id = user.id
-  const totalOrders = userOrders.length;
-  const totalSpent = userOrders.reduce((sum, order) => sum + order.total, 0);
-  const savedAddresses = user.addresses?.length || 0;
 
   return (
     <div className="flex flex-col min-h-screen">

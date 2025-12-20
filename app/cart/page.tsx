@@ -42,10 +42,10 @@ export default function CartPage() {
             slug: row.slug || row.id,
             description: row.description || '',
             price: Number(row.price) || 0,
+            stock: row.stock ?? 999,
             compareAtPrice: row.compare_at_price ? Number(row.compare_at_price) : undefined,
             images: row.image_url ? [row.image_url] : [],
             category: row.category || '',
-            stock: row.stock ?? 999, // Use actual stock, fallback to 999 if not set
             sku: row.sku || '',
             rating: row.rating ?? 0,
             reviewCount: row.review_count ?? 0,
@@ -73,9 +73,16 @@ export default function CartPage() {
   // Build product objects for cart display. If we have full product data (from
   // a fetched products list) use that, otherwise synthesize a minimal Product
   // object from the cart item's stored details (name, price, image).
+  // IMPORTANT: Always use item.price (variant price) instead of product.price (base price)
   const cartProducts = cart.items.map((item) => {
     const full = products.find((p) => p.id === item.productId);
-    if (full) return { product: full, quantity: item.quantity };
+    if (full) {
+      // Use full product data but override price with the cart item's price (variant price)
+      return { 
+        product: { ...full, price: item.price ?? full.price }, 
+        quantity: item.quantity 
+      };
+    }
 
     // Synthesize a Product-like object from cart item details so UI can render
     const synthesized: Product = {
@@ -84,10 +91,10 @@ export default function CartPage() {
       slug: item.productId,
       description: "",
       price: item.price ?? 0,
+      stock: 999, // Set high default to allow quantity increases (fallback if product not found in DB)
       compareAtPrice: undefined,
       images: item.image ? [item.image] : ["/placeholder.svg"],
       category: "",
-      stock: 999, // Set high default to allow quantity increases (fallback if product not found in DB)
       sku: "",
       rating: 0,
       reviewCount: 0,

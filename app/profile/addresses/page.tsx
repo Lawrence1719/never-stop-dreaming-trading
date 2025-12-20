@@ -113,8 +113,10 @@ export default function AddressesPage() {
         return;
       }
 
+      let isUpdate = false;
       if (editingAddress) {
         // Update existing address
+        isUpdate = true;
         const response = await fetch(`/api/addresses/${editingAddress.id}`, {
           method: 'PATCH',
           headers: {
@@ -125,10 +127,9 @@ export default function AddressesPage() {
         });
 
         if (!response.ok) {
-          throw new Error('Failed to update address');
+          const errorData = await response.json().catch(() => ({ error: 'Failed to update address' }));
+          throw new Error(errorData.error || 'Failed to update address');
         }
-
-        toast({ title: "Success", description: "Address updated successfully" });
       } else {
         // Create new address
         const response = await fetch('/api/addresses', {
@@ -141,12 +142,18 @@ export default function AddressesPage() {
         });
 
         if (!response.ok) {
-          throw new Error('Failed to create address');
+          const errorData = await response.json().catch(() => ({ error: 'Failed to create address' }));
+          throw new Error(errorData.error || 'Failed to create address');
         }
-
-        toast({ title: "Success", description: "Address added successfully" });
       }
 
+      // Show success notification
+      const successMessage = isUpdate ? "Address updated successfully" : "Address added successfully";
+      toast({ 
+        title: "Success", 
+        description: successMessage
+      });
+      
       setDialogOpen(false);
       setEditingAddress(null);
       await fetchAddresses();
@@ -187,15 +194,24 @@ export default function AddressesPage() {
         throw new Error('Failed to delete address');
       }
 
-      toast({ title: "Success", description: "Address deleted successfully" });
+      // Show success notification
+      toast({ 
+        title: "Success", 
+        description: "Address deleted successfully"
+      });
+      
+      setDeleteDialogOpen(false);
+      setAddressToDelete(null);
       await fetchAddresses();
     } catch (error) {
       console.error('Error deleting address:', error);
-      toast({ title: "Error", description: "Failed to delete address", variant: "destructive" });
+      toast({ 
+        title: "Error", 
+        description: error instanceof Error ? error.message : "Failed to delete address", 
+        variant: "destructive" 
+      });
     } finally {
       setIsDeleting(false);
-      setDeleteDialogOpen(false);
-      setAddressToDelete(null);
     }
   };
 
@@ -219,14 +235,23 @@ export default function AddressesPage() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update default address');
+        const errorData = await response.json().catch(() => ({ error: 'Failed to update default address' }));
+        throw new Error(errorData.error || 'Failed to update default address');
       }
 
-      toast({ title: "Success", description: "Default address updated successfully" });
+      toast({ 
+        title: "Success", 
+        description: "Default address updated successfully"
+      });
+      
       await fetchAddresses();
     } catch (error) {
       console.error('Error setting default address:', error);
-      toast({ title: "Error", description: "Failed to update default address", variant: "destructive" });
+      toast({ 
+        title: "Error", 
+        description: error instanceof Error ? error.message : "Failed to update default address", 
+        variant: "destructive" 
+      });
     }
   };
 

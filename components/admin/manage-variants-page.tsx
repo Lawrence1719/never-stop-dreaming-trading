@@ -239,7 +239,7 @@ export function ManageVariantsPage({ productId }: ManageVariantsPageProps) {
         <Card>
           <CardContent className="pt-6">
             <div className="flex gap-3 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-              <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0" />
+              <AlertCircle className="h-5 w-5 text-destructive shrink-0" />
               <p className="text-destructive">Product not found</p>
             </div>
           </CardContent>
@@ -271,7 +271,7 @@ export function ManageVariantsPage({ productId }: ManageVariantsPageProps) {
       {/* Error Message */}
       {error && (
         <div className="flex gap-3 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-          <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
+          <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
           <div>
             <p className="font-semibold text-destructive">Error</p>
             <p className="text-sm text-destructive/90">{error}</p>
@@ -334,13 +334,11 @@ export function ManageVariantsPage({ productId }: ManageVariantsPageProps) {
                       </TableCell>
                       <TableCell>{variant.reorder_threshold || "-"}</TableCell>
                       <TableCell>
-                        <Badge
-                          variant={variant.is_active ? "default" : "secondary"}
-                          className="cursor-pointer"
-                          onClick={() => toggleVariantStatus(variant)}
-                        >
-                          {variant.is_active ? "Active" : "Inactive"}
-                        </Badge>
+                        <div className="cursor-pointer" onClick={() => toggleVariantStatus(variant)}>
+                          <Badge variant={variant.is_active ? "default" : "secondary"}>
+                            {variant.is_active ? "Active" : "Inactive"}
+                          </Badge>
+                        </div>
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">

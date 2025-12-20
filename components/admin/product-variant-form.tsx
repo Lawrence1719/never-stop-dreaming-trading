@@ -124,7 +124,7 @@ export function ProductVariantForm({
       {/* Error Summary */}
       {errors.submit && (
         <div className="flex gap-3 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-          <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
+          <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
           <div>
             <p className="font-semibold text-destructive">Error</p>
             <p className="text-sm text-destructive/90">{errors.submit}</p>
@@ -134,7 +134,7 @@ export function ProductVariantForm({
 
       {errorFields.length > 0 && !errors.submit && (
         <div className="flex gap-3 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-          <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
+          <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
           <div>
             <p className="font-semibold text-destructive">Please fix the following errors:</p>
             <ul className="text-sm text-destructive/90 list-disc list-inside mt-2">

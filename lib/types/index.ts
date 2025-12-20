@@ -36,6 +36,13 @@ export interface Product {
   minPrice?: number;              // lowest variant price
   maxPrice?: number;              // highest variant price
   
+  // Optional price/stock for cart and display purposes
+  // (when not using variants, or for synthesized products)
+  price?: number;
+  stock?: number;
+  sku?: string;
+  compareAtPrice?: number;
+  
   // Optional IoT metadata for refrigerated / frozen items
   iot?: {
     status: 'online' | 'offline' | 'unknown' | 'error';
