@@ -151,7 +151,8 @@ export default function AddressesPage() {
       const successMessage = isUpdate ? "Address updated successfully" : "Address added successfully";
       toast({ 
         title: "Success", 
-        description: successMessage
+        description: successMessage,
+        variant: "success",
       });
       
       setDialogOpen(false);
@@ -197,7 +198,8 @@ export default function AddressesPage() {
       // Show success notification
       toast({ 
         title: "Success", 
-        description: "Address deleted successfully"
+        description: "Address deleted successfully",
+        variant: "success",
       });
       
       setDeleteDialogOpen(false);
@@ -241,7 +243,8 @@ export default function AddressesPage() {
 
       toast({ 
         title: "Success", 
-        description: "Default address updated successfully"
+        description: "Default address updated successfully",
+        variant: "success",
       });
       
       await fetchAddresses();

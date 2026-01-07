@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 export default function SecurityPage() {
   const router = useRouter();
   const { user, isLoading: authLoading } = useAuth();
-  const { addToast } = useToast();
+  const { toast } = useToast();
 
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
@@ -55,12 +55,20 @@ export default function SecurityPage() {
     e.preventDefault();
     
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      addToast("Passwords do not match", "error");
+      toast({
+        title: "Validation Error",
+        description: "Passwords do not match",
+        variant: "destructive",
+      });
       return;
     }
 
     if (passwordData.newPassword.length < 8) {
-      addToast("Password must be at least 8 characters", "error");
+      toast({
+        title: "Validation Error",
+        description: "Password must be at least 8 characters",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -68,9 +76,17 @@ export default function SecurityPage() {
     try {
       await new Promise((resolve) => setTimeout(resolve, 1000));
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-      addToast("Password changed successfully", "success");
+      toast({
+        title: "Success",
+        description: "Password changed successfully",
+        variant: "success",
+      });
     } catch (error) {
-      addToast("Failed to change password", "error");
+      toast({
+        title: "Error",
+        description: "Failed to change password. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -81,12 +97,17 @@ export default function SecurityPage() {
     try {
       await new Promise((resolve) => setTimeout(resolve, 500));
       setTwoFactorEnabled(!twoFactorEnabled);
-      addToast(
-        twoFactorEnabled ? "2FA disabled" : "2FA enabled",
-        "success"
-      );
+      toast({
+        title: "Success",
+        description: twoFactorEnabled ? "2FA disabled" : "2FA enabled",
+        variant: "success",
+      });
     } catch (error) {
-      addToast("Failed to update 2FA settings", "error");
+      toast({
+        title: "Error",
+        description: "Failed to update 2FA settings. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }

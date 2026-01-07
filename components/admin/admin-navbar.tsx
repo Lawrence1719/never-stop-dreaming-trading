@@ -81,6 +81,7 @@ export default function AdminNavbar({
       toast({
         title: "Logged out",
         description: "You have been logged out successfully.",
+        variant: "success",
       });
       
       // Redirect to login page

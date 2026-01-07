@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Mail, Phone, MapPin } from 'lucide-react';
 
 export default function ContactPage() {
-  const { toasts, addToast, removeToast } = useToast();
+  const { toast } = useToast();
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -22,10 +22,18 @@ export default function ContactPage() {
 
     try {
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      addToast("Message sent successfully!", "success");
+      toast({
+        title: "Success",
+        description: "Message sent successfully!",
+        variant: "success",
+      });
       setFormData({ name: "", email: "", subject: "", message: "" });
     } catch (error) {
-      addToast("Failed to send message", "error");
+      toast({
+        title: "Error",
+        description: "Failed to send message. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }

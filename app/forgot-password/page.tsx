@@ -11,7 +11,7 @@ import { Mail } from 'lucide-react';
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
-  const { toasts, addToast, removeToast } = useToast();
+  const { toast } = useToast();
 
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -34,10 +34,18 @@ export default function ForgotPasswordPage() {
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
       setSubmitted(true);
-      addToast("Check your email for reset link", "success");
+      toast({
+        title: "Email Sent",
+        description: "Check your email for reset link",
+        variant: "success",
+      });
     } catch (err) {
       setError("Something went wrong. Please try again.");
-      addToast("Request failed", "error");
+      toast({
+        title: "Request Failed",
+        description: "Failed to send reset link. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }

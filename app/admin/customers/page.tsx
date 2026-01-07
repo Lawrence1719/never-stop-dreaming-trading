@@ -57,6 +57,10 @@ export default function CustomersPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [blockDialogOpen, setBlockDialogOpen] = useState(false);
+  const [unblockDialogOpen, setUnblockDialogOpen] = useState(false);
+  const [roleChangeDialogOpen, setRoleChangeDialogOpen] = useState(false);
+  const [pendingRoleChange, setPendingRoleChange] = useState<'admin' | 'customer' | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [viewDetailsOpen, setViewDetailsOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -153,9 +157,12 @@ export default function CustomersPage() {
         throw new Error(error.error || 'Failed to block customer');
       }
 
+      setBlockDialogOpen(false);
+      setSelectedCustomer(null);
       toast({
         title: 'Customer blocked',
         description: 'Customer has been blocked successfully.',
+        variant: 'success',
       });
       refreshCustomers();
     } catch (err) {
@@ -184,9 +191,12 @@ export default function CustomersPage() {
         throw new Error(error.error || 'Failed to unblock customer');
       }
 
+      setUnblockDialogOpen(false);
+      setSelectedCustomer(null);
       toast({
         title: 'Customer unblocked',
         description: 'Customer has been unblocked successfully.',
+        variant: 'success',
       });
       refreshCustomers();
     } catch (err) {
@@ -221,6 +231,7 @@ export default function CustomersPage() {
       toast({
         title: 'Customer deleted',
         description: 'Customer has been deleted successfully.',
+        variant: 'success',
       });
       refreshCustomers();
     } catch (err) {
@@ -250,9 +261,13 @@ export default function CustomersPage() {
         throw new Error(error.error || 'Failed to change role');
       }
 
+      setRoleChangeDialogOpen(false);
+      setPendingRoleChange(null);
+      setSelectedCustomer(null);
       toast({
         title: 'Role updated',
         description: `Customer role changed to ${newRole} successfully.`,
+        variant: 'success',
       });
       refreshCustomers();
     } catch (err) {
@@ -413,7 +428,10 @@ export default function CustomersPage() {
                                 {customer.status === 'active' ? (
                                   <DropdownMenuItem 
                                     className="gap-2 text-destructive"
-                                    onClick={() => handleBlockCustomer(customer.id)}
+                                    onClick={() => {
+                                      setSelectedCustomer(customer);
+                                      setBlockDialogOpen(true);
+                                    }}
                                   >
                                     <Ban className="h-4 w-4" />
                                     Block Customer
@@ -421,7 +439,10 @@ export default function CustomersPage() {
                                 ) : (
                                   <DropdownMenuItem 
                                     className="gap-2"
-                                    onClick={() => handleUnblockCustomer(customer.id)}
+                                    onClick={() => {
+                                      setSelectedCustomer(customer);
+                                      setUnblockDialogOpen(true);
+                                    }}
                                   >
                                     <UserCheck className="h-4 w-4" />
                                     Unblock Customer
@@ -432,7 +453,11 @@ export default function CustomersPage() {
                                   customer.role !== 'admin' ? (
                                     <DropdownMenuItem 
                                       className="gap-2"
-                                      onClick={() => handleChangeRole(customer.id, 'admin')}
+                                      onClick={() => {
+                                        setSelectedCustomer(customer);
+                                        setPendingRoleChange('admin');
+                                        setRoleChangeDialogOpen(true);
+                                      }}
                                     >
                                       <Shield className="h-4 w-4" />
                                       Make Admin
@@ -440,7 +465,11 @@ export default function CustomersPage() {
                                   ) : (
                                     <DropdownMenuItem 
                                       className="gap-2"
-                                      onClick={() => handleChangeRole(customer.id, 'customer')}
+                                      onClick={() => {
+                                        setSelectedCustomer(customer);
+                                        setPendingRoleChange('customer');
+                                        setRoleChangeDialogOpen(true);
+                                      }}
                                     >
                                       <Shield className="h-4 w-4" />
                                       Remove Admin
@@ -606,6 +635,69 @@ export default function CustomersPage() {
               setEditDialogOpen(false);
             }}>
               Save Changes
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Block Customer Confirmation Dialog */}
+      <AlertDialog open={blockDialogOpen} onOpenChange={setBlockDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Block Customer</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to block {selectedCustomer?.name}? They will not be able to access their account until unblocked.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => selectedCustomer && handleBlockCustomer(selectedCustomer.id)} 
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Block Customer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Unblock Customer Confirmation Dialog */}
+      <AlertDialog open={unblockDialogOpen} onOpenChange={setUnblockDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unblock Customer</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to unblock {selectedCustomer?.name}? They will be able to access their account again.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => selectedCustomer && handleUnblockCustomer(selectedCustomer.id)}
+            >
+              Unblock Customer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Change Role Confirmation Dialog */}
+      <AlertDialog open={roleChangeDialogOpen} onOpenChange={setRoleChangeDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Change Customer Role</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to change {selectedCustomer?.name}'s role from <strong>{selectedCustomer?.role}</strong> to <strong>{pendingRoleChange}</strong>? 
+              {pendingRoleChange === 'admin' && ' This will give them admin privileges.'}
+              {pendingRoleChange === 'customer' && ' This will remove their admin privileges.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => selectedCustomer && pendingRoleChange && handleChangeRole(selectedCustomer.id, pendingRoleChange)}
+            >
+              Change Role
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

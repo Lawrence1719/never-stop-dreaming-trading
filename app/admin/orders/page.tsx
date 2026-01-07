@@ -20,8 +20,19 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { StatusBadge } from '@/components/admin/status-badge';
 import { supabase } from '@/lib/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 interface Order {
   id: string;
@@ -36,6 +47,7 @@ interface Order {
 }
 
 export default function OrdersPage() {
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [orderStatus, setOrderStatus] = useState('all');
@@ -44,6 +56,9 @@ export default function OrdersPage() {
   const [error, setError] = useState<string | null>(null);
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
   const [revenue, setRevenue] = useState({ total: 0, pending: 0, avg: 0 });
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [orderToCancel, setOrderToCancel] = useState<Order | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Debounce search term
@@ -217,6 +232,77 @@ export default function OrdersPage() {
     { value: 'cancelled', label: 'Cancelled' },
     { value: 'duplicate', label: 'Duplicate' },
   ];
+
+  const handleCancelOrder = async () => {
+    if (!orderToCancel) return;
+
+    setIsCancelling(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        toast({
+          title: 'Error',
+          description: 'Session expired. Please log in again.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const response = await fetch(`/api/admin/orders/${orderToCancel.orderId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          status: 'cancelled',
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to cancel order');
+      }
+
+      setCancelDialogOpen(false);
+      setOrderToCancel(null);
+      toast({
+        title: 'Order Cancelled',
+        description: `Order ${orderToCancel.id} has been cancelled successfully.`,
+        variant: 'success',
+      });
+
+      // Refresh orders list
+      const params = new URLSearchParams();
+      if (debouncedSearchTerm) params.append('search', debouncedSearchTerm);
+      if (orderStatus !== 'all') params.append('status', orderStatus);
+
+      const res = await fetch(`/api/admin/orders?${params.toString()}`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: session?.access_token
+          ? {
+              Authorization: `Bearer ${session.access_token}`,
+            }
+          : undefined,
+      });
+
+      if (res.ok) {
+        const payload = await res.json();
+        setOrders(payload.data || []);
+      }
+    } catch (err) {
+      console.error('Failed to cancel order', err);
+      toast({
+        title: 'Error',
+        description: err instanceof Error ? err.message : 'Failed to cancel order',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCancelling(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -449,7 +535,13 @@ export default function OrdersPage() {
                               <FileText className="mr-2 h-4 w-4" />
                               Print Label
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="text-red-600 dark:text-red-400">
+                            <DropdownMenuItem 
+                              className="text-red-600 dark:text-red-400"
+                              onClick={() => {
+                                setOrderToCancel(order);
+                                setCancelDialogOpen(true);
+                              }}
+                            >
                               <X className="mr-2 h-4 w-4" />
                               Cancel Order
                             </DropdownMenuItem>
@@ -476,6 +568,29 @@ export default function OrdersPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Cancel Order Confirmation Dialog */}
+      <AlertDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Order</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to cancel order <strong>{orderToCancel?.id}</strong>? 
+              This action cannot be undone. The customer will be notified of the cancellation.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isCancelling}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleCancelOrder}
+              disabled={isCancelling}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isCancelling ? 'Cancelling...' : 'Cancel Order'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

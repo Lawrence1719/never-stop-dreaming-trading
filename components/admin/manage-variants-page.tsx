@@ -22,8 +22,19 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ProductVariantForm } from "@/components/admin/product-variant-form";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { AlertCircle, Plus, Edit2, Trash2, ArrowLeft, Loader2 } from "lucide-react";
 import { Product, ProductVariant } from "@/lib/types";
+import { useToast } from "@/hooks/use-toast";
 
 interface ManageVariantsPageProps {
   productId: string;
@@ -31,6 +42,7 @@ interface ManageVariantsPageProps {
 
 export function ManageVariantsPage({ productId }: ManageVariantsPageProps) {
   const router = useRouter();
+  const { toast } = useToast();
   const [product, setProduct] = useState<Product | null>(null);
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [isLoadingProduct, setIsLoadingProduct] = useState(true);
@@ -41,6 +53,8 @@ export function ManageVariantsPage({ productId }: ManageVariantsPageProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [variantToDelete, setVariantToDelete] = useState<ProductVariant | null>(null);
 
   // Fetch product details
   useEffect(() => {
@@ -145,8 +159,18 @@ export function ManageVariantsPage({ productId }: ManageVariantsPageProps) {
         setVariants((prev) =>
           prev.map((v) => (v.id === result.data.id ? result.data : v))
         );
+        toast({
+          title: 'Variant Updated',
+          description: 'Product variant has been updated successfully.',
+          variant: 'success',
+        });
       } else {
         setVariants((prev) => [result.data, ...prev]);
+        toast({
+          title: 'Variant Added',
+          description: 'Product variant has been added successfully.',
+          variant: 'success',
+        });
       }
 
       handleCloseDialog();
@@ -158,19 +182,17 @@ export function ManageVariantsPage({ productId }: ManageVariantsPageProps) {
     }
   };
 
-  const handleDeleteVariant = async (variantId: string) => {
-    if (!confirm("Are you sure you want to delete this variant? This action cannot be undone.")) {
-      return;
-    }
+  const handleDeleteVariant = async () => {
+    if (!variantToDelete) return;
 
-    setIsDeleting(variantId);
+    setIsDeleting(variantToDelete.id);
     setError(null);
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
 
-      const response = await fetch(`/api/admin/products/variants/${variantId}`, {
+      const response = await fetch(`/api/admin/products/variants/${variantToDelete.id}`, {
         method: "DELETE",
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -182,10 +204,22 @@ export function ManageVariantsPage({ productId }: ManageVariantsPageProps) {
         throw new Error(errorData.error || "Failed to delete variant");
       }
 
-      setVariants((prev) => prev.filter((v) => v.id !== variantId));
+      setVariants((prev) => prev.filter((v) => v.id !== variantToDelete.id));
+      setDeleteDialogOpen(false);
+      setVariantToDelete(null);
+      toast({
+        title: 'Variant Deleted',
+        description: 'Product variant has been deleted successfully.',
+        variant: 'success',
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to delete variant";
       setError(message);
+      toast({
+        title: 'Error',
+        description: message,
+        variant: 'destructive',
+      });
     } finally {
       setIsDeleting(null);
     }
@@ -352,7 +386,10 @@ export function ManageVariantsPage({ productId }: ManageVariantsPageProps) {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleDeleteVariant(variant.id)}
+                            onClick={() => {
+                              setVariantToDelete(variant);
+                              setDeleteDialogOpen(true);
+                            }}
                             disabled={isDeleting === variant.id}
                             className="text-destructive hover:text-destructive"
                           >
@@ -396,6 +433,29 @@ export function ManageVariantsPage({ productId }: ManageVariantsPageProps) {
           />
         </DialogContent>
       </Dialog>
+
+      {/* Delete Variant Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Variant</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete variant <strong>{variantToDelete?.variant_label}</strong> (SKU: {variantToDelete?.sku})? 
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting === variantToDelete?.id}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteVariant}
+              disabled={isDeleting === variantToDelete?.id}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting === variantToDelete?.id ? 'Deleting...' : 'Delete Variant'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

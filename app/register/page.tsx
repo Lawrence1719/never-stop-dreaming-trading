@@ -152,6 +152,7 @@ export default function RegisterPage() {
       toast({
         title: "Success",
         description: "Account created successfully! Redirecting...",
+        variant: "success",
       });
       // Redirect will be handled by useEffect when user state updates
     } catch (error) {

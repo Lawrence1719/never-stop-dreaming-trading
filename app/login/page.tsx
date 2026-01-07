@@ -128,6 +128,7 @@ export default function LoginPage() {
       toast({
         title: "Success",
         description: "Logged in successfully",
+        variant: "success",
       });
       setShowResendConfirmation(false);
     } catch (error) {
@@ -168,6 +169,7 @@ export default function LoginPage() {
         toast({
           title: "Email Sent",
           description: "Confirmation email sent! Please check your inbox.",
+          variant: "success",
         });
         setShowResendConfirmation(false);
       }

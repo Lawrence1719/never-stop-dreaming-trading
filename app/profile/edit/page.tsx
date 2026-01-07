@@ -13,7 +13,7 @@
   export default function EditProfilePage() {
     const router = useRouter();
     const { user, updateProfile, isLoading: authLoading } = useAuth();
-    const { toasts, addToast, removeToast } = useToast();
+    const { toast } = useToast();
 
     const [formData, setFormData] = useState({
       name: user?.name || "",
@@ -77,19 +77,45 @@
       e.preventDefault();
 
       if (!validateForm()) {
-        addToast("Please fix the errors above", "error");
+        toast({
+          title: "Validation Error",
+          description: "Please fix the errors above",
+          variant: "destructive",
+        });
         return;
       }
 
       setIsLoading(true);
 
       try {
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        updateProfile(formData.name, formData.phone);
-        addToast("Profile updated successfully", "success");
-        router.push("/profile");
+        const { error } = await updateProfile(formData.name, formData.phone);
+        
+        if (error) {
+          toast({
+            title: "Update Failed",
+            description: error.message || "Failed to update profile. Please try again.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        toast({
+          title: "Success",
+          description: "Profile updated successfully",
+          variant: "success",
+        });
+        
+        // Small delay to show the success message before redirecting
+        setTimeout(() => {
+          router.push("/profile");
+        }, 500);
       } catch (error) {
-        addToast("Update failed", "error");
+        console.error("Profile update error:", error);
+        toast({
+          title: "Update Failed",
+          description: "An unexpected error occurred. Please try again.",
+          variant: "destructive",
+        });
       } finally {
         setIsLoading(false);
       }

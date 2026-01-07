@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { useAuth } from "@/lib/context/auth-context";
+import { useToast } from "@/hooks/use-toast";
 import { formatDate, formatPrice } from "@/lib/utils/formatting";
 import { supabase } from "@/lib/supabase/client";
 import { User, Settings, LogOut, MapPin, CreditCard, Package, Shield } from 'lucide-react';
@@ -13,6 +14,7 @@ import { User, Settings, LogOut, MapPin, CreditCard, Package, Shield } from 'luc
 export default function ProfilePage() {
   const router = useRouter();
   const { user, logout, isLoading } = useAuth();
+  const { toast } = useToast();
   const [totalOrders, setTotalOrders] = useState(0);
   const [totalSpent, setTotalSpent] = useState(0);
   const [savedAddresses, setSavedAddresses] = useState(0);
@@ -126,9 +128,23 @@ export default function ProfilePage() {
               </div>
 
               <button
-                onClick={() => {
-                  logout();
-                  router.push("/");
+                onClick={async () => {
+                  try {
+                    await logout();
+                    toast({
+                      title: "Logged out",
+                      description: "You have been logged out successfully.",
+                      variant: "success",
+                    });
+                    router.push("/");
+                  } catch (error) {
+                    console.error("Logout error:", error);
+                    toast({
+                      title: "Error",
+                      description: "Failed to logout. Please try again.",
+                      variant: "destructive",
+                    });
+                  }
                 }}
                 className="w-full mt-6 flex items-center justify-center gap-2 px-4 py-2 bg-destructive text-destructive-foreground rounded-lg hover:bg-destructive/90 transition-colors text-sm font-medium"
               >

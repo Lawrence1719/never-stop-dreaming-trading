@@ -4,11 +4,13 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/context/auth-context";
+import { useToast } from "@/hooks/use-toast";
 import { ChevronDown, LogOut, Loader2 } from 'lucide-react';
 
 export function UserMenu() {
   const { user, logout, isLoading } = useAuth();
   const router = useRouter();
+  const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -61,12 +63,21 @@ export function UserMenu() {
     
     try {
       await logout();
+      toast({
+        title: "Logged out",
+        description: "You have been logged out successfully.",
+        variant: "success",
+      });
       // Force navigation to home page
       router.push("/");
       router.refresh();
     } catch (error) {
       console.error("Logout error:", error);
-      alert("Failed to logout. Please try again.");
+      toast({
+        title: "Error",
+        description: "Failed to logout. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoggingOut(false);
     }

@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 export default function SettingsPage() {
   const router = useRouter();
   const { user, isLoading: authLoading } = useAuth();
-  const { addToast } = useToast();
+  const { toast } = useToast();
 
   const [preferences, setPreferences] = useState({
     emailNotifications: true,
@@ -58,9 +58,17 @@ export default function SettingsPage() {
       await new Promise((resolve) => setTimeout(resolve, 500));
       // In a real app, save preferences to backend
       localStorage.setItem('userPreferences', JSON.stringify(preferences));
-      addToast("Settings saved successfully", "success");
+      toast({
+        title: "Success",
+        description: "Settings saved successfully",
+        variant: "success",
+      });
     } catch (error) {
-      addToast("Failed to save settings", "error");
+      toast({
+        title: "Error",
+        description: "Failed to save settings. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }

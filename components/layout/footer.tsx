@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Facebook, Twitter, Linkedin, Instagram, Mail, Phone, MapPin } from 'lucide-react';
 import { useSettings } from "@/lib/hooks/use-settings";
+import { MAIN_CATEGORIES } from "@/lib/data/categories";
 
 export function Footer() {
   const { settings } = useSettings();
@@ -46,26 +47,16 @@ export function Footer() {
           <div>
             <h4 className="font-semibold mb-4">Products</h4>
             <ul className="space-y-2 text-sm">
-              <li>
-                <Link href="/products?category=fresh-produce" className="hover:text-primary transition-colors">
-                  Fresh Produce
-                </Link>
-              </li>
-              <li>
-                <Link href="/products?category=dairy-eggs" className="hover:text-primary transition-colors">
-                  Dairy & Eggs
-                </Link>
-              </li>
-              <li>
-                <Link href="/products?category=pantry-staples" className="hover:text-primary transition-colors">
-                  Pantry Staples
-                </Link>
-              </li>
-              <li>
-                <Link href="/products?category=beverages" className="hover:text-primary transition-colors">
-                  Beverages
-                </Link>
-              </li>
+              {MAIN_CATEGORIES.map((category) => (
+                <li key={category}>
+                  <Link 
+                    href={`/products?category=${encodeURIComponent(category)}`} 
+                    className="hover:text-primary transition-colors"
+                  >
+                    {category}
+                  </Link>
+                </li>
+              ))}
             </ul>
           </div>
 
