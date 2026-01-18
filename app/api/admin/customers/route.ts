@@ -159,7 +159,6 @@ export async function GET(request: NextRequest) {
           joinDate: new Date(profile.created_at).toISOString().split('T')[0],
           role: profile.role || 'customer',
           isSuperAdmin: isProfileSuperAdmin,
-          isSuperAdmin: isProfileSuperAdmin,
         };
       })
       .filter((customer: any) => {

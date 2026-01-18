@@ -43,7 +43,7 @@ const menuItems: MenuItem[] = [
       { label: 'Groups', href: '/admin/customer-groups', icon: FileText },
     ],
   },
-  {
+  /*{
     label: 'IoT & Tracking',
     icon: MapPin,
     submenu: [
@@ -52,7 +52,7 @@ const menuItems: MenuItem[] = [
       { label: 'Alerts', href: '/admin/iot/alerts', icon: Zap },
       { label: 'Devices', href: '/admin/iot/devices', icon: Package },
     ],
-  },
+  },*/
   {
     label: 'Reports',
     icon: BarChart3,
