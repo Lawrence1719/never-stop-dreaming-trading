@@ -5,4 +5,4 @@
  * Matches BeatRoute's endpoint naming convention
  */
 
-export { POST } from '../auth/route';
+export { POST } from '../../auth/route';
