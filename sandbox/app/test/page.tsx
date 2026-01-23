@@ -3,6 +3,11 @@
 import { useState } from 'react';
 
 export default function TestPage() {
+  // API Key authentication (primary method)
+  const [apiKey, setApiKey] = useState('');
+  const [useApiKey, setUseApiKey] = useState(true);
+
+  // Username/password authentication (optional)
   const [username, setUsername] = useState('test_erp_user');
   const [password, setPassword] = useState('test_password_123');
   const [token, setToken] = useState<string | null>(null);
@@ -64,10 +69,12 @@ export default function TestPage() {
   };
 
   const handleCreateOrder = async () => {
-    if (!token) {
+    const authToken = useApiKey ? apiKey : token;
+    
+    if (!authToken) {
       setOrderResult({
         status: 'ERROR',
-        data: { error: 'Please authenticate first to get a token' },
+        data: { error: 'Please enter API key or authenticate first' },
       });
       return;
     }
@@ -80,7 +87,7 @@ export default function TestPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${authToken}`,
         },
         body: JSON.stringify(orderData),
       });
@@ -103,59 +110,95 @@ export default function TestPage() {
 
       {/* Authentication Section */}
       <section style={{ marginBottom: '3rem', padding: '1.5rem', border: '1px solid #ddd', borderRadius: '8px' }}>
-        <h2 style={{ marginTop: 0 }}>Step 1: Authentication (Get Token)</h2>
+        <h2 style={{ marginTop: 0 }}>Step 1: Authentication</h2>
         
         <div style={{ marginBottom: '1rem' }}>
-          <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
-            Username:
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+            <input
+              type="radio"
+              checked={useApiKey}
+              onChange={() => setUseApiKey(true)}
+            />
+            <strong>Use API Key (Recommended)</strong>
           </label>
-          <input
-            type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            style={{ width: '100%', padding: '0.5rem', fontSize: '1rem', border: '1px solid #ccc', borderRadius: '4px' }}
-          />
+          {useApiKey && (
+            <div style={{ marginTop: '0.5rem' }}>
+              <input
+                type="text"
+                placeholder="Enter your API key"
+                value={apiKey}
+                onChange={(e) => {
+                  setApiKey(e.target.value);
+                  setToken(e.target.value); // Use API key directly as token
+                }}
+                style={{ width: '100%', padding: '0.5rem', fontSize: '1rem', border: '1px solid #ccc', borderRadius: '4px' }}
+              />
+              <p style={{ fontSize: '0.85rem', color: '#666', marginTop: '0.25rem' }}>
+                Enter your API key. It will be used directly as Bearer token.
+              </p>
+            </div>
+          )}
         </div>
 
         <div style={{ marginBottom: '1rem' }}>
-          <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>
-            Password:
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+            <input
+              type="radio"
+              checked={!useApiKey}
+              onChange={() => setUseApiKey(false)}
+            />
+            <strong>Use Username/Password (Get Token)</strong>
           </label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            style={{ width: '100%', padding: '0.5rem', fontSize: '1rem', border: '1px solid #ccc', borderRadius: '4px' }}
-          />
+          {!useApiKey && (
+            <div style={{ marginTop: '0.5rem' }}>
+              <div style={{ marginBottom: '0.5rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.9rem' }}>Username:</label>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  style={{ width: '100%', padding: '0.5rem', fontSize: '1rem', border: '1px solid #ccc', borderRadius: '4px' }}
+                />
+              </div>
+              <div style={{ marginBottom: '0.5rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.9rem' }}>Password:</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  style={{ width: '100%', padding: '0.5rem', fontSize: '1rem', border: '1px solid #ccc', borderRadius: '4px' }}
+                />
+              </div>
+              <button
+                onClick={handleAuth}
+                disabled={authLoading}
+                style={{
+                  padding: '0.5rem 1rem',
+                  fontSize: '0.9rem',
+                  backgroundColor: '#0070f3',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: authLoading ? 'not-allowed' : 'pointer',
+                  opacity: authLoading ? 0.6 : 1,
+                }}
+              >
+                {authLoading ? 'Authenticating...' : 'Get Token'}
+              </button>
+            </div>
+          )}
         </div>
-
-        <button
-          onClick={handleAuth}
-          disabled={authLoading}
-          style={{
-            padding: '0.75rem 1.5rem',
-            fontSize: '1rem',
-            backgroundColor: '#0070f3',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: authLoading ? 'not-allowed' : 'pointer',
-            opacity: authLoading ? 0.6 : 1,
-          }}
-        >
-          {authLoading ? 'Authenticating...' : 'Get Token'}
-        </button>
 
         {token && (
           <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: '#e8f5e9', borderRadius: '4px' }}>
-            <strong>✅ Token Received:</strong>
+            <strong>✅ {useApiKey ? 'API Key' : 'Token'} Ready:</strong>
             <div style={{ marginTop: '0.5rem', fontFamily: 'monospace', fontSize: '0.9rem', wordBreak: 'break-all' }}>
               {token}
             </div>
           </div>
         )}
 
-        {authResult && (
+        {authResult && !useApiKey && (
           <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: authResult.status === 200 ? '#e8f5e9' : '#ffebee', borderRadius: '4px' }}>
             <strong>Response (Status: {authResult.status}):</strong>
             <pre style={{ marginTop: '0.5rem', fontSize: '0.9rem', overflow: 'auto' }}>
@@ -171,7 +214,7 @@ export default function TestPage() {
 
         {!token && (
           <div style={{ padding: '1rem', backgroundColor: '#fff3cd', borderRadius: '4px', marginBottom: '1rem' }}>
-            ⚠️ Please authenticate first (Step 1) to get a token
+            ⚠️ Please enter API key or authenticate first (Step 1)
           </div>
         )}
 
@@ -265,15 +308,15 @@ export default function TestPage() {
 
         <button
           onClick={handleCreateOrder}
-          disabled={orderLoading || !token}
+          disabled={orderLoading || !(useApiKey ? apiKey : token)}
           style={{
             padding: '0.75rem 1.5rem',
             fontSize: '1rem',
-            backgroundColor: token ? '#0070f3' : '#ccc',
+            backgroundColor: (useApiKey ? apiKey : token) ? '#0070f3' : '#ccc',
             color: 'white',
             border: 'none',
             borderRadius: '4px',
-            cursor: orderLoading || !token ? 'not-allowed' : 'pointer',
+            cursor: orderLoading || !(useApiKey ? apiKey : token) ? 'not-allowed' : 'pointer',
             opacity: orderLoading ? 0.6 : 1,
           }}
         >
@@ -311,7 +354,7 @@ export default function TestPage() {
           <strong>Order Request:</strong>
           <pre style={{ fontSize: '0.85rem', overflow: 'auto', backgroundColor: 'white', padding: '0.5rem', borderRadius: '4px' }}>
             POST /api/integration/orders{'\n'}
-            Headers: Authorization: Bearer {token || '[NO TOKEN]'}{'\n'}
+            Headers: Authorization: Bearer {(useApiKey ? apiKey : token) || '[NO API KEY/TOKEN]'}{'\n'}
             {JSON.stringify(orderData, null, 2)}
           </pre>
         </div>
