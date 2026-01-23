@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { validateToken } from '@/lib/integration/token-store';
 
 /**
  * POST /api/integration/orders
  * 
  * Receives order data from external warehouse system
- * Validates API key and creates order in database
+ * Validates API key OR token and creates order in database
+ * 
+ * Authentication: Supports both API key (Bearer token) and username/password token
  * 
  * Request Body:
  * {
@@ -43,21 +46,26 @@ interface OrderRequest {
   details: OrderDetail[];
 }
 
-// Validate API key
-function validateApiKey(authHeader: string | null): boolean {
+// Validate API key or token
+function validateAuth(authHeader: string | null): boolean {
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return false;
   }
 
-  const apiKey = authHeader.substring(7);
-  const expectedApiKey = process.env.INTEGRATION_API_KEY;
+  const token = authHeader.substring(7);
 
-  if (!expectedApiKey) {
-    console.error('INTEGRATION_API_KEY environment variable not set');
-    return false;
+  // First, try to validate as API key
+  const expectedApiKey = process.env.INTEGRATION_API_KEY;
+  if (expectedApiKey && token === expectedApiKey) {
+    return true;
   }
 
-  return apiKey === expectedApiKey;
+  // If not API key, try to validate as username/password token
+  if (validateToken(token)) {
+    return true;
+  }
+
+  return false;
 }
 
 // Validate request body
@@ -110,14 +118,14 @@ function validateOrderRequest(body: unknown): { valid: boolean; error?: string }
 
 export async function POST(request: NextRequest) {
   try {
-    // Validate API key
+    // Validate API key or token
     const authHeader = request.headers.get('authorization');
-    if (!validateApiKey(authHeader)) {
+    if (!validateAuth(authHeader)) {
       return NextResponse.json(
         {
           success: false,
           error: 'Unauthorized',
-          message: 'Invalid or missing API key',
+          message: 'Invalid or missing API key or token',
         },
         { status: 401 }
       );
