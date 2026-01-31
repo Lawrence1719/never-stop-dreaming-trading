@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Package, ShoppingCart, Users, BarChart3, Zap, Settings, ChevronDown, FileText, MapPin, Gift, BookOpen, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Users, BarChart3, Zap, Settings, ChevronDown, FileText, MapPin, Gift, BookOpen, ChevronRight, Link2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -79,6 +79,11 @@ const menuItems: MenuItem[] = [
       { label: 'FAQs', href: '/admin/cms/faqs', icon: BookOpen },
       { label: 'Testimonials', href: '/admin/cms/testimonials', icon: Users },
     ],
+  },
+  {
+    label: 'Integration',
+    href: '/admin/integration',
+    icon: Link2,
   },
   {
     label: 'Settings',
