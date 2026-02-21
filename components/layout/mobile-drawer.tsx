@@ -2,13 +2,17 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Menu, X } from 'lucide-react';
 import { useAuth } from "@/lib/context/auth-context";
+import { useToast } from "@/hooks/use-toast";
 import { ThemeToggle } from "./theme-toggle";
 
 export function MobileDrawer() {
   const [isOpen, setIsOpen] = useState(false);
   const { user, logout } = useAuth();
+  const router = useRouter();
+  const { toast } = useToast();
 
   const links = [
     { id: "home", label: "Home", href: "/" },
@@ -63,9 +67,27 @@ export function MobileDrawer() {
 
                 {user ? (
                   <button
-                    onClick={() => {
-                      logout();
+                    onClick={async () => {
                       setIsOpen(false);
+                      try {
+                        await logout();
+                        toast({
+                          title: "Logged out",
+                          description: "You have been logged out successfully.",
+                          variant: "success",
+                        });
+                        // Delay to ensure toast is visible before redirect
+                        await new Promise(resolve => setTimeout(resolve, 1500));
+                        router.push("/");
+                        router.refresh();
+                      } catch (error) {
+                        console.error("Logout error:", error);
+                        toast({
+                          title: "Error",
+                          description: "Failed to logout. Please try again.",
+                          variant: "destructive",
+                        });
+                      }
                     }}
                     className="w-full px-4 py-2 bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 transition-colors text-sm font-medium"
                   >

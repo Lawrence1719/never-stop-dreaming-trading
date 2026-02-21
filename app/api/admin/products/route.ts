@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getClient } from '@/lib/supabase/admin';
+import { formatPrice } from '@/lib/utils/formatting';
 
 async function verifyAdminAuth(token: string | null) {
   if (!token) {
@@ -116,8 +117,8 @@ export async function GET(request: NextRequest) {
         total_stock: totalStock,
         price_range: minPrice !== null && maxPrice !== null 
           ? minPrice === maxPrice 
-            ? `$${minPrice.toFixed(2)}`
-            : `$${minPrice.toFixed(2)} - $${maxPrice.toFixed(2)}`
+            ? formatPrice(minPrice)
+            : `${formatPrice(minPrice)} - ${formatPrice(maxPrice)}`
           : 'N/A',
         status: row.is_active ? 'active' : 'inactive',
       };

@@ -1,8 +1,13 @@
+/** Format number as Philippine Peso: ₱1,000.00 (peso sign + comma thousands + 2 decimals) */
 export const formatPrice = (price: number): string => {
-  return new Intl.NumberFormat("en-PH", {
+  const formatted = new Intl.NumberFormat("en-PH", {
     style: "currency",
     currency: "PHP",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+    useGrouping: true,
   }).format(price);
+  return formatted.replace(/^PHP\s*/, "₱");
 };
 
 export const formatDate = (date: string | Date): string => {

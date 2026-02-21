@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/lib/context/auth-context';
 import { supabase } from '@/lib/supabase/client';
+import { formatPrice } from '@/lib/utils/formatting';
 
 type DashboardRange = 'day' | 'week' | 'month';
 
@@ -57,12 +58,6 @@ type DashboardResponse = {
 };
 
 const COLORS = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b'];
-
-const currencyFormatter = new Intl.NumberFormat('en-PH', {
-  style: 'currency',
-  currency: 'PHP',
-  maximumFractionDigits: 2,
-});
 
 export default function AdminDashboard() {
   const { user } = useAuth();
@@ -145,7 +140,7 @@ export default function AdminDashboard() {
     return [
       {
         title: 'Total Revenue',
-        value: currencyFormatter.format(data.stats.totals.revenue ?? 0),
+        value: formatPrice(data.stats.totals.revenue ?? 0),
         change: `${data.stats.changes.revenue.change.toFixed(2)}%`,
         direction: data.stats.changes.revenue.direction,
         icon: DollarSign,
@@ -166,7 +161,7 @@ export default function AdminDashboard() {
       },
       {
         title: 'Avg Order Value',
-        value: currencyFormatter.format(data.stats.totals.averageOrderValue ?? 0),
+        value: formatPrice(data.stats.totals.averageOrderValue ?? 0),
         change: `${data.stats.changes.averageOrderValue.change.toFixed(2)}%`,
         direction: data.stats.changes.averageOrderValue.direction,
         icon: TrendingUp,
@@ -375,7 +370,7 @@ export default function AdminDashboard() {
                   <TableRow key={order.id}>
                     <TableCell className="font-medium">{order.id}</TableCell>
                     <TableCell>{order.customer_name ?? 'Guest'}</TableCell>
-                    <TableCell>{currencyFormatter.format(order.total)}</TableCell>
+                    <TableCell>{formatPrice(order.total)}</TableCell>
                     <TableCell>
                       <Badge
                         variant={

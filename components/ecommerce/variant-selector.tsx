@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ProductVariant } from "@/lib/types";
+import { formatPrice } from "@/lib/utils/formatting";
 import { ChevronDown } from "lucide-react";
 
 interface VariantSelectorProps {
@@ -34,7 +35,7 @@ export function VariantSelector({
     return (
       <div className="flex items-center gap-2">
         <span className="text-sm font-medium">{variant.variant_label}</span>
-        <Badge variant="secondary">₱{Number(variant.price).toFixed(2)}</Badge>
+        <Badge variant="secondary">{formatPrice(Number(variant.price))}</Badge>
       </div>
     );
   }
@@ -52,7 +53,7 @@ export function VariantSelector({
         >
           <div className="flex items-center gap-2">
             <span>{current.variant_label}</span>
-            <Badge variant="secondary">₱{Number(current.price).toFixed(2)}</Badge>
+            <Badge variant="secondary">{formatPrice(Number(current.price))}</Badge>
           </div>
           <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
         </Button>
@@ -74,7 +75,7 @@ export function VariantSelector({
                 <div className="flex items-center justify-between gap-2">
                   <span>{variant.variant_label}</span>
                   <div className="flex items-center gap-2">
-                    <Badge variant="secondary">₱{Number(variant.price).toFixed(2)}</Badge>
+                    <Badge variant="secondary">{formatPrice(Number(variant.price))}</Badge>
                     {variant.stock === 0 ? (
                       <Badge variant="destructive">Out of Stock</Badge>
                     ) : (

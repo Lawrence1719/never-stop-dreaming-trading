@@ -21,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { formatPrice } from "@/lib/utils/formatting";
 import { ProductVariantForm } from "@/components/admin/product-variant-form";
 import {
   AlertDialog,
@@ -352,7 +353,7 @@ export function ManageVariantsPage({ productId }: ManageVariantsPageProps) {
                     <TableRow key={variant.id}>
                       <TableCell className="font-medium">{variant.variant_label}</TableCell>
                       <TableCell className="font-mono text-sm">{variant.sku}</TableCell>
-                      <TableCell className="text-right">₱{Number(variant.price).toFixed(2)}</TableCell>
+                      <TableCell className="text-right">{formatPrice(Number(variant.price))}</TableCell>
                       <TableCell className="text-right">
                         <Badge
                           variant={

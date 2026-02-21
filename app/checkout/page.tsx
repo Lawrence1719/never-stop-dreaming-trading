@@ -31,6 +31,7 @@ import {
   getZipCodesForCity 
 } from "@/lib/data/philippines-addresses";
 import { ChevronLeft } from 'lucide-react';
+import { formatPrice } from '@/lib/utils/formatting';
 
 function CheckoutPageContent() {
   const router = useRouter();
@@ -193,39 +194,7 @@ function CheckoutPageContent() {
     return { product: synthesized, quantity: item.quantity };
   });
 
-  // If user has items in cart but is not authenticated, require login before checkout
-  if (checkoutCart.length > 0 && !user && !isLoadingBuyNow) {
-    return (
-      <div className="flex flex-col min-h-screen">
-        <Navbar />
-        <main className="flex-1">
-          <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-24 text-center">
-            <h1 className="text-2xl font-bold mb-4">Please sign in to continue</h1>
-            <p className="text-muted-foreground mb-6">You need to be logged in or create an account to complete your purchase.</p>
-            <div className="flex justify-center gap-4">
-              <Link
-                href="/login?next=/checkout"
-                className="inline-block px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-semibold"
-              >
-                Sign in
-              </Link>
 
-              <Link
-                href="/register?next=/checkout"
-                className="inline-block px-6 py-3 border border-primary text-primary rounded-lg hover:bg-primary/10 transition-colors font-semibold"
-              >
-                Create account
-              </Link>
-            </div>
-            <div className="mt-8">
-              <Link href="/products" className="text-sm text-muted-foreground hover:underline">Continue shopping</Link>
-            </div>
-          </div>
-        </main>
-        <Footer />
-      </div>
-    );
-  }
 
   // Real-time validation for individual fields
   const validateField = (name: string, value: string) => {
@@ -652,6 +621,40 @@ function CheckoutPageContent() {
     }
   };
 
+  // If user has items in cart but is not authenticated, require login before checkout
+  if (checkoutCart.length > 0 && !user && !isLoadingBuyNow) {
+    return (
+      <div className="flex flex-col min-h-screen">
+        <Navbar />
+        <main className="flex-1">
+          <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-24 text-center">
+            <h1 className="text-2xl font-bold mb-4">Please sign in to continue</h1>
+            <p className="text-muted-foreground mb-6">You need to be logged in or create an account to complete your purchase.</p>
+            <div className="flex justify-center gap-4">
+              <Link
+                href="/login?next=/checkout"
+                className="inline-block px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-semibold"
+              >
+                Sign in
+              </Link>
+
+              <Link
+                href="/register?next=/checkout"
+                className="inline-block px-6 py-3 border border-primary text-primary rounded-lg hover:bg-primary/10 transition-colors font-semibold"
+              >
+                Create account
+              </Link>
+            </div>
+            <div className="mt-8">
+              <Link href="/products" className="text-sm text-muted-foreground hover:underline">Continue shopping</Link>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
   if (cartProducts.length === 0) {
     return (
       <div className="flex flex-col min-h-screen">
@@ -1049,7 +1052,7 @@ function CheckoutPageContent() {
                         {cartProducts.map(({ product, quantity }) => (
                           <div key={product.id} className="flex justify-between text-sm">
                             <span>{product.name} x {quantity}</span>
-                            <span>₱{(product.price * quantity).toFixed(2)}</span>
+                            <span>{formatPrice(product.price * quantity)}</span>
                           </div>
                         ))}
                       </div>
@@ -1082,8 +1085,8 @@ function CheckoutPageContent() {
                     <div>
                       <h3 className="font-semibold mb-3">Shipping Method</h3>
                       <p className="text-sm text-muted-foreground">
-                        {shippingMethod === "standard" && `Standard (5-7 business days) - ${shippingCost === 0 ? 'FREE' : `₱${shippingCost.toFixed(2)}`}`}
-                        {shippingMethod === "express" && `Express (2-3 business days) - ${shippingCost === 0 ? 'FREE' : `₱${shippingCost.toFixed(2)}`}`}
+                        {shippingMethod === "standard" && `Standard (5-7 business days) - ${shippingCost === 0 ? 'FREE' : formatPrice(shippingCost)}`}
+                        {shippingMethod === "express" && `Express (2-3 business days) - ${shippingCost === 0 ? 'FREE' : formatPrice(shippingCost)}`}
                       </p>
                     </div>
 

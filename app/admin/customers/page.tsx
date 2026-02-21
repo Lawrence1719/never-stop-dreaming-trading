@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Search, Download, MoreVertical, Edit, Trash2, Ban, UserCheck, Eye, Shield } from 'lucide-react';
+import { Search, Download, MoreVertical, Edit, Trash2, Ban, UserCheck, Eye, Shield, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,6 +34,7 @@ import {
 import { supabase } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Toaster } from '@/components/ui/toaster';
+import { formatPrice } from '@/lib/utils/formatting';
 
 interface Customer {
   id: string;
@@ -53,6 +54,7 @@ export default function CustomersPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [roleFilter, setRoleFilter] = useState('all');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -64,9 +66,23 @@ export default function CustomersPage() {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [viewDetailsOpen, setViewDetailsOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [addCustomerOpen, setAddCustomerOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [currentUserIsSuperAdmin, setCurrentUserIsSuperAdmin] = useState(false);
+  const [newCustomer, setNewCustomer] = useState({
+    firstName: '',
+    middleName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    password: '',
+    role: 'customer',
+  });
+  const [addCustomerError, setAddCustomerError] = useState<string | null>(null);
+  const [isAddingCustomer, setIsAddingCustomer] = useState(false);
 
   // Debounce search term
   useEffect(() => {
@@ -99,6 +115,7 @@ export default function CustomersPage() {
         const params = new URLSearchParams();
         if (debouncedSearchTerm) params.append('search', debouncedSearchTerm);
         if (statusFilter !== 'all') params.append('status', statusFilter);
+        if (roleFilter !== 'all') params.append('role', roleFilter);
 
         const res = await fetch(`/api/admin/customers?${params.toString()}`, {
           method: 'GET',
@@ -117,7 +134,22 @@ export default function CustomersPage() {
         }
 
         const payload = await res.json();
-        setCustomers(payload.data || []);
+        const allCustomers = payload.data || [];
+        
+        // Apply role filter on client side (since API doesn't support it yet)
+        const filteredCustomers = roleFilter === 'all' 
+          ? allCustomers 
+          : allCustomers.filter((c: Customer) => {
+              if (roleFilter === 'super_admin') return c.isSuperAdmin;
+              if (roleFilter === 'admin') return c.role === 'admin' && !c.isSuperAdmin;
+              return c.role === 'customer';
+            });
+        
+        setCustomers(filteredCustomers);
+        setCurrentUserIsSuperAdmin(payload.currentUser?.isSuperAdmin || false);
+        // Calculate total pages (assuming 10 items per page for now)
+        const itemsPerPage = 10;
+        setTotalPages(Math.max(1, Math.ceil(filteredCustomers.length / itemsPerPage)));
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') {
           return;
@@ -135,7 +167,7 @@ export default function CustomersPage() {
     fetchCustomers();
 
     return () => controller.abort();
-  }, [debouncedSearchTerm, statusFilter, refreshKey]);
+  }, [debouncedSearchTerm, statusFilter, roleFilter, refreshKey]);
 
   const refreshCustomers = () => {
     setRefreshKey(prev => prev + 1);
@@ -160,8 +192,8 @@ export default function CustomersPage() {
       setBlockDialogOpen(false);
       setSelectedCustomer(null);
       toast({
-        title: 'Customer blocked',
-        description: 'Customer has been blocked successfully.',
+        title: 'Customer deactivated',
+        description: 'Customer has been deactivated successfully.',
         variant: 'success',
       });
       refreshCustomers();
@@ -194,8 +226,8 @@ export default function CustomersPage() {
       setUnblockDialogOpen(false);
       setSelectedCustomer(null);
       toast({
-        title: 'Customer unblocked',
-        description: 'Customer has been unblocked successfully.',
+        title: 'Customer activated',
+        description: 'Customer has been activated successfully.',
         variant: 'success',
       });
       refreshCustomers();
@@ -280,6 +312,71 @@ export default function CustomersPage() {
     }
   };
 
+  const handleNewCustomerChange = (field: keyof typeof newCustomer, value: string) => {
+    setNewCustomer((prev) => ({ ...prev, [field]: value }));
+    if (addCustomerError) setAddCustomerError(null);
+  };
+
+  const handleCreateCustomer = async () => {
+    const { firstName, lastName, email, password } = newCustomer;
+
+    if (!firstName.trim() || !lastName.trim() || !email.trim() || !password.trim()) {
+      setAddCustomerError('First name, last name, email, and password are required.');
+      return;
+    }
+
+    setIsAddingCustomer(true);
+    setAddCustomerError(null);
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error('You must be logged in as an admin to create customers.');
+      }
+
+      const res = await fetch('/api/admin/customers', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(newCustomer),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to create customer');
+      }
+
+      toast({
+        title: 'Customer created',
+        description: 'The new customer has been added successfully.',
+        variant: 'success',
+      });
+
+      setAddCustomerOpen(false);
+      setNewCustomer({
+        firstName: '',
+        middleName: '',
+        lastName: '',
+        email: '',
+        phone: '',
+        password: '',
+        role: 'customer',
+      });
+      refreshCustomers();
+    } catch (err) {
+      console.error('Failed to create customer', err);
+      setAddCustomerError(err instanceof Error ? err.message : 'Failed to create customer');
+    } finally {
+      setIsAddingCustomer(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -314,6 +411,25 @@ export default function CustomersPage() {
                 <SelectItem value="blocked">Blocked</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={roleFilter} onValueChange={setRoleFilter}>
+              <SelectTrigger className="w-full md:w-40">
+                <SelectValue placeholder="Role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Roles</SelectItem>
+                <SelectItem value="customer">Customer</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
+                <SelectItem value="super_admin">Super Admin</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button 
+              variant="default" 
+              className="gap-2"
+              onClick={() => setAddCustomerOpen(true)}
+            >
+              <Plus className="h-4 w-4" />
+              Add Customer
+            </Button>
             <Button variant="outline" className="gap-2">
               <Download className="h-4 w-4" />
               Export
@@ -366,15 +482,20 @@ export default function CustomersPage() {
                   </TableRow>
                 ) : (
                   customers.map((customer) => (
-                    <TableRow key={customer.id}>
+                    <TableRow 
+                      key={customer.id}
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => {
+                        setSelectedCustomer(customer);
+                        setViewDetailsOpen(true);
+                      }}
+                    >
                       <TableCell className="font-medium">{customer.name}</TableCell>
                       <TableCell className="text-sm">{customer.email}</TableCell>
                       <TableCell className="text-sm">{customer.phone}</TableCell>
                       <TableCell>{customer.orders}</TableCell>
                       <TableCell className="font-medium">
-                        {typeof customer.totalSpent === 'number' 
-                          ? `₱${customer.totalSpent.toFixed(2)}` 
-                          : customer.totalSpent}
+                        {formatPrice(Number(customer.totalSpent))}
                       </TableCell>
                       <TableCell>
                         <Badge variant={customer.status === 'active' ? 'default' : 'destructive'}>
@@ -383,9 +504,9 @@ export default function CustomersPage() {
                       </TableCell>
                       <TableCell>
                         {customer.isSuperAdmin ? (
-                          <Badge className="bg-purple-600 text-white border-0 font-semibold">
+                          <span className="inline-flex items-center rounded-full bg-purple-600 px-3 py-1 text-xs font-semibold text-white">
                             ⭐ Super Admin
-                          </Badge>
+                          </span>
                         ) : (
                           <Badge variant={customer.role === 'admin' ? 'secondary' : 'outline'}>
                             {customer.role === 'admin' ? 'Admin' : 'Customer'}
@@ -393,10 +514,10 @@ export default function CustomersPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">{customer.joinDate}</TableCell>
-                      <TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
+                            <Button variant="ghost" size="sm" onClick={(e) => e.stopPropagation()}>
                               <MoreVertical className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -434,7 +555,7 @@ export default function CustomersPage() {
                                     }}
                                   >
                                     <Ban className="h-4 w-4" />
-                                    Block Customer
+                                    Deactivate Customer
                                   </DropdownMenuItem>
                                 ) : (
                                   <DropdownMenuItem 
@@ -445,7 +566,7 @@ export default function CustomersPage() {
                                     }}
                                   >
                                     <UserCheck className="h-4 w-4" />
-                                    Unblock Customer
+                                    Activate Customer
                                   </DropdownMenuItem>
                                 )}
                                 <DropdownMenuSeparator />
@@ -509,9 +630,33 @@ export default function CustomersPage() {
             <p className="text-sm text-muted-foreground">
               Showing {customers.length} customer{customers.length !== 1 ? 's' : ''}
             </p>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" disabled>Previous</Button>
-              <Button variant="outline" size="sm" disabled>Next</Button>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="gap-1"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Previous
+              </Button>
+              <div className="flex items-center gap-1 px-2">
+                <span className="text-sm text-muted-foreground">Page</span>
+                <span className="text-sm font-medium">{currentPage}</span>
+                <span className="text-sm text-muted-foreground">of</span>
+                <span className="text-sm font-medium">{totalPages}</span>
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage >= totalPages}
+                className="gap-1"
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </Button>
             </div>
           </div>
         </CardContent>
@@ -574,9 +719,7 @@ export default function CustomersPage() {
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total Spent</p>
                 <p className="text-base">
-                  {typeof selectedCustomer.totalSpent === 'number' 
-                    ? `₱${selectedCustomer.totalSpent.toFixed(2)}` 
-                    : selectedCustomer.totalSpent}
+                  {formatPrice(Number(selectedCustomer.totalSpent))}
                 </p>
               </div>
               <div>
@@ -640,13 +783,13 @@ export default function CustomersPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Block Customer Confirmation Dialog */}
+      {/* Deactivate Customer Confirmation Dialog */}
       <AlertDialog open={blockDialogOpen} onOpenChange={setBlockDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Block Customer</AlertDialogTitle>
+            <AlertDialogTitle>Deactivate Customer</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to block {selectedCustomer?.name}? They will not be able to access their account until unblocked.
+              Are you sure you want to deactivate {selectedCustomer?.name}? They will not be able to access their account until reactivated.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -655,19 +798,19 @@ export default function CustomersPage() {
               onClick={() => selectedCustomer && handleBlockCustomer(selectedCustomer.id)} 
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Block Customer
+              Deactivate Customer
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Unblock Customer Confirmation Dialog */}
+      {/* Activate Customer Confirmation Dialog */}
       <AlertDialog open={unblockDialogOpen} onOpenChange={setUnblockDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Unblock Customer</AlertDialogTitle>
+            <AlertDialogTitle>Activate Customer</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to unblock {selectedCustomer?.name}? They will be able to access their account again.
+              Are you sure you want to activate {selectedCustomer?.name}? They will be able to access their account again.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -675,7 +818,7 @@ export default function CustomersPage() {
             <AlertDialogAction 
               onClick={() => selectedCustomer && handleUnblockCustomer(selectedCustomer.id)}
             >
-              Unblock Customer
+              Activate Customer
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -698,6 +841,97 @@ export default function CustomersPage() {
               onClick={() => selectedCustomer && pendingRoleChange && handleChangeRole(selectedCustomer.id, pendingRoleChange)}
             >
               Change Role
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Add Customer Dialog */}
+      <AlertDialog open={addCustomerOpen} onOpenChange={setAddCustomerOpen}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Add New Customer</AlertDialogTitle>
+            <AlertDialogDescription>
+              Manually register a new customer account. They will receive an email with login credentials.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-3">
+              <label className="text-sm font-medium mb-1 block">Name</label>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <Input
+                    placeholder="First name"
+                    value={newCustomer.firstName}
+                    onChange={(e) => handleNewCustomerChange('firstName', e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Input
+                    placeholder="Middle name (optional)"
+                    value={newCustomer.middleName}
+                    onChange={(e) => handleNewCustomerChange('middleName', e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Input
+                    placeholder="Last name"
+                    value={newCustomer.lastName}
+                    onChange={(e) => handleNewCustomerChange('lastName', e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Email Address</label>
+              <Input
+                type="email"
+                placeholder="customer@example.com"
+                value={newCustomer.email}
+                onChange={(e) => handleNewCustomerChange('email', e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Phone Number</label>
+              <Input
+                type="tel"
+                placeholder="912 345 6789"
+                value={newCustomer.phone}
+                onChange={(e) => handleNewCustomerChange('phone', e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Password</label>
+              <Input
+                type="password"
+                placeholder="Minimum 6 characters"
+                value={newCustomer.password}
+                onChange={(e) => handleNewCustomerChange('password', e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Role</label>
+              <Select
+                value={newCustomer.role}
+                onValueChange={(value) => handleNewCustomerChange('role', value)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="customer">Customer</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {addCustomerError && (
+              <p className="text-sm text-destructive">{addCustomerError}</p>
+            )}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCreateCustomer} disabled={isAddingCustomer}>
+              {isAddingCustomer ? 'Creating...' : 'Create Customer'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

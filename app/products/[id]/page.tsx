@@ -419,7 +419,7 @@ export default function ProductDetailPage() {
                   </div>
                   {product.compareAtPrice && (
                     <p className="text-sm text-muted-foreground">
-                      Save ₱{(product.compareAtPrice - (selectedVariant?.price || product.price)).toFixed(2)} vs regular price
+                      Save {formatPrice(product.compareAtPrice - (selectedVariant?.price || product.price))} vs regular price
                     </p>
                   )}
                 </div>

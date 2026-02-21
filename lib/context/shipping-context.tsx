@@ -37,11 +37,11 @@ export function ShippingProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("shippingMethod", method);
   };
 
-  // Get current shipping rates from settings
+  // Get current shipping rates from settings (in PHP)
   const shippingRates = {
-    standard: parseFloat(settings?.shipping?.standardRate || "5.00"),
-    express: parseFloat(settings?.shipping?.expressRate || "15.00"),
-    freeThreshold: parseFloat(settings?.shipping?.freeShippingThreshold || "50.00"),
+    standard: parseFloat(settings?.shipping?.standardRate || "299.00"),
+    express: parseFloat(settings?.shipping?.expressRate || "599.00"),
+    freeThreshold: parseFloat(settings?.shipping?.freeShippingThreshold || "2500.00"),
   };
 
   // Check if subtotal qualifies for free shipping

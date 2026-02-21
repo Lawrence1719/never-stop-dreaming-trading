@@ -7,7 +7,7 @@ import { Footer } from "@/components/layout/footer";
 import { CheckCircle } from 'lucide-react';
 import { useAuth } from "@/lib/context/auth-context";
 import { supabase } from "@/lib/supabase/client";
-import { formatDate } from "@/lib/utils/formatting";
+import { formatDate, formatPrice } from "@/lib/utils/formatting";
 import { Order } from "@/lib/types";
 
 export default function OrderConfirmationPage({ params }: { params: Promise<{ orderId: string }> }) {
@@ -159,7 +159,7 @@ export default function OrderConfirmationPage({ params }: { params: Promise<{ or
 
               <div>
                 <p className="text-sm text-muted-foreground">Total Amount</p>
-                <p className="font-bold text-lg text-primary">₱{order.total.toFixed(2)}</p>
+                <p className="font-bold text-lg text-primary">{formatPrice(order.total)}</p>
               </div>
             </div>
           </div>

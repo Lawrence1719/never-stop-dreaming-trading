@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { supabase } from '@/lib/supabase/client';
+import { formatPrice } from '@/lib/utils/formatting';
 
 interface Product {
   id: string;
@@ -235,7 +236,7 @@ export default function ViewProductPage() {
               <div className="grid grid-cols-1 gap-6">
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">Regular Price</label>
-                  <p className="text-2xl font-bold mt-1">${product.price.toFixed(2)}</p>
+                  <p className="text-2xl font-bold mt-1">{formatPrice(product.price)}</p>
                 </div>
               </div>
               <div>

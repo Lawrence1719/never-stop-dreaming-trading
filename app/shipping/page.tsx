@@ -24,17 +24,17 @@ export default function ShippingPage() {
                 <div className="bg-card border border-border rounded-lg p-4">
                   <h3 className="font-semibold mb-2">Standard Shipping</h3>
                   <p className="text-sm text-muted-foreground mb-2">5-7 business days</p>
-                  <p className="text-lg font-bold">$5.99</p>
+                  <p className="text-lg font-bold">₱299.00</p>
                 </div>
                 <div className="bg-card border border-border rounded-lg p-4">
                   <h3 className="font-semibold mb-2">Express Shipping</h3>
                   <p className="text-sm text-muted-foreground mb-2">2-3 business days</p>
-                  <p className="text-lg font-bold">$12.99</p>
+                  <p className="text-lg font-bold">₱599.00</p>
                 </div>
                 <div className="bg-card border border-border rounded-lg p-4">
                   <h3 className="font-semibold mb-2">Overnight</h3>
                   <p className="text-sm text-muted-foreground mb-2">Next business day</p>
-                  <p className="text-lg font-bold">$24.99</p>
+                  <p className="text-lg font-bold">₱1,199.00</p>
                 </div>
               </div>
             </section>
@@ -87,7 +87,7 @@ export default function ShippingPage() {
             <section>
               <h2 className="text-2xl font-bold mb-4">Free Shipping</h2>
               <p className="text-muted-foreground">
-                Free standard shipping is available on orders over $50. This applies to physical products only. 
+                Free standard shipping is available on orders over ₱2,500. This applies to physical products only. 
                 Digital products and subscriptions are always delivered instantly at no additional cost.
               </p>
             </section>

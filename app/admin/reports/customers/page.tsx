@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { supabase } from '@/lib/supabase/client';
 import { exportToCSV } from '@/lib/utils/export';
+import { formatPrice } from '@/lib/utils/formatting';
 
 interface CustomerReport {
   summary: {
@@ -98,11 +99,8 @@ export default function CustomersReportPage() {
     }, 1000);
   };
 
-  const currencyFormatter = new Intl.NumberFormat('en-PH', {
-    style: 'currency',
-    currency: 'PHP',
-    maximumFractionDigits: 2,
-  });
+  const formatAmount = (value: number | string) =>
+    formatPrice(typeof value === 'string' ? parseFloat(value.replace(/[^0-9.-]/g, '')) || 0 : value);
 
   return (
     <div className="space-y-6">
@@ -171,7 +169,7 @@ export default function CustomersReportPage() {
             ) : (
               <>
                 <div className="text-2xl font-bold">
-                  {data ? currencyFormatter.format(data.summary.avgOrderValue) : '₱0.00'}
+                  {data ? formatPrice(data.summary.avgOrderValue) : formatPrice(0)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">Average per order</p>
               </>
@@ -189,7 +187,7 @@ export default function CustomersReportPage() {
             ) : (
               <>
                 <div className="text-2xl font-bold">
-                  {data ? currencyFormatter.format(data.summary.customerLifetimeValue) : '₱0.00'}
+                  {data ? formatPrice(data.summary.customerLifetimeValue) : formatPrice(0)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">Average per customer</p>
               </>
@@ -232,7 +230,7 @@ export default function CustomersReportPage() {
                     <TableCell className="font-medium">{customer.name}</TableCell>
                     <TableCell className="text-muted-foreground">{customer.email}</TableCell>
                     <TableCell>{customer.orders}</TableCell>
-                    <TableCell className="text-green-600 font-medium">{customer.totalSpent}</TableCell>
+                    <TableCell className="text-green-600 font-medium">{formatAmount(customer.totalSpent)}</TableCell>
                     <TableCell>
                       <Badge variant={customer.status === 'VIP' ? 'default' : 'secondary'}>
                         {customer.status}
@@ -283,8 +281,8 @@ export default function CustomersReportPage() {
                   <TableRow key={idx}>
                     <TableCell className="font-medium">{segment.segment}</TableCell>
                     <TableCell>{segment.count}</TableCell>
-                    <TableCell>{segment.avgOrderValue}</TableCell>
-                    <TableCell className="text-green-600 font-medium">{segment.totalRevenue}</TableCell>
+                    <TableCell>{formatAmount(segment.avgOrderValue)}</TableCell>
+                    <TableCell className="text-green-600 font-medium">{formatAmount(segment.totalRevenue)}</TableCell>
                   </TableRow>
                 ))
               ) : (

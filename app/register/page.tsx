@@ -8,7 +8,7 @@ import { Footer } from "@/components/layout/footer";
 import { useAuth } from "@/lib/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { validateEmail, validatePassword, validatePhoneNumber } from "@/lib/utils/validation";
-import { User, Mail, Lock, Phone, CheckCircle2 } from 'lucide-react';
+import { User, Mail, Lock, Phone, Eye, EyeOff } from 'lucide-react';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -16,7 +16,9 @@ export default function RegisterPage() {
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
-    name: "",
+    firstName: "",
+    middleName: "",
+    lastName: "",
     email: "",
     phone: "",
     password: "",
@@ -26,6 +28,9 @@ export default function RegisterPage() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordStrength, setPasswordStrength] = useState<"weak" | "medium" | "strong" | "">("");
 
   // Redirect if already logged in or after successful registration
   useEffect(() => {
@@ -41,8 +46,12 @@ export default function RegisterPage() {
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.name.trim()) {
-      newErrors.name = "Full name is required";
+    if (!formData.firstName.trim()) {
+      newErrors.firstName = "First name is required";
+    }
+
+    if (!formData.lastName.trim()) {
+      newErrors.lastName = "Last name is required";
     }
 
     const trimmedEmail = formData.email.trim();
@@ -77,6 +86,20 @@ export default function RegisterPage() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+
+    if (name === "password") {
+      const length = value.length;
+      if (!value) {
+        setPasswordStrength("");
+      } else if (length < 6) {
+        setPasswordStrength("weak");
+      } else if (length < 10) {
+        setPasswordStrength("medium");
+      } else {
+        setPasswordStrength("strong");
+      }
+    }
+
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
     }
@@ -116,8 +139,13 @@ export default function RegisterPage() {
       // Trim email before sending to ensure no whitespace issues
       const trimmedEmail = formData.email.trim().toLowerCase();
       
+      const fullName = [formData.firstName, formData.middleName, formData.lastName]
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .join(" ");
+
       const { error } = await register(
-        formData.name.trim(),
+        fullName,
         trimmedEmail,
         formData.phone.trim(),
         formData.password
@@ -173,30 +201,66 @@ export default function RegisterPage() {
       <Navbar />
 
       <main className="flex-1 flex items-center justify-center px-4 py-16">
-        <div className="w-full max-w-md">
+      <div className="w-full max-w-xl">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold mb-2">Create Account</h1>
             <p className="text-muted-foreground">Join Never Stop Dreaming Trading</p>
+            <p className="text-xs text-muted-foreground mt-1">Quick sign-up · Takes less than a minute</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Name */}
+            {/* Name (First / Middle / Last) */}
             <div>
-              <label className="block text-sm font-medium mb-2">Full Name</label>
-              <div className="relative">
-                <User className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleChange}
-                  placeholder="John Doe"
-                  className={`w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
-                    errors.name ? "border-destructive" : "border-border"
-                  }`}
-                />
+              <label className="block text-sm font-medium mb-2">Name</label>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {/* First Name */}
+                <div className="relative">
+                  <User className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
+                  <input
+                    type="text"
+                    name="firstName"
+                    value={formData.firstName}
+                    onChange={handleChange}
+                    placeholder="First"
+                    className={`w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
+                      errors.firstName ? "border-destructive" : "border-border"
+                    }`}
+                  />
+                </div>
+
+                {/* Middle Name (Optional) */}
+                <div className="relative">
+                  <User className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
+                  <input
+                    type="text"
+                    name="middleName"
+                    value={formData.middleName}
+                    onChange={handleChange}
+                    placeholder="Middle (optional)"
+                    className="w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary border-border"
+                  />
+                </div>
+
+                {/* Last Name */}
+                <div className="relative">
+                  <User className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
+                  <input
+                    type="text"
+                    name="lastName"
+                    value={formData.lastName}
+                    onChange={handleChange}
+                    placeholder="Last"
+                    className={`w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
+                      errors.lastName ? "border-destructive" : "border-border"
+                    }`}
+                  />
+                </div>
               </div>
-              {errors.name && <p className="text-xs text-destructive mt-1">{errors.name}</p>}
+              {(errors.firstName || errors.lastName) && (
+                <p className="text-xs text-destructive mt-1">
+                  {errors.firstName || errors.lastName}
+                </p>
+              )}
             </div>
 
             {/* Email */}
@@ -223,22 +287,23 @@ export default function RegisterPage() {
             {/* Phone */}
             <div>
               <label className="block text-sm font-medium mb-2">Phone Number</label>
-              <div className="relative">
+              <div className="relative flex items-center">
                 <Phone className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
+                <span className="ml-9 mr-2 text-sm text-muted-foreground whitespace-nowrap">+63</span>
                 <input
                   type="tel"
                   name="phone"
                   value={formData.phone}
                   onChange={handleChange}
-                  placeholder="0912 345 6789"
+                  placeholder="912 345 6789"
                   autoComplete="tel"
-                  className={`w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
+                  className={`w-full pl-2 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
                     errors.phone ? "border-destructive" : "border-border"
                   }`}
                 />
               </div>
               {errors.phone && <p className="text-xs text-destructive mt-1">{errors.phone}</p>}
-              <p className="text-xs text-muted-foreground mt-1">Philippine format: 09XX XXX XXXX or +63 9XX XXX XXXX</p>
+              <p className="text-xs text-muted-foreground mt-1">Philippine numbers · Enter the 9XX XXX XXXX part only.</p>
             </div>
 
             {/* Password */}
@@ -247,17 +312,43 @@ export default function RegisterPage() {
               <div className="relative">
                 <Lock className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   name="password"
                   value={formData.password}
                   onChange={handleChange}
                   placeholder="••••••••"
-                  className={`w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
+                  className={`w-full pl-10 pr-10 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
                     errors.password ? "border-destructive" : "border-border"
                   }`}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
               </div>
               {errors.password && <p className="text-xs text-destructive mt-1">{errors.password}</p>}
+              {passwordStrength && (
+                <div className="mt-2">
+                  <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
+                    <div
+                      className={`h-full transition-all ${
+                        passwordStrength === "weak"
+                          ? "w-1/3 bg-destructive"
+                          : passwordStrength === "medium"
+                          ? "w-2/3 bg-amber-500"
+                          : "w-full bg-emerald-500"
+                      }`}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1 capitalize">
+                    Password strength: {passwordStrength}
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Confirm Password */}
@@ -266,15 +357,23 @@ export default function RegisterPage() {
               <div className="relative">
                 <Lock className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
                 <input
-                  type="password"
+                  type={showConfirmPassword ? "text" : "password"}
                   name="confirmPassword"
                   value={formData.confirmPassword}
                   onChange={handleChange}
                   placeholder="••••••••"
-                  className={`w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
+                  className={`w-full pl-10 pr-10 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
                     errors.confirmPassword ? "border-destructive" : "border-border"
                   }`}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((prev) => !prev)}
+                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground"
+                  aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                >
+                  {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
               </div>
               {errors.confirmPassword && <p className="text-xs text-destructive mt-1">{errors.confirmPassword}</p>}
             </div>
@@ -288,11 +387,16 @@ export default function RegisterPage() {
                   setTermsAccepted(e.target.checked);
                   if (errors.terms) setErrors((prev) => ({ ...prev, terms: "" }));
                 }}
-                className="mt-1 rounded"
+                className="mt-1 h-4 w-4 rounded border border-border text-primary focus:ring-2 focus:ring-primary"
               />
               <span className="text-sm">
                 I agree to the{" "}
-                <Link href="/terms" className="text-primary hover:underline">
+                <Link
+                  href="/terms"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
                   Terms & Conditions
                 </Link>
               </span>

@@ -92,9 +92,9 @@ export function useSettings() {
               businessAddress: '123 Main Street, City, State 12345',
             },
             shipping: {
-              standardRate: '5.00',
-              expressRate: '15.00',
-              freeShippingThreshold: '50.00',
+              standardRate: '299.00',
+              expressRate: '599.00',
+              freeShippingThreshold: '2500.00',
             },
             payment: {
               creditCard: true,

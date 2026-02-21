@@ -9,6 +9,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { supabase } from '@/lib/supabase/client';
 import { exportToCSV } from '@/lib/utils/export';
+import { formatPrice } from '@/lib/utils/formatting';
 
 interface SalesReport {
   summary: {
@@ -94,11 +95,8 @@ export default function SalesReportPage() {
     }, 500);
   };
 
-  const currencyFormatter = new Intl.NumberFormat('en-PH', {
-    style: 'currency',
-    currency: 'PHP',
-    maximumFractionDigits: 2,
-  });
+  const formatAmount = (value: number | string) =>
+    formatPrice(typeof value === 'string' ? parseFloat(value.replace(/[^0-9.-]/g, '')) || 0 : value);
 
   return (
     <div className="space-y-6">
@@ -131,7 +129,7 @@ export default function SalesReportPage() {
             ) : (
               <>
                 <div className="text-2xl font-bold">
-                  {data ? currencyFormatter.format(data.summary.totalRevenue) : '₱0.00'}
+                  {data ? formatPrice(data.summary.totalRevenue) : formatPrice(0)}
                 </div>
                 <p className={`text-xs mt-1 ${data && data.summary.revenueGrowth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   {data ? `${data.summary.revenueGrowth >= 0 ? '+' : ''}${data.summary.revenueGrowth.toFixed(2)}% from last month` : 'N/A'}
@@ -171,7 +169,7 @@ export default function SalesReportPage() {
             ) : (
               <>
                 <div className="text-2xl font-bold">
-                  {data ? currencyFormatter.format(data.summary.averageOrderValue) : '₱0.00'}
+                  {data ? formatPrice(data.summary.averageOrderValue) : formatPrice(0)}
                 </div>
                 <p className={`text-xs mt-1 ${data && data.summary.aovGrowth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   {data ? `${data.summary.aovGrowth >= 0 ? '+' : ''}${data.summary.aovGrowth.toFixed(2)}% from last month` : 'N/A'}
@@ -260,7 +258,7 @@ export default function SalesReportPage() {
                   <TableRow key={idx}>
                     <TableCell className="font-medium">{product.name}</TableCell>
                     <TableCell>{product.sold}</TableCell>
-                    <TableCell className="text-green-600 font-medium">{product.revenue}</TableCell>
+                    <TableCell className="text-green-600 font-medium">{formatAmount(product.revenue)}</TableCell>
                   </TableRow>
                 ))
               ) : (

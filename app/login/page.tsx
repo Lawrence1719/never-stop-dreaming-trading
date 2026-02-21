@@ -26,6 +26,7 @@ function LoginPageContent() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showResendConfirmation, setShowResendConfirmation] = useState(false);
   const [isResending, setIsResending] = useState(false);
+  const [justLoggedIn, setJustLoggedIn] = useState(false);
 
   const { isMigrating } = useCart();
 
@@ -35,7 +36,7 @@ function LoginPageContent() {
     // Allow admin users to redirect immediately (they don't need cart migration)
     const migrationDoneOrAdmin = !isMigrating || (user && user.role === 'admin');
 
-    if (!authLoading && user && migrationDoneOrAdmin) {
+    if (!authLoading && user && migrationDoneOrAdmin && !justLoggedIn) {
       const next = searchParams.get('next');
       if (next) {
         router.push(next);
@@ -48,7 +49,7 @@ function LoginPageContent() {
         router.push('/');
       }
     }
-  }, [user, authLoading, isMigrating, router, searchParams]);
+  }, [user, authLoading, isMigrating, router, searchParams, justLoggedIn]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -125,12 +126,18 @@ function LoginPageContent() {
         return;
       }
 
+      setJustLoggedIn(true);
       toast({
         title: "Success",
         description: "Logged in successfully",
         variant: "success",
       });
       setShowResendConfirmation(false);
+      
+      // Delay to ensure toast is visible before redirect
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Clear the flag to allow useEffect to handle redirect
+      setJustLoggedIn(false);
     } catch (error) {
       console.error('Unexpected login error:', error);
       const errorMsg = error instanceof Error ? error.message : "An unexpected error occurred";

@@ -33,6 +33,7 @@ import {
 import { StatusBadge } from '@/components/admin/status-badge';
 import { supabase } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { formatPrice } from '@/lib/utils/formatting';
 
 interface Order {
   id: string;
@@ -217,8 +218,9 @@ export default function OrdersPage() {
     );
   };
   
-  const formatCurrency = (amount: number) => {
-    return `₱${amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+  const formatAmountDisplay = (amount: string | number) => {
+    const num = typeof amount === 'string' ? parseFloat(amount.replace(/[^0-9.-]/g, '')) || 0 : amount;
+    return formatPrice(num);
   };
 
   const statusFilters = [
@@ -323,21 +325,21 @@ export default function OrdersPage() {
         <Card>
           <CardContent className="pt-6">
             <div className="text-sm font-medium text-muted-foreground">Total Revenue</div>
-            <div className="text-2xl font-bold mt-1">{formatCurrency(revenue.total)}</div>
+            <div className="text-2xl font-bold mt-1">{formatPrice(revenue.total)}</div>
             <div className="text-xs text-muted-foreground mt-1">all time</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <div className="text-sm font-medium text-muted-foreground">Avg Order Value</div>
-            <div className="text-2xl font-bold mt-1">{formatCurrency(revenue.avg)}</div>
+            <div className="text-2xl font-bold mt-1">{formatPrice(revenue.avg)}</div>
             <div className="text-xs text-muted-foreground mt-1">per order</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <div className="text-sm font-medium text-muted-foreground">Pending Payment</div>
-            <div className="text-2xl font-bold mt-1 text-yellow-600 dark:text-yellow-400">{formatCurrency(revenue.pending)}</div>
+            <div className="text-2xl font-bold mt-1 text-yellow-600 dark:text-yellow-400">{formatPrice(revenue.pending)}</div>
             <div className="text-xs text-muted-foreground mt-1">{statusCounts.pending || 0} orders</div>
           </CardContent>
         </Card>
@@ -492,7 +494,7 @@ export default function OrdersPage() {
                         className="font-medium cursor-pointer"
                         onClick={() => window.location.href = `/admin/orders/${order.orderId}`}
                       >
-                        {order.amount}
+                        {formatAmountDisplay(order.amount)}
                       </TableCell>
                       <TableCell
                         className="cursor-pointer"

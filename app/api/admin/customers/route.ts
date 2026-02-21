@@ -2,64 +2,72 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getClient } from '@/lib/supabase/admin';
 import { createClient } from '@supabase/supabase-js';
 
-export async function GET(request: NextRequest) {
+async function verifyAdmin(request: NextRequest) {
   const authHeader = request.headers.get('authorization') || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
 
   if (!token) {
-    return NextResponse.json({ error: 'Unauthorized - No token provided' }, { status: 401 });
+    return { error: 'Unauthorized - No token provided', status: 401, user: null, isSuperAdmin: false };
+  }
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.error('Missing Supabase credentials:', {
+      hasUrl: !!supabaseUrl,
+      hasAnonKey: !!supabaseAnonKey,
+    });
+    return { error: 'Server configuration error', status: 500, user: null, isSuperAdmin: false };
+  }
+
+  // Create client with user's token for auth check
+  const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+  });
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabaseUser.auth.getUser();
+
+  if (userError || !user) {
+    console.error('Auth error:', userError?.message || 'No user found');
+    return { error: 'Unauthorized - Invalid token', status: 401, user: null, isSuperAdmin: false };
+  }
+
+  const { data: profile, error: profileError } = await supabaseUser
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  if (profileError) {
+    console.error('Failed to load profile for customers', profileError);
+    return { error: 'Unable to verify user role', status: 500, user: null, isSuperAdmin: false };
+  }
+
+  // Check if user is super admin via env var or has admin role in database
+  const superAdminEmail = process.env.SUPER_ADMIN_EMAIL || '';
+  const isSuperAdmin = !!(superAdminEmail && user.email === superAdminEmail);
+  const isAdmin = profile?.role === 'admin' || isSuperAdmin;
+
+  if (!isAdmin) {
+    return { error: 'Forbidden', status: 403, user: null, isSuperAdmin: false };
+  }
+
+  return { error: null, status: 200, user, isSuperAdmin, superAdminEmail };
+}
+
+export async function GET(request: NextRequest) {
+  const authResult = await verifyAdmin(request);
+  if (authResult.error || !authResult.user) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status });
   }
 
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-    
-    if (!supabaseUrl || !supabaseAnonKey) {
-      console.error('Missing Supabase credentials:', { 
-        hasUrl: !!supabaseUrl, 
-        hasAnonKey: !!supabaseAnonKey 
-      });
-      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
-    }
-    
-    // Create client with user's token for auth check
-    const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: `Bearer ${token}` } },
-    });
-    
-    const {
-      data: { user },
-      error: userError,
-    } = await supabaseUser.auth.getUser();
-
-    if (userError || !user) {
-      console.error('Auth error:', userError?.message || 'No user found');
-      return NextResponse.json({ error: 'Unauthorized - Invalid token' }, { status: 401 });
-    }
-
-    const { data: profile, error: profileError } = await supabaseUser
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
-    if (profileError) {
-      console.error('Failed to load profile for customers', profileError);
-      return NextResponse.json({ error: 'Unable to verify user role' }, { status: 500 });
-    }
-
-    // Check if user is super admin via env var or has admin role in database
-    const superAdminEmail = process.env.SUPER_ADMIN_EMAIL || '';
-    const isSuperAdmin = superAdminEmail && user.email === superAdminEmail;
-    const isAdmin = profile?.role === 'admin' || isSuperAdmin;
-
-    if (!isAdmin) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    // Use admin client for data fetching
     const supabaseAdmin = getClient();
-    
+
     // Get query parameters for filtering
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search') || '';
@@ -85,8 +93,11 @@ export async function GET(request: NextRequest) {
     let emailsMap: Record<string, string | null> = {};
     if (userIds.length > 0) {
       try {
-        const { data: { users }, error: usersError } = await supabaseAdmin.auth.admin.listUsers();
-        
+        const {
+          data: { users },
+          error: usersError,
+        } = await supabaseAdmin.auth.admin.listUsers();
+
         if (usersError) {
           console.error('Failed to fetch user emails', usersError);
         } else {
@@ -126,7 +137,10 @@ export async function GET(request: NextRequest) {
     let blockedUsersMap: Record<string, boolean> = {};
     if (userIds.length > 0) {
       try {
-        const { data: { users }, error: usersError } = await supabaseAdmin.auth.admin.listUsers();
+        const {
+          data: { users },
+          error: usersError,
+        } = await supabaseAdmin.auth.admin.listUsers();
         if (!usersError) {
           blockedUsersMap = (users || []).reduce((acc, user) => {
             if (userIds.includes(user.id)) {
@@ -140,6 +154,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const superAdminEmail = authResult.superAdminEmail as string | undefined;
+
     // Map the data to match the expected format
     const customers = (profiles || [])
       .map((profile: any) => {
@@ -147,7 +163,7 @@ export async function GET(request: NextRequest) {
         const email = emailsMap[profile.id] || '';
         const isBlocked = blockedUsersMap[profile.id] || false;
         const isProfileSuperAdmin = superAdminEmail && email === superAdminEmail;
-        
+
         return {
           id: profile.id,
           name: profile.name || 'Unknown',
@@ -176,13 +192,13 @@ export async function GET(request: NextRequest) {
         return customer.status === status;
       });
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       data: customers,
       currentUser: {
-        id: user.id,
-        email: user.email,
-        isSuperAdmin,
-      }
+        id: authResult.user.id,
+        email: authResult.user.email,
+        isSuperAdmin: authResult.isSuperAdmin,
+      },
     });
   } catch (error) {
     console.error('Failed to load customers', error);
@@ -190,3 +206,82 @@ export async function GET(request: NextRequest) {
   }
 }
 
+export async function POST(request: NextRequest) {
+  const authResult = await verifyAdmin(request);
+  if (authResult.error || !authResult.user) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status });
+  }
+
+  try {
+    const { firstName, middleName, lastName, email, phone, password, role } = await request.json();
+
+    if (!firstName || !lastName || !email || !password) {
+      return NextResponse.json(
+        { error: 'First name, last name, email, and password are required.' },
+        { status: 400 }
+      );
+    }
+
+    const fullName = [firstName, middleName, lastName]
+      .map((part) => (typeof part === 'string' ? part.trim() : ''))
+      .filter(Boolean)
+      .join(' ');
+
+    const normalizedRole = role === 'admin' ? 'admin' : 'customer';
+
+    const supabaseAdmin = getClient();
+
+    // Create auth user via admin API
+    const {
+      data: { user: createdUser },
+      error: createError,
+    } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: {
+        name: fullName,
+        phone,
+        role: normalizedRole,
+      },
+    });
+
+    if (createError || !createdUser) {
+      console.error('Failed to create customer user', createError);
+      return NextResponse.json(
+        { error: createError?.message || 'Failed to create customer user' },
+        { status: 500 }
+      );
+    }
+
+    // Ensure a profile row exists for this user so they appear in customer lists
+    const { error: profileError } = await supabaseAdmin.from('profiles').insert({
+      id: createdUser.id,
+      name: fullName,
+      phone: phone || null,
+      role: normalizedRole,
+    });
+
+    if (profileError) {
+      // Log but don't fail the whole request; profile will be auto-created on first login
+      console.error('Failed to create profile for new customer', profileError);
+    }
+
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          id: createdUser.id,
+          name: fullName,
+          email: createdUser.email,
+          phone: phone || null,
+          role: normalizedRole,
+        },
+      },
+      { status: 201 }
+    );
+  } catch (error) {
+    console.error('Failed to create customer', error);
+    return NextResponse.json({ error: 'Failed to create customer' }, { status: 500 });
+  }
+}

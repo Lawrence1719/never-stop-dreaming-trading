@@ -76,8 +76,8 @@ export async function GET(request: NextRequest) {
       const joinDate = new Date(profile.created_at);
       const lastOrderDate = stats.lastOrderDate ? new Date(stats.lastOrderDate) : null;
 
-      // VIP: High-value customers (spent > $500)
-      if (stats.totalSpent > 500) {
+      // VIP: High-value customers (spent > ₱25,000)
+      if (stats.totalSpent > 25000) {
         vipCustomers.push(profile.id);
       }
       // Regular: Active customers with orders

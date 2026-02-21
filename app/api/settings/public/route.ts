@@ -56,9 +56,9 @@ export async function GET() {
         businessAddress: settings.business_address || '123 Main Street, City, State 12345',
       },
       shipping: {
-        standardRate: settings.shipping_standard_rate || '5.00',
-        expressRate: settings.shipping_express_rate || '15.00',
-        freeShippingThreshold: settings.shipping_free_threshold || '50.00',
+        standardRate: settings.shipping_standard_rate || '299.00',
+        expressRate: settings.shipping_express_rate || '599.00',
+        freeShippingThreshold: settings.shipping_free_threshold || '2500.00',
       },
       payment: {
         creditCard: settings.payment_credit_card !== false,
@@ -78,9 +78,9 @@ export async function GET() {
         businessAddress: '123 Main Street, City, State 12345',
       },
       shipping: {
-        standardRate: '5.00',
-        expressRate: '15.00',
-        freeShippingThreshold: '50.00',
+        standardRate: '299.00',
+        expressRate: '599.00',
+        freeShippingThreshold: '2500.00',
       },
       payment: {
         creditCard: true,
