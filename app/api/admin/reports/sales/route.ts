@@ -61,59 +61,32 @@ export async function GET(request: NextRequest) {
       getGrowthRate('aov', range, supabaseAdmin),
     ]);
 
-    // Fetch top products (filtered by date range)
+    // Fetch top products (filtered by date range) via RPC
     const { start, end } = getDateRange(range);
-    const { data: ordersData } = await supabaseAdmin
-      .from('orders')
-      .select('items, total, created_at')
-      .neq('status', 'cancelled')
-      .gte('created_at', start)
-      .lte('created_at', end)
-      .order('created_at', { ascending: false });
 
-    // Calculate product sales
-    const productSales: Record<string, { sold: number; revenue: number; name: string }> = {};
-    (ordersData || []).forEach((order: any) => {
-      const items = Array.isArray(order.items) ? order.items : [];
-      items.forEach((item: any) => {
-        const productId = item.product_id || item.id || 'unknown';
-        const productName = item.name || 'Unknown Product';
-        const quantity = item.quantity || 1;
-        const price = Number(item.price || 0);
-
-        if (!productSales[productId]) {
-          productSales[productId] = { sold: 0, revenue: 0, name: productName };
-        }
-        productSales[productId].sold += quantity;
-        productSales[productId].revenue += price * quantity;
-      });
+    // We get top 10 products directly from PostgreSQL
+    const { data: topProductsData, error: topProductsError } = await supabaseAdmin.rpc('get_top_products_rpc', {
+      p_start_date: start,
+      p_end_date: end,
+      p_limit: 10
     });
 
-    // Get top products
-    const topProducts = Object.values(productSales)
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 10)
-      .map((product) => ({
-        name: product.name,
-        sold: product.sold,
-        revenue: `₱${product.revenue.toFixed(2)}`,
-      }));
+    if (topProductsError) {
+      console.error('Failed to load top products from RPC', topProductsError);
+    }
 
-    // Calculate sales count by category from orders
-    const categorySales: Record<string, number> = {};
-    (ordersData || []).forEach((order: any) => {
-      const items = Array.isArray(order.items) ? order.items : [];
-      items.forEach((item: any) => {
-        const category = item.category || 'Uncategorized';
-        const quantity = item.quantity || 1;
-        categorySales[category] = (categorySales[category] || 0) + quantity;
-      });
-    });
+    const topProducts = (topProductsData || []).map((product: any) => ({
+      name: product.name,
+      sold: Number(product.sold),
+      revenue: `₱${Number(product.revenue).toFixed(2)}`,
+    }));
 
-    // Format sales by category for chart
-    const salesByCategoryChart = salesByCategory.breakdown.map((cat) => ({
+    // Calculate sales count by category from orders (already handled by get_sales_by_category_rpc inside getSalesByCategory)
+    // The previous implementation calculated salesByCategoryChart manually here because standard getSalesByCategory didn't include counts.
+    // Our updated getSalesByCategory now includes the `sales` count automatically from the RPC!
+    const salesByCategoryChart = salesByCategory.breakdown.map((cat: any) => ({
       category: cat.category || 'Uncategorized',
-      sales: categorySales[cat.category || 'Uncategorized'] || 0,
+      sales: cat.sales || 0,
       revenue: cat.revenue,
     }));
 

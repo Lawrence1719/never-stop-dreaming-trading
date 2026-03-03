@@ -2,19 +2,19 @@ import { createClient, type PostgrestError, type SupabaseClient } from '@supabas
 
 function getClient(client?: SupabaseClient) {
   if (client) return client
-  
+
   // Try multiple possible environment variable names
-  const supabaseUrl = 
-    process.env.NEXT_PUBLIC_SUPABASE_URL || 
-    process.env.SUPABASE_URL || 
+  const supabaseUrl =
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    process.env.SUPABASE_URL ||
     ''
-  
-  const supabaseServiceKey = 
-    process.env.SUPABASE_SERVICE_ROLE_KEY || 
-    process.env.SUPABASE_KEY || 
+
+  const supabaseServiceKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY ||
     ''
-  
+
   if (!supabaseUrl || !supabaseServiceKey) {
     throw new Error(
       'Supabase URL or Service Role Key is not defined in environment. ' +
@@ -22,7 +22,7 @@ function getClient(client?: SupabaseClient) {
       'Please set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in your .env file.'
     )
   }
-  
+
   return createClient(supabaseUrl, supabaseServiceKey)
 }
 
@@ -124,15 +124,18 @@ async function getSalesOverview(range: Range = 'week', supabase?: SupabaseClient
   const sb = getClient(supabase)
   const { start, end } = getDateRange(range)
 
-  const { data, error } = await sb
-    .from('orders')
-    .select('id, total, created_at')
-    .neq('status', 'cancelled')
-    .gte('created_at', start)
-    .lte('created_at', end)
+  const truncInterval = range === 'day' ? 'hour' : 'day';
+
+  const { data, error } = await sb.rpc('get_sales_overview_rpc', {
+    p_start_date: start,
+    p_end_date: end,
+    p_trunc_interval: truncInterval
+  })
 
   if (error) throw error
 
+  // The RPC returns { period, orders, revenue }
+  // We still want to fill in empty gaps for charting
   const map: Record<string, { revenue: number; orders: number }> = {}
 
   // initialize buckets
@@ -146,12 +149,14 @@ async function getSalesOverview(range: Range = 'week', supabase?: SupabaseClient
     else cur.setDate(cur.getDate() + 1)
   }
 
-  ;(data || []).forEach((o: any) => {
-    const created = new Date(o.created_at)
-    const key = bucketKeyForDate(created, range)
-    if (!map[key]) map[key] = { revenue: 0, orders: 0 }
-    map[key].revenue += o.total || 0
-    map[key].orders += 1
+  ; (data || []).forEach((row: any) => {
+    // row.period is properly formatted from PG
+    // If it matches our key format exactly, great, else we parse it.
+    // The RPC formats 'YYYY-MM-DD' or 'YYYY-MM-DD HH24:00' which perfectly matches bucketKeyForDate
+    if (map[row.period]) {
+      map[row.period].revenue = Number(row.revenue);
+      map[row.period].orders = Number(row.orders);
+    }
   })
 
   const series = Object.keys(map).map((k) => ({
@@ -177,73 +182,24 @@ async function getSalesByCategory(range: Range = 'all', supabase?: SupabaseClien
   const { start, end } = getDateRange(range)
 
   try {
-    // Query order_items with joins to orders (for date filtering) and products (for category)
-    const { data, error } = await sb
-      .from('order_items')
-      .select('quantity, price, orders!inner(created_at, status), products(category)')
-      .gte('orders.created_at', start)
-      .lte('orders.created_at', end)
-      .neq('orders.status', 'cancelled')
-
-    if (error) {
-      // If the join syntax fails, try a simpler approach
-      if (error.message?.includes('join') || error.message?.includes('relation')) {
-        // Fallback: query orders first, then get order_items
-        const { data: ordersData, error: ordersError } = await sb
-          .from('orders')
-          .select('id, created_at, status')
-          .gte('created_at', start)
-          .lte('created_at', end)
-          .neq('status', 'cancelled')
-
-        if (ordersError) throw ordersError
-
-        const orderIds = (ordersData || []).map((o: any) => o.id)
-        if (orderIds.length === 0) {
-          return { breakdown: [], totalRevenue: 0 }
-        }
-
-        const { data: itemsData, error: itemsError } = await sb
-          .from('order_items')
-          .select('quantity, price, product_id, products(category)')
-          .in('order_id', orderIds)
-
-        if (itemsError) throw itemsError
-
-        const totals: Record<string, number> = {}
-        let grandTotal = 0
-        ;(itemsData || []).forEach((row: any) => {
-          const category = (row.products && row.products.category) || 'Uncategorized'
-          const amount = Number(row.price || 0) * Number(row.quantity || 0)
-          totals[category] = (totals[category] || 0) + amount
-          grandTotal += amount
-        })
-
-        const result = Object.keys(totals).map((cat) => ({
-          category: cat,
-          revenue: Number(totals[cat].toFixed(2)),
-          percent: grandTotal > 0 ? Number(((totals[cat] / grandTotal) * 100).toFixed(2)) : 0,
-        }))
-
-        return { breakdown: result, totalRevenue: Number(grandTotal.toFixed(2)) }
-      }
-      throw error
-    }
-
-    const totals: Record<string, number> = {}
-    let grandTotal = 0
-    ;(data || []).forEach((row: any) => {
-      const category = (row.products && row.products.category) || 'Uncategorized'
-      const amount = Number(row.price || 0) * Number(row.quantity || 0)
-      totals[category] = (totals[category] || 0) + amount
-      grandTotal += amount
+    const { data, error } = await sb.rpc('get_sales_by_category_rpc', {
+      p_start_date: start,
+      p_end_date: end
     })
 
-    const result = Object.keys(totals).map((cat) => ({
-      category: cat,
-      revenue: Number(totals[cat].toFixed(2)),
-      percent: grandTotal > 0 ? Number(((totals[cat] / grandTotal) * 100).toFixed(2)) : 0,
-    }))
+    if (error) throw error
+
+    let grandTotal = 0;
+    const result = (data || []).map((row: any) => {
+      const revenue = Number(row.revenue);
+      grandTotal += revenue;
+      return {
+        category: row.category,
+        revenue: Number(revenue.toFixed(2)),
+        percent: Number(row.percent),
+        sales: Number(row.sales) // included for convenience
+      };
+    });
 
     return { breakdown: result, totalRevenue: Number(grandTotal.toFixed(2)) }
   } catch (error) {

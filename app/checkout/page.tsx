@@ -393,31 +393,17 @@ function CheckoutPageContent() {
         if (!shippingAddressId) {
           setIsSavingAddress(true);
 
-          // If saving as default, unset existing defaults first
-          if (saveAsDefault) {
-            await supabase
-              .from('addresses')
-              .update({ is_default: false })
-              .eq('user_id', user.id);
-          }
+          try {
+            // If saving as default, unset existing defaults first
+            if (saveAsDefault) {
+              await supabase
+                .from('addresses')
+                .update({ is_default: false })
+                .eq('user_id', user.id);
+            }
 
-          // Log the data being inserted for debugging
-          console.log('Creating new address with data:', {
-            user_id: user.id,
-            full_name: formData.fullName,
-            email: formData.email,
-            phone: formData.phone,
-            street_address: formData.street,
-            city: formData.city,
-            province: formData.province,
-            zip_code: formData.zip,
-            address_type: 'shipping',
-            is_default: saveAsDefault,
-          });
-
-          const { data: created, error: createErr } = await supabase
-            .from('addresses')
-            .insert({
+            // Log the data being inserted for debugging
+            console.log('Creating new address with data:', {
               user_id: user.id,
               full_name: formData.fullName,
               email: formData.email,
@@ -428,19 +414,35 @@ function CheckoutPageContent() {
               zip_code: formData.zip,
               address_type: 'shipping',
               is_default: saveAsDefault,
-            })
-            .select()
-            .single();
+            });
 
-          console.log('Address creation result:', { created, error: createErr });
+            const { data: created, error: createErr } = await supabase
+              .from('addresses')
+              .insert({
+                user_id: user.id,
+                full_name: formData.fullName,
+                email: formData.email,
+                phone: formData.phone,
+                street_address: formData.street,
+                city: formData.city,
+                province: formData.province,
+                zip_code: formData.zip,
+                address_type: 'shipping',
+                is_default: saveAsDefault,
+              })
+              .select()
+              .single();
 
-          setIsSavingAddress(false);
+            console.log('Address creation result:', { created, error: createErr });
 
-          if (createErr) {
-            console.error('Failed to create address', createErr);
-            throw new Error('Failed to create address. Please try again.');
+            if (createErr) {
+              console.error('Failed to create address', createErr);
+              throw new Error('Failed to create address. Please try again.');
+            }
+            shippingAddressId = created.id;
+          } finally {
+            setIsSavingAddress(false);
           }
-          shippingAddressId = created.id;
         } else if (shippingAddressId) {
           // User selected an existing address. Update its default status if saveAsDefault changed
           const selectedAddress = addresses.find((a) => a.id === shippingAddressId);
@@ -556,7 +558,8 @@ function CheckoutPageContent() {
         description: errorMessage,
         variant: "destructive",
       });
-      setIsProcessingOrder(false); // Re-enable button on error
+    } finally {
+      setIsProcessingOrder(false); // Make sure order processing always resets
     }
   };
 
