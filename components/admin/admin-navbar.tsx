@@ -19,6 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase/client';
 import { Notification } from '@/lib/types';
 import { formatDistanceToNow } from 'date-fns';
+import { useSupabaseRealtime } from '@/hooks/use-supabase-realtime';
 
 export default function AdminNavbar({
   onSidebarToggle,
@@ -65,29 +66,29 @@ export default function AdminNavbar({
       e.preventDefault();
       e.stopPropagation();
     }
-    
+
     try {
       console.log("Logging out...");
       // Clear user state and sign out from Supabase
       await logout();
       console.log("Logout successful");
-      
+
       // Clear any local storage or session data
       if (typeof window !== 'undefined') {
         localStorage.clear();
         sessionStorage.clear();
       }
-      
+
       toast({
         title: "Logged out",
         description: "You have been logged out successfully.",
         variant: "success",
       });
-      
+
       // Redirect to login page
       router.push('/login');
       router.refresh();
-      
+
       // Force a hard reload to ensure all state is cleared
       setTimeout(() => {
         window.location.href = '/login';
@@ -139,28 +140,18 @@ export default function AdminNavbar({
     };
 
     fetchNotifications();
-
-    // Set up real-time subscription for new notifications
-    const channel = supabase
-      .channel('notifications')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-          filter: user.role === 'admin' ? undefined : `user_id=eq.${user.id}`,
-        },
-        (payload) => {
-          setNotifications((prev) => [payload.new as Notification, ...prev]);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, [user?.id, user?.role]);
+
+  // Set up real-time subscription using the robust hook
+  useSupabaseRealtime({
+    channelName: 'notifications',
+    table: 'notifications',
+    event: 'INSERT',
+    filter: user?.role === 'admin' ? undefined : `user_id=eq.${user?.id}`,
+    onData: (payload) => {
+      setNotifications((prev) => [payload.new as Notification, ...prev]);
+    }
+  });
 
   // Get unread count
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -314,21 +305,18 @@ export default function AdminNavbar({
                         router.push(notification.link);
                       }
                     }}
-                    className={`flex flex-col items-start gap-1 p-3 cursor-pointer ${
-                      !notification.read ? 'bg-secondary/10' : ''
-                    }`}
+                    className={`flex flex-col items-start gap-1 p-3 cursor-pointer ${!notification.read ? 'bg-secondary/10' : ''
+                      }`}
                   >
                     <div className="flex items-start gap-2 w-full">
                       <div
-                        className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
-                          !notification.read ? 'bg-primary' : 'bg-transparent'
-                        }`}
+                        className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${!notification.read ? 'bg-primary' : 'bg-transparent'
+                          }`}
                       />
                       <div className="flex-1 min-w-0">
                         <p
-                          className={`font-medium text-sm ${
-                            !notification.read ? 'font-semibold' : ''
-                          }`}
+                          className={`font-medium text-sm ${!notification.read ? 'font-semibold' : ''
+                            }`}
                         >
                           {notification.title}
                         </p>
@@ -403,11 +391,11 @@ export default function AdminNavbar({
               </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem 
+            <DropdownMenuItem
               onClick={(e) => {
                 e.preventDefault();
                 handleLogout(e);
-              }} 
+              }}
               className="flex gap-2 text-destructive cursor-pointer"
             >
               <LogOut className="h-4 w-4" />

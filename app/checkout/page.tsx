@@ -15,9 +15,9 @@ import { useToast } from "@/hooks/use-toast";
 import { useSettings } from "@/lib/hooks/use-settings";
 import { Product, CartItem } from "@/lib/types";
 import { supabase } from "@/lib/supabase/client";
-import { 
-  validateEmail, 
-  validatePhoneNumber, 
+import {
+  validateEmail,
+  validatePhoneNumber,
   validateZipCode,
   validateStreetAddress,
   validateCity,
@@ -25,10 +25,10 @@ import {
   validateFullName,
   validateZipCodeForLocation
 } from "@/lib/utils/validation";
-import { 
-  getProvinces, 
-  getCitiesByProvince, 
-  getZipCodesForCity 
+import {
+  getProvinces,
+  getCitiesByProvince,
+  getZipCodesForCity
 } from "@/lib/data/philippines-addresses";
 import { ChevronLeft } from 'lucide-react';
 import { formatPrice } from '@/lib/utils/formatting';
@@ -162,7 +162,7 @@ function CheckoutPageContent() {
 
   // Calculate checkout totals
   const checkoutTotal = checkoutCart.reduce((sum, item) => sum + ((item.price ?? 0) * item.quantity), 0);
-  
+
   // Calculate shipping cost based on selected method and settings
   const shippingCost = calculateShipping(checkoutTotal);
 
@@ -385,7 +385,7 @@ function CheckoutPageContent() {
     try {
       // Debug log: Check form data before processing
       console.log('Processing order with formData:', formData);
-      
+
       let shippingAddressId: string | null = selectedAddressId;
 
       if (user) {
@@ -481,6 +481,7 @@ function CheckoutPageContent() {
       // Format cart items for database
       const orderItems = checkoutCart.map((item) => ({
         product_id: item.productId,
+        variant_id: item.variantId, // <--- Add variant_id to support RPC deduction
         name: item.name || 'Product',
         quantity: item.quantity,
         price: item.price || 0,
@@ -564,7 +565,7 @@ function CheckoutPageContent() {
     if (formData.province) {
       const cities = getCitiesByProvince(formData.province);
       setAvailableCities(cities.map(c => c.name));
-      
+
       // If current city is not in the new province's cities, clear it
       if (formData.city && !cities.some(c => c.name.toLowerCase() === formData.city.toLowerCase())) {
         setFormData((prev) => ({ ...prev, city: "", zip: "" }));
@@ -583,22 +584,22 @@ function CheckoutPageContent() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    
+
     // Debug logging for street address
     if (name === 'street') {
       console.log('Street address changed:', value);
     }
-    
+
     setFormData((prev) => ({ ...prev, [name]: value }));
-    
+
     // Mark field as touched
     setTouched((prev) => ({ ...prev, [name]: true }));
-    
+
     // Clear error when user starts typing
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
     }
-    
+
     // Real-time validation for shipping fields (debounced for text inputs)
     if (step === 0 && ["fullName", "email", "phone", "street", "city", "province", "zip"].includes(name)) {
       // Immediate validation for zip, phone, and selects
@@ -755,9 +756,8 @@ function CheckoutPageContent() {
                         onChange={handleInputChange}
                         onBlur={handleBlur}
                         placeholder="Juan Dela Cruz"
-                        className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${
-                          errors.fullName && touched.fullName ? "border-destructive" : "border-border"
-                        }`}
+                        className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${errors.fullName && touched.fullName ? "border-destructive" : "border-border"
+                          }`}
                       />
                       {errors.fullName && touched.fullName && (
                         <p className="text-xs text-destructive mt-1">{errors.fullName}</p>
@@ -772,9 +772,8 @@ function CheckoutPageContent() {
                           name="email"
                           value={formData.email}
                           onChange={handleInputChange}
-                          className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${
-                            errors.email ? "border-destructive" : "border-border"
-                          }`}
+                          className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${errors.email ? "border-destructive" : "border-border"
+                            }`}
                         />
                         {errors.email && <p className="text-xs text-destructive mt-1">{errors.email}</p>}
                       </div>
@@ -790,9 +789,8 @@ function CheckoutPageContent() {
                           onChange={handleInputChange}
                           onBlur={handleBlur}
                           placeholder="0912 345 6789"
-                          className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${
-                            errors.phone && touched.phone ? "border-destructive" : "border-border"
-                          }`}
+                          className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${errors.phone && touched.phone ? "border-destructive" : "border-border"
+                            }`}
                         />
                         {errors.phone && touched.phone && (
                           <p className="text-xs text-destructive mt-1">{errors.phone}</p>
@@ -814,9 +812,8 @@ function CheckoutPageContent() {
                         onChange={handleInputChange}
                         onBlur={handleBlur}
                         placeholder="e.g., 123 Main Street, Barangay Name"
-                        className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${
-                          errors.street && touched.street ? "border-destructive" : "border-border"
-                        }`}
+                        className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${errors.street && touched.street ? "border-destructive" : "border-border"
+                          }`}
                       />
                       {errors.street && touched.street && (
                         <p className="text-xs text-destructive mt-1">{errors.street}</p>
@@ -836,9 +833,8 @@ function CheckoutPageContent() {
                           value={formData.province}
                           onChange={handleInputChange}
                           onBlur={handleBlur}
-                          className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${
-                            errors.province && touched.province ? "border-destructive" : "border-border"
-                          }`}
+                          className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${errors.province && touched.province ? "border-destructive" : "border-border"
+                            }`}
                         >
                           <option value="">Select Province</option>
                           {provinces.map((prov) => (
@@ -863,9 +859,8 @@ function CheckoutPageContent() {
                             onChange={handleInputChange}
                             onBlur={handleBlur}
                             disabled={!formData.province}
-                            className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${
-                              errors.city && touched.city ? "border-destructive" : "border-border"
-                            } ${!formData.province ? "opacity-50 cursor-not-allowed" : ""}`}
+                            className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${errors.city && touched.city ? "border-destructive" : "border-border"
+                              } ${!formData.province ? "opacity-50 cursor-not-allowed" : ""}`}
                           >
                             <option value="">Select City</option>
                             {availableCities.map((city) => (
@@ -909,9 +904,8 @@ function CheckoutPageContent() {
                           onBlur={handleBlur}
                           placeholder="1630"
                           maxLength={4}
-                          className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${
-                            errors.zip && touched.zip ? "border-destructive" : "border-border"
-                          }`}
+                          className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${errors.zip && touched.zip ? "border-destructive" : "border-border"
+                            }`}
                         />
                         {errors.zip && touched.zip && (
                           <p className="text-xs text-destructive mt-1">{errors.zip}</p>
@@ -998,9 +992,8 @@ function CheckoutPageContent() {
                             value={formData.cardNumber}
                             onChange={handleInputChange}
                             maxLength={19}
-                            className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${
-                              errors.cardNumber ? "border-destructive" : "border-border"
-                            }`}
+                            className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${errors.cardNumber ? "border-destructive" : "border-border"
+                              }`}
                           />
                           {errors.cardNumber && <p className="text-xs text-destructive mt-1">{errors.cardNumber}</p>}
                         </div>
@@ -1015,9 +1008,8 @@ function CheckoutPageContent() {
                               value={formData.cardExpiry}
                               onChange={handleInputChange}
                               maxLength={5}
-                              className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${
-                                errors.cardExpiry ? "border-destructive" : "border-border"
-                              }`}
+                              className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${errors.cardExpiry ? "border-destructive" : "border-border"
+                                }`}
                             />
                             {errors.cardExpiry && <p className="text-xs text-destructive mt-1">{errors.cardExpiry}</p>}
                           </div>
@@ -1031,9 +1023,8 @@ function CheckoutPageContent() {
                               value={formData.cardCvc}
                               onChange={handleInputChange}
                               maxLength={3}
-                              className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${
-                                errors.cardCvc ? "border-destructive" : "border-border"
-                              }`}
+                              className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${errors.cardCvc ? "border-destructive" : "border-border"
+                                }`}
                             />
                             {errors.cardCvc && <p className="text-xs text-destructive mt-1">{errors.cardCvc}</p>}
                           </div>
@@ -1052,7 +1043,7 @@ function CheckoutPageContent() {
                         {cartProducts.map(({ product, quantity }) => (
                           <div key={product.id} className="flex justify-between text-sm">
                             <span>{product.name} x {quantity}</span>
-                            <span>{formatPrice(product.price * quantity)}</span>
+                            <span>{formatPrice((product.price ?? 0) * quantity)}</span>
                           </div>
                         ))}
                       </div>
@@ -1123,11 +1114,10 @@ function CheckoutPageContent() {
                     <button
                       onClick={handleSubmit}
                       disabled={isProcessingOrder}
-                      className={`flex-1 px-6 py-2 rounded-lg transition-colors font-medium ${
-                        isProcessingOrder
-                          ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                          : 'bg-green-600 text-white hover:bg-green-700'
-                      }`}
+                      className={`flex-1 px-6 py-2 rounded-lg transition-colors font-medium ${isProcessingOrder
+                        ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                        : 'bg-green-600 text-white hover:bg-green-700'
+                        }`}
                     >
                       {isProcessingOrder ? (
                         <span className="flex items-center justify-center gap-2">
@@ -1148,7 +1138,7 @@ function CheckoutPageContent() {
 
             {/* Order Summary Sidebar */}
             <div className="lg:col-span-1 h-fit">
-              <CartSummary 
+              <CartSummary
                 subtotal={checkoutTotal}
               />
             </div>

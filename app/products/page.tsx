@@ -28,7 +28,7 @@ export default function ProductsPage() {
       setIsLoadingProducts(true);
       // Try server-side public API first (uses service key server-side to bypass RLS)
       try {
-        const res = await fetch('/api/public/products');
+        const res = await fetch('/api/public/products', { cache: 'no-store' });
         if (res.ok) {
           const json = await res.json();
           if (json?.data && mounted) {
@@ -145,7 +145,7 @@ export default function ProductsPage() {
         // If main category has subcategories, show items matching EITHER:
         // - the parent category name directly, OR
         // - any of the subcategories
-        result = result.filter((p) => 
+        result = result.filter((p) =>
           p.category === selectedCategory || subcats.includes(p.category)
         );
       } else {
@@ -155,13 +155,13 @@ export default function ProductsPage() {
     }
 
     // Filter by price
-    result = result.filter((p) => p.price >= priceRange[0] && p.price <= priceRange[1]);
+    result = result.filter((p) => (p.price ?? 0) >= priceRange[0] && (p.price ?? 0) <= priceRange[1]);
 
     // Sort
     if (sortBy === "price-low") {
-      result.sort((a, b) => a.price - b.price);
+      result.sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
     } else if (sortBy === "price-high") {
-      result.sort((a, b) => b.price - a.price);
+      result.sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
     } else if (sortBy === "rating") {
       result.sort((a, b) => b.rating - a.rating);
     } else if (sortBy === "newest") {
@@ -197,11 +197,10 @@ export default function ProductsPage() {
                     setSelectedCategory("");
                     setSelectedSubcategory("");
                   }}
-                  className={`rounded-full px-4 py-2 border-2 font-medium transition-all whitespace-nowrap ${
-                    selectedCategory === ""
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "border-border bg-background hover:border-primary/50"
-                  }`}
+                  className={`rounded-full px-4 py-2 border-2 font-medium transition-all whitespace-nowrap ${selectedCategory === ""
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "border-border bg-background hover:border-primary/50"
+                    }`}
                 >
                   All
                 </button>
@@ -212,11 +211,10 @@ export default function ProductsPage() {
                       setSelectedCategory(cat);
                       setSelectedSubcategory("");
                     }}
-                    className={`rounded-full px-4 py-2 border-2 font-medium transition-all whitespace-nowrap ${
-                      selectedCategory === cat
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "border-border bg-background hover:border-primary/50"
-                    }`}
+                    className={`rounded-full px-4 py-2 border-2 font-medium transition-all whitespace-nowrap ${selectedCategory === cat
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "border-border bg-background hover:border-primary/50"
+                      }`}
                   >
                     {cat}
                   </button>
@@ -248,11 +246,10 @@ export default function ProductsPage() {
                   <div className="flex flex-wrap gap-2">
                     <button
                       onClick={() => setSelectedSubcategory("")}
-                      className={`rounded-lg px-3 py-2 text-sm font-medium transition-all border ${
-                        selectedSubcategory === ""
-                          ? "bg-primary/10 text-primary border-primary"
-                          : "border-border bg-background hover:bg-muted hover:border-primary/30"
-                      }`}
+                      className={`rounded-lg px-3 py-2 text-sm font-medium transition-all border ${selectedSubcategory === ""
+                        ? "bg-primary/10 text-primary border-primary"
+                        : "border-border bg-background hover:bg-muted hover:border-primary/30"
+                        }`}
                     >
                       All {selectedCategory}
                     </button>
@@ -260,11 +257,10 @@ export default function ProductsPage() {
                       <button
                         key={sub}
                         onClick={() => setSelectedSubcategory(sub)}
-                        className={`rounded-lg px-3 py-2 text-sm font-medium transition-all border ${
-                          selectedSubcategory === sub
-                            ? "bg-primary/10 text-primary border-primary"
-                            : "border-border bg-background hover:bg-muted hover:border-primary/30"
-                        }`}
+                        className={`rounded-lg px-3 py-2 text-sm font-medium transition-all border ${selectedSubcategory === sub
+                          ? "bg-primary/10 text-primary border-primary"
+                          : "border-border bg-background hover:bg-muted hover:border-primary/30"
+                          }`}
                       >
                         {sub}
                       </button>
