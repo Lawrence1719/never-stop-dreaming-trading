@@ -5,31 +5,38 @@ import { validateToken } from '@/lib/integration/token-store';
 /**
  * POST /api/integration/orders
  * 
- * Receives order data from external warehouse system
- * Validates API key OR token and creates order in database
+ * Receives order data from BeatRoute / external ERP system.
+ * Validates Bearer token, matches SKUs to products/variants,
+ * and creates order + order_items in database.
  * 
- * Authentication: Supports both API key (Bearer token) and username/password token
+ * Authentication: Bearer token (from /api/integration/user/refresh)
  * 
  * Request Body:
  * {
  *   "retailer_br_id": 15758594,
+ *   "retailer_external_id": "CUST-001",
  *   "erp_invoice_number": "INV-001",
- *   "invoice_date": "2024-12-17",
+ *   "invoice_date": "2026-03-07",
+ *   "status": 1,
+ *   "order_status": "Pending",
+ *   "total_tax": 10.00,
+ *   "total_value": 510.00,
+ *   "remarks": "Rush order",
+ *   "payment_due_date": "2026-03-14",
+ *   "invoice_level_discount": 0,
  *   "details": [
  *     {
  *       "sku_external_id": "SKU-001",
- *       "quantity": "10",
- *       "price_per_item": 100.00
+ *       "quantity": 10,
+ *       "sku_uom": "PC",
+ *       "price_per_item": 100.00,
+ *       "discount_value": 0,
+ *       "gross_value": 1000.00,
+ *       "tax_code": "",
+ *       "tax": 10
  *     }
  *   ]
  * }
- * 
- * Response:
- * - 200: {"success": true, "order_id": "...", "message": "Order created"}
- * - 400: {"success": false, "error": "Invalid request data"}
- * - 401: {"success": false, "error": "Unauthorized"}
- * - 409: {"success": false, "error": "Duplicate order"}
- * - 500: {"success": false, "error": "Server error"}
  */
 
 interface OrderDetail {
@@ -37,12 +44,28 @@ interface OrderDetail {
   quantity: string | number;
   price_per_item: number;
   discount_value?: number;
+  sku_uom?: string;
+  gross_value?: number;
+  tax_code?: string;
+  tax?: number;
 }
 
 interface OrderRequest {
   retailer_br_id: number;
+  retailer_external_id?: string;
   erp_invoice_number: string;
   invoice_date: string;
+  status?: number;
+  order_id?: number | null;
+  external_order_id?: string | null;
+  ship_to_external_id?: string;
+  order_status?: string;
+  total_tax?: number;
+  total_value?: number;
+  remarks?: string | null;
+  payment_due_date?: string;
+  invoice_level_discount?: number;
+  customFields?: Array<{ id: string; value: string }>;
   details: OrderDetail[];
 }
 
@@ -116,6 +139,50 @@ function validateOrderRequest(body: unknown): { valid: boolean; error?: string }
   return { valid: true };
 }
 
+// Match SKU to product_variants first, then products
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function matchSku(
+  supabase: any,
+  skuExternalId: string
+): Promise<{ product_id: string | null; variant_id: string | null }> {
+  try {
+    // 1. Try to match against product_variants.sku
+    const { data: variant } = await supabase
+      .from('product_variants')
+      .select('id, product_id')
+      .eq('sku', skuExternalId)
+      .limit(1)
+      .single();
+
+    if (variant) {
+      const v = variant as unknown as { id: string; product_id: string };
+      return { product_id: v.product_id, variant_id: v.id };
+    }
+  } catch {
+    // No variant match, continue
+  }
+
+  try {
+    // 2. Try to match against products.sku
+    const { data: product } = await supabase
+      .from('products')
+      .select('id')
+      .eq('sku', skuExternalId)
+      .limit(1)
+      .single();
+
+    if (product) {
+      const p = product as unknown as { id: string };
+      return { product_id: p.id, variant_id: null };
+    }
+  } catch {
+    // No product match, continue
+  }
+
+  // 3. No match found — still accept the order
+  return { product_id: null, variant_id: null };
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Validate API key or token
@@ -187,7 +254,6 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (checkError && checkError.code !== 'PGRST116') {
-      // PGRST116 means no rows found, which is expected
       console.error('Error checking for duplicate order:', checkError);
       return NextResponse.json(
         {
@@ -211,19 +277,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Calculate order total
-    const total = orderData.details.reduce((sum, detail) => {
+    // Match all SKUs to products/variants in parallel
+    const skuMatches = await Promise.all(
+      orderData.details.map((detail) => matchSku(supabase, detail.sku_external_id))
+    );
+
+    // Calculate order total from line items
+    const calculatedTotal = orderData.details.reduce((sum, detail) => {
       const quantity = typeof detail.quantity === 'string' ? parseInt(detail.quantity) : detail.quantity;
       const discount = detail.discount_value || 0;
       return sum + (quantity * detail.price_per_item) - discount;
     }, 0);
 
-    // Prepare items for JSONB storage
-    const items = orderData.details.map((detail) => ({
+    // Use BeatRoute's total_value if provided, otherwise use calculated total
+    const orderTotal = orderData.total_value ?? calculatedTotal;
+
+    // Prepare items JSONB for backward compatibility
+    const itemsJsonb = orderData.details.map((detail, i) => ({
       sku_external_id: detail.sku_external_id,
+      product_id: skuMatches[i].product_id,
+      variant_id: skuMatches[i].variant_id,
       quantity: typeof detail.quantity === 'string' ? parseInt(detail.quantity) : detail.quantity,
       price_per_item: detail.price_per_item,
       discount_value: detail.discount_value || 0,
+      sku_uom: detail.sku_uom || null,
+      gross_value: detail.gross_value || null,
+      tax: detail.tax || 0,
     }));
 
     // Create order in database
@@ -232,12 +311,18 @@ export async function POST(request: NextRequest) {
       .insert({
         user_id: null, // Integration orders don't have a user_id
         status: 'pending',
-        total: parseFloat(total.toFixed(2)),
-        items: items,
+        total: parseFloat(orderTotal.toFixed(2)),
+        items: itemsJsonb,
         payment_method: 'warehouse_integration',
+        source: 'beatroute',
         external_reference: orderData.erp_invoice_number,
         retailer_br_id: orderData.retailer_br_id,
         invoice_date: orderData.invoice_date,
+        total_tax: orderData.total_tax ?? 0,
+        remarks: orderData.remarks || null,
+        payment_due_date: orderData.payment_due_date || null,
+        invoice_level_discount: orderData.invoice_level_discount ?? 0,
+        custom_fields: orderData.customFields || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
@@ -256,29 +341,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Also create individual order_items records if the table exists
-    try {
-      const orderItems = orderData.details.map((detail) => ({
-        order_id: newOrder.id,
-        sku_external_id: detail.sku_external_id,
-        quantity: typeof detail.quantity === 'string' ? parseInt(detail.quantity) : detail.quantity,
-        price: detail.price_per_item,
-        discount_value: detail.discount_value || 0,
-        created_at: new Date().toISOString(),
-      }));
+    // Create order_items records with product linkage
+    const orderItems = orderData.details.map((detail, i) => ({
+      order_id: newOrder.id,
+      product_id: skuMatches[i].product_id,
+      variant_id: skuMatches[i].variant_id,
+      sku_external_id: detail.sku_external_id,
+      quantity: typeof detail.quantity === 'string' ? parseInt(detail.quantity) : detail.quantity,
+      price: detail.price_per_item,
+      discount_value: detail.discount_value || 0,
+      sku_uom: detail.sku_uom || null,
+      gross_value: detail.gross_value || null,
+      tax_code: detail.tax_code || null,
+      tax: detail.tax || 0,
+      created_at: new Date().toISOString(),
+    }));
 
-      const { error: itemsError } = await supabase
-        .from('order_items')
-        .insert(orderItems);
+    const { error: itemsError } = await supabase
+      .from('order_items')
+      .insert(orderItems);
 
-      if (itemsError) {
-        console.warn('Warning: Could not create order_items records:', itemsError);
-        // Don't fail the whole request if order_items table doesn't exist
-      }
-    } catch (error) {
-      console.warn('Warning: order_items table may not exist:', error);
-      // Continue - order was already created successfully
+    if (itemsError) {
+      console.warn('Warning: Could not create order_items records:', itemsError);
+      // Don't fail — the order itself was already created
     }
+
+    // Count how many SKUs matched
+    const matchedCount = skuMatches.filter((m) => m.product_id !== null).length;
+    const unmatchedCount = skuMatches.length - matchedCount;
 
     return NextResponse.json(
       {
@@ -286,8 +376,10 @@ export async function POST(request: NextRequest) {
         order_id: newOrder.id,
         message: 'Order created successfully',
         reference: orderData.erp_invoice_number,
-        total: parseFloat(total.toFixed(2)),
+        total: parseFloat(orderTotal.toFixed(2)),
         item_count: orderData.details.length,
+        sku_matched: matchedCount,
+        sku_unmatched: unmatchedCount,
       },
       { status: 200 }
     );

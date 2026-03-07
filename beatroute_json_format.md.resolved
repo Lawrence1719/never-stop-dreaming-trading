@@ -1,0 +1,132 @@
+# BeatRoute → NSD Integration — JSON Format
+
+## Endpoint
+
+```
+POST https://never-stop-dreaming-trading.vercel.app/api/integration/orders
+```
+
+## Headers
+
+| Header | Value |
+|--------|-------|
+| `Content-Type` | `application/json` |
+| `Authorization` | `Bearer <token>` |
+
+> Token is obtained from the Refresh URL: `https://never-stop-dreaming-trading.vercel.app/api/integration/user/refresh`
+
+---
+
+## JSON Body Format
+
+```json
+{
+  "retailer_br_id": 15758594,
+  "retailer_external_id": "CUST-001",
+  "erp_invoice_number": "INV-2026-0001",
+  "invoice_date": "2026-03-07",
+  "status": 1,
+  "order_id": null,
+  "external_order_id": null,
+  "ship_to_external_id": "",
+  "order_status": "Pending",
+  "total_tax": 0,
+  "total_value": 1500.00,
+  "remarks": null,
+  "payment_due_date": "2026-03-14",
+  "invoice_level_discount": 0,
+  "details": [
+    {
+      "sku_external_id": "SKU-001",
+      "quantity": 10,
+      "sku_uom": "PC",
+      "price_per_item": 100.00,
+      "discount_value": 0,
+      "gross_value": 1000.00,
+      "tax_code": "",
+      "tax": 0
+    },
+    {
+      "sku_external_id": "SKU-002",
+      "quantity": 5,
+      "sku_uom": "PC",
+      "price_per_item": 100.00,
+      "discount_value": 0,
+      "gross_value": 500.00,
+      "tax_code": "",
+      "tax": 0
+    }
+  ]
+}
+```
+
+---
+
+## Field Descriptions
+
+### Order Level (Required)
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `retailer_br_id` | number | ✅ | BeatRoute retailer ID |
+| `erp_invoice_number` | string | ✅ | Invoice number (must be unique — duplicates are rejected) |
+| `invoice_date` | string | ✅ | Invoice date in `YYYY-MM-DD` format |
+| `details` | array | ✅ | Array of line items (at least 1) |
+
+### Order Level (Optional)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `retailer_external_id` | string | Customer/retailer code |
+| `status` | number | Order status code |
+| `order_id` | number/null | BeatRoute order ID |
+| `external_order_id` | string/null | External order reference |
+| `ship_to_external_id` | string | Shipping destination code |
+| `order_status` | string | Status name (e.g. "Pending") |
+| `total_tax` | number | Total tax amount |
+| `total_value` | number | Total order value |
+| `remarks` | string/null | Notes or remarks |
+| `payment_due_date` | string | Payment due date (`YYYY-MM-DD`) |
+| `invoice_level_discount` | number | Invoice-level discount amount |
+
+### Details / Line Items (Required per item)
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `sku_external_id` | string | ✅ | Product SKU code |
+| `quantity` | number | ✅ | Quantity ordered |
+| `price_per_item` | number | ✅ | Unit price |
+
+### Details / Line Items (Optional per item)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `sku_uom` | string | Unit of measure (e.g. "PC", "CS") |
+| `discount_value` | number | Discount per line item |
+| `gross_value` | number | Gross value (qty × price) |
+| `tax_code` | string | Tax code |
+| `tax` | number | Tax amount for this item |
+
+---
+
+## Success Response
+
+```json
+{
+  "success": true,
+  "order_id": "uuid-here",
+  "message": "Order created successfully",
+  "reference": "INV-2026-0001",
+  "total": 1500.00,
+  "item_count": 2
+}
+```
+
+## Error Responses
+
+| Status | Meaning |
+|--------|---------|
+| `400` | Invalid JSON or missing required fields |
+| `401` | Invalid or expired token |
+| `409` | Duplicate invoice number (already exists) |
+| `500` | Server error |
