@@ -73,7 +73,7 @@ export default function IntegrationPage() {
             Get Token
           </CardTitle>
           <CardDescription>
-            Enter the integration username and password (configured in environment variables). 
+            Enter the integration username and password (configured in environment variables).
             Click Get Token to receive a token for the external system.
           </CardDescription>
         </CardHeader>
@@ -175,9 +175,16 @@ export default function IntegrationPage() {
             <p className="text-sm text-muted-foreground">
               Put the token in the request header:
             </p>
-            <code className="block text-sm bg-muted p-2 rounded break-all">
-              Authorization: Bearer &lt;paste token here&gt;
-            </code>
+            <div className="flex gap-2 items-center">
+              <code className="block text-sm bg-muted p-2 rounded break-all flex-1">
+                Authorization: Bearer {token || <span className="text-muted-foreground">&lt;get token above first&gt;</span>}
+              </code>
+              {token && (
+                <Button type="button" variant="outline" size="icon" onClick={() => { navigator.clipboard.writeText(`Authorization: Bearer ${token}`); }} title="Copy auth header">
+                  <Copy className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
             <p className="text-sm text-muted-foreground">
               Orders endpoint: <code className="bg-muted px-1 rounded">{baseUrl}/api/integration/orders</code>
             </p>
