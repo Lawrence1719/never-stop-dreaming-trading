@@ -21,18 +21,15 @@ This document describes the comprehensive address validation system implemented 
   - Province: Dropdown selector with predefined provinces
   - Zip Code: 4-digit format, validated against city/province
 
-### 2. Philippines-Specific Address Data
-- **Location**: `lib/data/philippines-addresses.ts`
-- **Coverage**: 
-  - All Metro Manila cities (Taguig, Makati, Manila, Quezon City, Pasig, etc.)
-  - Surrounding provinces (Rizal, Cavite)
-  - Zip codes mapped to cities
-  - Barangay data for Taguig (can be expanded)
+### 2. Philippine Standard Geographic Code (PSGC) API
+- **Service**: `lib/services/address.service.ts`
+- **Source**: [PSGC API](https://psgc.gitlab.io/api/)
 - **Features**:
-  - Province dropdown with all available provinces
-  - City dropdown filtered by selected province
-  - Zip code validation against city/province combination
-  - Zip code suggestions displayed when city is selected
+  - Live fetching of Regions, Provinces, Cities/Municipalities, and Barangays.
+  - No auth required, official government data source.
+  - Cascading dropdown logic: Selecting a province filters cities; selecting a city filters barangays.
+  - In-memory caching to optimize performance and reduce API calls.
+  - Automated zip code mapping via `lib/data/philippines-zip-codes.ts`.
 
 ### 3. Enhanced Validation Rules
 

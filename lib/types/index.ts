@@ -83,7 +83,11 @@ export interface Address {
   phone: string;
   street: string;
   city: string;
+  cityCode?: string;
   province: string;
+  provinceCode?: string;
+  barangay: string;
+  barangayCode?: string;
   zip: string;
   default: boolean;
 }

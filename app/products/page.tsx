@@ -8,6 +8,16 @@ import { ProductFilter } from "@/components/ecommerce/product-filter";
 import { CATEGORY_TREE } from "@/lib/data/categories";
 import { supabase } from '@/lib/supabase/client';
 import { Product } from "@/lib/types";
+import { SlidersHorizontal } from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
 
 export default function ProductsPage() {
   const [selectedCategory, setSelectedCategory] = useState("");
@@ -189,9 +199,9 @@ export default function ProductsPage() {
           </div>
 
           {/* Top Category Navigation */}
-          <div className="mb-8">
-            <div className="overflow-x-auto pb-4">
-              <div className="flex gap-2 min-w-max">
+          <div className="mb-6">
+            <div className="overflow-x-auto pb-2 scrollbar-hide select-none active:cursor-grabbing [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+              <div className="flex gap-2 min-w-max px-1">
                 <button
                   onClick={() => {
                     setSelectedCategory("");
@@ -224,8 +234,8 @@ export default function ProductsPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-            {/* Filters Sidebar */}
-            <div className="lg:col-span-1">
+            {/* Desktop Filters Sidebar */}
+            <div className="hidden lg:block lg:col-span-1">
               <ProductFilter
                 onCategoryChange={(cat) => {
                   setSelectedCategory(cat);
@@ -235,6 +245,40 @@ export default function ProductsPage() {
                 onPriceChange={(min, max) => setPriceRange([min, max])}
                 onSortChange={setSortBy}
               />
+            </div>
+
+            {/* Mobile Filters Header/Button */}
+            <div className="lg:hidden flex items-center justify-between mb-4 mt-[-1rem]">
+              <div className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                Sort & Filter
+              </div>
+              <Sheet>
+                <SheetTrigger asChild>
+                  <Button variant="outline" size="sm" className="flex items-center gap-2 border-primary/20 hover:border-primary/50">
+                    <SlidersHorizontal className="w-4 h-4" />
+                    Filters
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="bottom" className="h-[80vh] sm:h-[70vh] rounded-t-[20px] px-6 pt-10">
+                  <SheetHeader className="mb-6">
+                    <SheetTitle  className="text-xl font-bold">Preferences</SheetTitle>
+                    <SheetDescription>
+                      Adjust your product filters and sorting
+                    </SheetDescription>
+                  </SheetHeader>
+                  <div className="overflow-y-auto h-full pb-20">
+                    <ProductFilter
+                      onCategoryChange={(cat) => {
+                        setSelectedCategory(cat);
+                        setSelectedSubcategory("");
+                      }}
+                      onSubcategoryChange={(sub) => setSelectedSubcategory(sub)}
+                      onPriceChange={(min, max) => setPriceRange([min, max])}
+                      onSortChange={setSortBy}
+                    />
+                  </div>
+                </SheetContent>
+              </Sheet>
             </div>
 
             {/* Products Grid */}

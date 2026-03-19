@@ -47,7 +47,11 @@ export async function GET(request: NextRequest) {
       phone: addr.phone,
       street: addr.street_address,
       city: addr.city,
+      cityCode: addr.city_code,
       province: addr.province,
+      provinceCode: addr.province_code,
+      barangay: addr.barangay,
+      barangayCode: addr.barangay_code,
       zip: addr.zip_code,
       default: addr.is_default,
     }));
@@ -85,7 +89,18 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { street, city, province, zip, isDefault = false, addressType = 'shipping' } = body;
+    const { 
+      street, 
+      city, 
+      cityCode,
+      province, 
+      provinceCode,
+      barangay,
+      barangayCode,
+      zip, 
+      isDefault = false, 
+      addressType = 'shipping' 
+    } = body;
 
     // Validate required fields
     if (!street || !city || !province || !zip) {
@@ -121,7 +136,11 @@ export async function POST(request: NextRequest) {
         phone: phone,
         street_address: street,
         city: city,
+        city_code: cityCode,
         province: province,
+        province_code: provinceCode,
+        barangay: barangay,
+        barangay_code: barangayCode,
         zip_code: zip,
         address_type: addressType,
         is_default: isDefault,
@@ -142,7 +161,11 @@ export async function POST(request: NextRequest) {
       phone: newAddress.phone,
       street: newAddress.street_address,
       city: newAddress.city,
+      cityCode: newAddress.city_code,
       province: newAddress.province,
+      provinceCode: newAddress.province_code,
+      barangay: newAddress.barangay,
+      barangayCode: newAddress.barangay_code,
       zip: newAddress.zip_code,
       default: newAddress.is_default,
     };

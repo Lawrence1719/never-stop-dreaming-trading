@@ -20,7 +20,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { getProvinces, getCitiesByProvince, getZipCodesForCity, City } from "@/lib/data/philippines-addresses";
+import {
+  getProvinces,
+  getCitiesByProvince,
+  getBarangaysByCity,
+  PSGCProvince,
+  PSGCCityMunicipality,
+  PSGCBarangay
+} from "@/lib/services/address.service";
+import { getZipCodesForCity } from "@/lib/data/philippines-zip-codes";
 import { Address } from "@/lib/types";
 
 interface AddressDialogProps {
@@ -33,8 +41,12 @@ interface AddressDialogProps {
 
 export interface AddressFormData {
   street: string;
+  barangay: string;
+  barangayCode: string;
   city: string;
+  cityCode: string;
   province: string;
+  provinceCode: string;
   zip: string;
   isDefault: boolean;
 }
@@ -48,65 +60,150 @@ export function AddressDialog({
 }: AddressDialogProps) {
   const [formData, setFormData] = useState<AddressFormData>({
     street: "",
+    barangay: "",
+    barangayCode: "",
     city: "",
+    cityCode: "",
     province: "",
+    provinceCode: "",
     zip: "",
     isDefault: false,
   });
 
-  const [provinces] = useState<string[]>(getProvinces());
-  const [availableCities, setAvailableCities] = useState<City[]>([]);
-  const [availableZipCodes, setAvailableZipCodes] = useState<string[]>([]);
+  const [geoProvinces, setGeoProvinces] = useState<PSGCProvince[]>([]);
+  const [geoCities, setGeoCities] = useState<PSGCCityMunicipality[]>([]);
+  const [geoBarangays, setGeoBarangays] = useState<PSGCBarangay[]>([]);
+  
+  const [isLoadingProvinces, setIsLoadingProvinces] = useState(false);
+  const [isLoadingCities, setIsLoadingCities] = useState(false);
+  const [isLoadingBarangays, setIsLoadingBarangays] = useState(false);
+  
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // 1. Fetch Provinces on mount
+  useEffect(() => {
+    const fetchProcs = async () => {
+      setIsLoadingProvinces(true);
+      try {
+        const data = await getProvinces();
+        setGeoProvinces(data.sort((a, b) => a.name.localeCompare(b.name)));
+      } catch (err) {
+        console.error("Failed to fetch provinces:", err);
+      } finally {
+        setIsLoadingProvinces(false);
+      }
+    };
+    fetchProcs();
+  }, []);
+
+  // 2. Fetch Cities when Province changes
+  useEffect(() => {
+    if (!formData.provinceCode) {
+      setGeoCities([]);
+      return;
+    }
+
+    const fetchCitiesArr = async () => {
+      setIsLoadingCities(true);
+      try {
+        const data = await getCitiesByProvince(formData.provinceCode);
+        setGeoCities(data.sort((a, b) => a.name.localeCompare(b.name)));
+      } catch (err) {
+        console.error("Failed to fetch cities:", err);
+      } finally {
+        setIsLoadingCities(false);
+      }
+    };
+    fetchCitiesArr();
+  }, [formData.provinceCode]);
+
+  // 3. Fetch Barangays when City changes
+  useEffect(() => {
+    if (!formData.cityCode) {
+      setGeoBarangays([]);
+      return;
+    }
+
+    const fetchBrgys = async () => {
+      setIsLoadingBarangays(true);
+      try {
+        const data = await getBarangaysByCity(formData.cityCode);
+        setGeoBarangays(data.sort((a, b) => a.name.localeCompare(b.name)));
+      } catch (err) {
+        console.error("Failed to fetch barangays:", err);
+      } finally {
+        setIsLoadingBarangays(false);
+      }
+    };
+    fetchBrgys();
+  }, [formData.cityCode]);
 
   // Populate form when editing existing address
   useEffect(() => {
     if (address) {
       setFormData({
         street: address.street,
+        barangay: address.barangay || "",
+        barangayCode: address.barangayCode || "",
         city: address.city,
+        cityCode: address.cityCode || "",
         province: address.province,
+        provinceCode: address.provinceCode || "",
         zip: address.zip,
         isDefault: address.default,
       });
-      
-      // Load cities for the selected province
-      if (address.province) {
-        const cities = getCitiesByProvince(address.province);
-        setAvailableCities(cities);
-        
-        // Load zip codes for the selected city
-        if (address.city) {
-          const zipCodes = getZipCodesForCity(address.city, address.province);
-          setAvailableZipCodes(zipCodes);
-        }
-      }
     } else {
       // Reset form for new address
       setFormData({
         street: "",
+        barangay: "",
+        barangayCode: "",
         city: "",
+        cityCode: "",
         province: "",
+        provinceCode: "",
         zip: "",
         isDefault: false,
       });
-      setAvailableCities([]);
-      setAvailableZipCodes([]);
     }
     setErrors({});
   }, [address, open]);
 
-  const handleProvinceChange = (province: string) => {
-    setFormData((prev) => ({ ...prev, province, city: "", zip: "" }));
-    const cities = getCitiesByProvince(province);
-    setAvailableCities(cities);
-    setAvailableZipCodes([]);
+  const handleProvinceChange = (code: string) => {
+    const province = geoProvinces.find(p => p.code === code)?.name || "";
+    setFormData((prev) => ({ 
+      ...prev, 
+      province, 
+      provinceCode: code, 
+      city: "", 
+      cityCode: "", 
+      barangay: "", 
+      barangayCode: "", 
+      zip: "" 
+    }));
+    setGeoCities([]);
+    setGeoBarangays([]);
   };
 
-  const handleCityChange = (city: string) => {
-    setFormData((prev) => ({ ...prev, city, zip: "" }));
-    const zipCodes = getZipCodesForCity(city, formData.province);
-    setAvailableZipCodes(zipCodes);
+  const handleCityChange = (code: string) => {
+    const city = geoCities.find(c => c.code === code)?.name || "";
+    const suggestedZips = getZipCodesForCity(city);
+    const zip = suggestedZips.length > 0 ? suggestedZips[0] : "";
+    
+    setFormData((prev) => ({ 
+      ...prev, 
+      city, 
+      cityCode: code, 
+      barangay: "", 
+      barangayCode: "", 
+      zip 
+    }));
+    setGeoBarangays([]);
+  };
+
+  const handleBarangayChange = (code: string) => {
+    const barangay = geoBarangays.find(b => b.code === code)?.name || "";
+    setFormData((prev) => ({ ...prev, barangay, barangayCode: code }));
   };
 
   const validate = (): boolean => {
@@ -124,12 +221,14 @@ export function AddressDialog({
       newErrors.city = "City is required";
     }
 
+    if (!formData.barangay) {
+      newErrors.barangay = "Barangay is required";
+    }
+
     if (!formData.zip.trim()) {
       newErrors.zip = "ZIP code is required";
     } else if (!/^\d{4}$/.test(formData.zip)) {
       newErrors.zip = "ZIP code must be 4 digits";
-    } else if (formData.city && !availableZipCodes.includes(formData.zip)) {
-      newErrors.zip = `Invalid ZIP code for ${formData.city}. Valid codes: ${availableZipCodes.slice(0, 5).join(', ')}${availableZipCodes.length > 5 ? '...' : ''}`;
     }
 
     setErrors(newErrors);
@@ -183,19 +282,20 @@ export function AddressDialog({
                 Province <span className="text-destructive">*</span>
               </Label>
               <Select
-                value={formData.province}
+                value={formData.provinceCode}
                 onValueChange={handleProvinceChange}
+                disabled={isLoadingProvinces}
               >
                 <SelectTrigger
                   id="province"
-                  className={errors.province ? "border-destructive" : ""}
+                  className={errors.province ? "border-destructive text-left h-auto py-2" : "text-left h-auto py-2"}
                 >
-                  <SelectValue placeholder="Select province" />
+                  <SelectValue placeholder={isLoadingProvinces ? "Loading..." : "Select province"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {provinces.map((province) => (
-                    <SelectItem key={province} value={province}>
-                      {province}
+                  {geoProvinces.map((province) => (
+                    <SelectItem key={province.code} value={province.code}>
+                      {province.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -207,22 +307,22 @@ export function AddressDialog({
 
             <div className="space-y-2">
               <Label htmlFor="city">
-                City <span className="text-destructive">*</span>
+                City / Municipality <span className="text-destructive">*</span>
               </Label>
               <Select
-                value={formData.city}
+                value={formData.cityCode}
                 onValueChange={handleCityChange}
-                disabled={!formData.province}
+                disabled={!formData.provinceCode || isLoadingCities}
               >
                 <SelectTrigger
                   id="city"
-                  className={errors.city ? "border-destructive" : ""}
+                  className={errors.city ? "border-destructive text-left h-auto py-2" : "text-left h-auto py-2"}
                 >
-                  <SelectValue placeholder="Select city" />
+                  <SelectValue placeholder={!formData.provinceCode ? "Select province first" : isLoadingCities ? "Loading..." : "Select city"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {availableCities.map((city) => (
-                    <SelectItem key={city.name} value={city.name}>
+                  {geoCities.map((city) => (
+                    <SelectItem key={city.code} value={city.code}>
                       {city.name}
                     </SelectItem>
                   ))}
@@ -234,31 +334,55 @@ export function AddressDialog({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="zip">
-              ZIP Code <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="zip"
-              placeholder="1630"
-              maxLength={4}
-              value={formData.zip}
-              onChange={(e) => {
-                const value = e.target.value.replace(/\D/g, '');
-                setFormData((prev) => ({ ...prev, zip: value }));
-              }}
-              className={errors.zip ? "border-destructive" : ""}
-              disabled={!formData.city}
-            />
-            {errors.zip && (
-              <p className="text-sm text-destructive">{errors.zip}</p>
-            )}
-            {availableZipCodes.length > 0 && formData.city && !errors.zip && (
-              <p className="text-xs text-muted-foreground">
-                Valid ZIP codes for {formData.city}: {availableZipCodes.slice(0, 5).join(', ')}
-                {availableZipCodes.length > 5 && ` +${availableZipCodes.length - 5} more`}
-              </p>
-            )}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="barangay">
+                Barangay <span className="text-destructive">*</span>
+              </Label>
+              <Select
+                value={formData.barangayCode}
+                onValueChange={handleBarangayChange}
+                disabled={!formData.cityCode || isLoadingBarangays}
+              >
+                <SelectTrigger
+                  id="barangay"
+                  className={errors.barangay ? "border-destructive text-left h-auto py-2" : "text-left h-auto py-2"}
+                >
+                  <SelectValue placeholder={!formData.cityCode ? "Select city first" : isLoadingBarangays ? "Loading..." : "Select barangay"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {geoBarangays.map((brgy) => (
+                    <SelectItem key={brgy.code} value={brgy.code}>
+                      {brgy.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors.barangay && (
+                <p className="text-sm text-destructive">{errors.barangay}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="zip">
+                ZIP Code <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="zip"
+                placeholder="1630"
+                maxLength={4}
+                value={formData.zip}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/\D/g, '');
+                  setFormData((prev) => ({ ...prev, zip: value }));
+                }}
+                className={errors.zip ? "border-destructive" : ""}
+                disabled={!formData.city}
+              />
+              {errors.zip && (
+                <p className="text-sm text-destructive">{errors.zip}</p>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center space-x-2">

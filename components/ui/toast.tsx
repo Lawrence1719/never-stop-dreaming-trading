@@ -1,7 +1,7 @@
 import * as React from "react"
 import * as ToastPrimitives from "@radix-ui/react-toast"
 import { cva, type VariantProps } from "class-variance-authority"
-import { X } from "lucide-react"
+import { X, CheckCircle2, AlertCircle, Info, AlertTriangle } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -27,13 +27,15 @@ const toastVariants = cva(
   {
     variants: {
       variant: {
-        default: "border bg-background text-foreground",
+        default: "border bg-background text-foreground shadow-lg backdrop-blur-sm",
         destructive:
-          "destructive group border-destructive bg-destructive text-destructive-foreground",
+          "destructive group border-destructive bg-destructive/10 text-destructive-foreground dark:bg-destructive/20 border-l-4 border-l-destructive shadow-sm",
         success:
-          "success group border-green-500 dark:border-green-600 bg-green-50 dark:bg-green-950 text-green-900 dark:text-green-50",
+          "success group border-green-500/20 bg-green-500/10 dark:bg-green-500/20 text-green-700 dark:text-green-300 border-l-4 border-l-green-500 shadow-sm",
         warning:
-          "warning group border-yellow-500 dark:border-yellow-600 bg-yellow-50 dark:bg-yellow-950 text-yellow-900 dark:text-yellow-50",
+          "warning group border-yellow-500/20 bg-yellow-500/10 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-300 border-l-4 border-l-yellow-500 shadow-sm",
+        info:
+          "info group border-blue-500/20 bg-blue-500/10 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 border-l-4 border-l-blue-500 shadow-sm",
       },
     },
     defaultVariants: {
@@ -46,13 +48,26 @@ const Toast = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Root>,
   React.ComponentPropsWithoutRef<typeof ToastPrimitives.Root> &
     VariantProps<typeof toastVariants>
->(({ className, variant, ...props }, ref) => {
+>(({ className, variant, children, ...props }, ref) => {
+  const Icon = {
+    success: <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />,
+    warning: <AlertTriangle className="h-5 w-5 text-yellow-500 shrink-0" />,
+    destructive: <AlertCircle className="h-5 w-5 text-destructive shrink-0" />,
+    info: <Info className="h-5 w-5 text-blue-500 shrink-0" />,
+    default: null,
+  }[variant || "default"]
+
   return (
     <ToastPrimitives.Root
       ref={ref}
       className={cn(toastVariants({ variant }), className)}
       {...props}
-    />
+    >
+      <div className="flex w-full items-start gap-3">
+        {Icon && <div className="mt-0.5">{Icon}</div>}
+        <div className="flex-1 overflow-hidden">{children}</div>
+      </div>
+    </ToastPrimitives.Root>
   )
 })
 Toast.displayName = ToastPrimitives.Root.displayName

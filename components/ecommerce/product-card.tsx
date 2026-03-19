@@ -26,26 +26,26 @@ export function ProductCard({ product }: ProductCardProps) {
     e.preventDefault();
     e.stopPropagation();
     if (!user) {
-      toast({ title: "Login Required", description: "Please log in to add items to your wishlist." });
+      toast({ title: "Login Required", description: "Please log in to add items to your wishlist.", variant: "warning" });
       return;
     }
     if (inWishlist) {
       removeFromWishlist(product.id);
-      toast({ title: "Removed from wishlist" });
+      toast({ title: "Removed from wishlist", variant: "info" });
     } else {
       addToWishlist(product.id);
-      toast({ title: "Added to wishlist" });
+      toast({ title: "Added to wishlist", variant: "success" });
     }
   };
 
   const discount = product.compareAtPrice
-    ? Math.round(((product.compareAtPrice - product.price) / product.compareAtPrice) * 100)
+    ? Math.round((((product.compareAtPrice ?? 0) - (product.price ?? 0)) / (product.compareAtPrice ?? 1)) * 100)
     : null;
 
   // Determine price display based on variants
   const getPriceDisplay = () => {
     if (!hasVariants) {
-      return formatPrice(product.price);
+      return formatPrice(product.price ?? 0);
     }
     
     // For variant products, show price range or "From" price

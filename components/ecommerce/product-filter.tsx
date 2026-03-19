@@ -109,9 +109,9 @@ export function ProductFilter({ onCategoryChange, onPriceChange, onSortChange, o
             className="w-full"
           />
           <div className="flex gap-2">
-            <span className="text-sm">₱{priceRange[0]}</span>
-            <span className="text-sm">-</span>
-            <span className="text-sm">₱{priceRange[1]}</span>
+            <span className="text-sm font-medium text-primary">₱{new Intl.NumberFormat().format(priceRange[0])}</span>
+            <span className="text-sm text-muted-foreground">-</span>
+            <span className="text-sm font-medium text-primary">₱{new Intl.NumberFormat().format(priceRange[1])}</span>
           </div>
         </div>
       </div>

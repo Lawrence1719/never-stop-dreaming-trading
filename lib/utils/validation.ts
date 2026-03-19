@@ -248,16 +248,26 @@ export const validateZipCodeForLocation = (
   // If city and province are provided, validate against known data
   if (city && province) {
     try {
-      const { validateZipCodeForCity } = require('@/lib/data/philippines-addresses');
-      if (!validateZipCodeForCity(zip, city, province)) {
-        return {
-          valid: false,
-          error: `Zip code ${zip} does not match ${city}, ${province}. Please verify your zip code.`
-        };
+      const { cityZipCodes } = require('@/lib/data/philippines-zip-codes');
+      
+      // Normalize city name for lookup (similar to getZipCodesForCity)
+      const normalizedCity = city.replace(/city$/i, "").trim().toLowerCase();
+      const cityKey = Object.keys(cityZipCodes).find(k => 
+        k.toLowerCase().replace(/city$/i, "").trim() === normalizedCity
+      );
+
+      if (cityKey) {
+        const validZipCodes = cityZipCodes[cityKey];
+        if (!validZipCodes.includes(zip)) {
+          return {
+            valid: false,
+            error: `Zip code ${zip} does not match ${city}. Please verify your zip code.`
+          };
+        }
       }
     } catch (err) {
       // If address data fails to load, just validate format
-      console.warn('Failed to load address data for validation', err);
+      console.warn('Failed to load zip code data for validation', err);
     }
   }
 

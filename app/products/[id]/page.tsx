@@ -294,6 +294,7 @@ export default function ProductDetailPage() {
       toast({
         title: "Select a variant",
         description: "Please choose a variant before adding to cart",
+        variant: "warning",
       });
       return;
     }
@@ -303,6 +304,7 @@ export default function ProductDetailPage() {
     toast({
       title: "Added to cart",
       description: `${quantity} ${quantity === 1 ? 'item' : 'items'} added successfully${selectedVariant ? ` (${selectedVariant.variant_label})` : ''}`,
+      variant: "success",
     });
     setQuantity(1);
   };
@@ -312,6 +314,7 @@ export default function ProductDetailPage() {
       toast({
         title: "Select a variant",
         description: "Please choose a variant before checkout",
+        variant: "warning",
       });
       return;
     }
@@ -327,12 +330,14 @@ export default function ProductDetailPage() {
       toast({
         title: "Removed from wishlist",
         description: "Product removed from your wishlist",
+        variant: "info",
       });
     } else {
       addToWishlist(product.id);
       toast({
         title: "Added to wishlist",
         description: "Product added to your wishlist",
+        variant: "success",
       });
     }
   };

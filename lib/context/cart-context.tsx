@@ -62,6 +62,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
             rating: data.rating ?? 0,
             reviewCount: data.review_count ?? 0,
             featured: data.featured ?? false,
+            specifications: data.specifications || {},
           };
         }
       } catch (err) {
@@ -133,7 +134,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
                   variant_id: variantId || null,
                   quantity: updatedItem.quantity 
                 },
-                { onConflict: 'user_id,product_id' }
+                { onConflict: 'user_id,product_id,variant_id' }
               )
               .then(({ error }) => {
                 if (error) {
@@ -232,7 +233,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
                 variant_id: variantId || null,
                 quantity 
               },
-              { onConflict: 'user_id,product_id' }
+              { onConflict: 'user_id,product_id,variant_id' }
             )
             .then(({ error }) => {
               if (error) {
@@ -297,8 +298,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
           const { error } = await supabase
             .from('cart')
             .upsert(
-              { user_id: user.id, product_id: item.productId, quantity: newQty },
-              { onConflict: 'user_id,product_id' }
+              { user_id: user.id, product_id: item.productId, variant_id: item.variantId || null, quantity: newQty },
+              { onConflict: 'user_id,product_id,variant_id' }
             );
 
           if (error) {

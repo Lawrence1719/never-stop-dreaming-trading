@@ -95,15 +95,27 @@ export async function POST(request: NextRequest) {
     if (rpcError) {
       console.error('Failed to create order via RPC', rpcError);
 
-      // Detailed error parsing if it is an out-of-stock custom PG error
-      let errorMessage = rpcError.message || 'Failed to create order';
-      if (errorMessage.includes('Out of stock')) {
-        return NextResponse.json({ error: errorMessage }, { status: 409 });
+      // Map specific database errors to user-friendly messages
+      let errorMessage = 'Something went wrong while placing your order. Please try again.';
+      let statusCode = 500;
+
+      if (rpcError.message?.includes('Out of stock')) {
+        errorMessage = rpcError.message;
+        statusCode = 409;
+      } else if (rpcError.message?.includes('Variant not found')) {
+        errorMessage = 'One or more items in your cart is no longer available.';
+        statusCode = 404;
+      } else if (rpcError.code === 'P0001' || rpcError.message?.includes('check constraint')) {
+        // Custom constraint or validation error
+        errorMessage = 'There was a validation error with your order. Please check your information.';
+        statusCode = 400;
       }
 
       return NextResponse.json({
-        error: errorMessage
-      }, { status: 500 });
+        error: errorMessage,
+        code: rpcError.code,
+        details: rpcError.details
+      }, { status: statusCode });
     }
 
     const { data: createdOrder, duplicate, message } = result;

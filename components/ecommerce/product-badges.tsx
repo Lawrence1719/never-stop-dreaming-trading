@@ -35,7 +35,7 @@ export function ProductBadges({
   // Out of Stock
   if (stock === 0) {
     badges.push(
-      <Badge key="out-of-stock" variant="secondary" className="opacity-60">
+      <Badge key="out-of-stock" variant="destructive" className="flex items-center gap-1">
         Out of Stock
       </Badge>
     );

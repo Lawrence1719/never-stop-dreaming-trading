@@ -28,8 +28,12 @@ import {
 import {
   getProvinces,
   getCitiesByProvince,
-  getZipCodesForCity
-} from "@/lib/data/philippines-addresses";
+  getBarangaysByCity,
+  PSGCProvince,
+  PSGCCityMunicipality,
+  PSGCBarangay
+} from "@/lib/services/address.service";
+import { getZipCodesForCity } from "@/lib/data/philippines-zip-codes";
 import { ChevronLeft } from 'lucide-react';
 import { formatPrice } from '@/lib/utils/formatting';
 
@@ -134,8 +138,12 @@ function CheckoutPageContent() {
     email: user?.email || "",
     phone: user?.phone || "",
     street: "",
+    barangay: "",
+    barangayCode: "",
     city: "",
+    cityCode: "",
     province: "",
+    provinceCode: "",
     zip: "",
     paymentMethod: getInitialPaymentMethod(),
     cardNumber: "",
@@ -145,16 +153,85 @@ function CheckoutPageContent() {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
-  const [provinces] = useState<string[]>(getProvinces());
-  const [availableCities, setAvailableCities] = useState<string[]>([]);
+  
+  // PSGC Data States
+  const [geoProvinces, setGeoProvinces] = useState<PSGCProvince[]>([]);
+  const [geoCities, setGeoCities] = useState<PSGCCityMunicipality[]>([]);
+  const [geoBarangays, setGeoBarangays] = useState<PSGCBarangay[]>([]);
+  
+  // Loading States
+  const [isLoadingProvinces, setIsLoadingProvinces] = useState(false);
+  const [isLoadingCities, setIsLoadingCities] = useState(false);
+  const [isLoadingBarangays, setIsLoadingBarangays] = useState(false);
 
   const [addresses, setAddresses] = useState<any[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [saveAsDefault, setSaveAsDefault] = useState(true);
   const [isSavingAddress, setIsSavingAddress] = useState(false);
   const [isProcessingOrder, setIsProcessingOrder] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [formSubmitted, setFormSubmitted] = useState(false);
 
   const steps = ["Shipping", "Payment", "Review"];
+  
+  // 1. Fetch Provinces on mount
+  useEffect(() => {
+    const fetchProvinces = async () => {
+      setIsLoadingProvinces(true);
+      try {
+        const data = await getProvinces();
+        // Sort alphabetically
+        setGeoProvinces(data.sort((a, b) => a.name.localeCompare(b.name)));
+      } catch (err) {
+        console.error("Failed to fetch provinces:", err);
+      } finally {
+        setIsLoadingProvinces(false);
+      }
+    };
+    fetchProvinces();
+  }, []);
+
+  // 2. Fetch Cities when Province changes
+  useEffect(() => {
+    if (!formData.provinceCode) {
+      setGeoCities([]);
+      return;
+    }
+
+    const fetchCities = async () => {
+      setIsLoadingCities(true);
+      try {
+        const data = await getCitiesByProvince(formData.provinceCode);
+        setGeoCities(data.sort((a, b) => a.name.localeCompare(b.name)));
+      } catch (err) {
+        console.error("Failed to fetch cities:", err);
+      } finally {
+        setIsLoadingCities(false);
+      }
+    };
+    fetchCities();
+  }, [formData.provinceCode]);
+
+  // 3. Fetch Barangays when City changes
+  useEffect(() => {
+    if (!formData.cityCode) {
+      setGeoBarangays([]);
+      return;
+    }
+
+    const fetchBarangays = async () => {
+      setIsLoadingBarangays(true);
+      try {
+        const data = await getBarangaysByCity(formData.cityCode);
+        setGeoBarangays(data.sort((a, b) => a.name.localeCompare(b.name)));
+      } catch (err) {
+        console.error("Failed to fetch barangays:", err);
+      } finally {
+        setIsLoadingBarangays(false);
+      }
+    };
+    fetchBarangays();
+  }, [formData.cityCode]);
 
   // TODO: Replace with actual API call to fetch products from Supabase
   // const { data: products } = await supabase.from('products').select('*').in('id', checkoutCart.map(i => i.productId));
@@ -196,85 +273,83 @@ function CheckoutPageContent() {
 
 
 
-  // Real-time validation for individual fields
-  const validateField = (name: string, value: string) => {
-    let error = "";
-
+  // Helper to get error message for a field
+  const getFieldError = (name: string, value: string) => {
     switch (name) {
       case "fullName":
         const nameValidation = validateFullName(value);
-        if (!nameValidation.valid) {
-          error = nameValidation.error || "Full name is required";
-        }
-        break;
+        return !nameValidation.valid ? (nameValidation.error || "Full name is required") : "";
       case "email":
-        if (!value.trim()) {
-          error = "Email is required";
-        } else if (!validateEmail(value)) {
-          error = "Please enter a valid email address";
-        }
-        break;
+        if (!value.trim()) return "Email is required";
+        if (!validateEmail(value)) return "Please enter a valid email address";
+        return "";
       case "phone":
-        if (!value.trim()) {
-          error = "Phone number is required";
-        } else if (!validatePhoneNumber(value)) {
-          error = "Please enter a valid Philippine phone number (e.g., 0912 345 6789)";
-        }
-        break;
+        if (!value.trim()) return "Phone number is required";
+        if (!validatePhoneNumber(value)) return "Please enter a valid Philippine phone number (e.g., 0912 345 6789)";
+        return "";
       case "street":
-        const streetValidation = validateStreetAddress(value);
-        if (!streetValidation.valid) {
-          error = streetValidation.error || "Street address is required";
-        }
-        break;
-      case "city":
-        const cityValidation = validateCity(value);
-        if (!cityValidation.valid) {
-          error = cityValidation.error || "City is required";
-        }
-        break;
+        const streetVal = validateStreetAddress(value);
+        return !streetVal.valid ? (streetVal.error || "Street address is required") : "";
       case "province":
-        const provinceValidation = validateProvince(value);
-        if (!provinceValidation.valid) {
-          error = provinceValidation.error || "Province is required";
-        }
-        break;
+        const provinceName = formData.province || value;
+        const provinceVal = validateProvince(provinceName);
+        return !provinceVal.valid ? (provinceVal.error || "Province is required") : "";
+      case "city":
+        const cityName = formData.city || value;
+        const cityVal = validateCity(cityName);
+        return !cityVal.valid ? (cityVal.error || "City is required") : "";
+      case "barangay":
+        const brgyName = formData.barangay || value;
+        return !brgyName ? "Barangay is required" : "";
       case "zip":
         const zipValidation = validateZipCodeForLocation(value, formData.city, formData.province);
-        if (!zipValidation.valid) {
-          error = zipValidation.error || "Valid zip code is required";
-        }
-        break;
+        return !zipValidation.valid ? (zipValidation.error || "Valid zip code is required") : "";
+      case "cardNumber":
+        return value.replace(/\s/g, "").length !== 16 ? "Valid card number required" : "";
+      case "cardExpiry":
+        return !/^\d{2}\/\d{2}$/.test(value) ? "Valid expiry (MM/YY) required" : "";
+      case "cardCvc":
+        return value.length !== 3 ? "Valid CVC required" : "";
+      default:
+        return "";
     }
+  };
 
+  // Real-time validation for individual fields
+  const validateField = (name: string, value: string) => {
+    const error = getFieldError(name, value);
     setErrors((prev) => ({ ...prev, [name]: error }));
     return !error;
   };
 
-  const validateStep = () => {
+  const validateStep = (currentStep: number = step) => {
     const newErrors: Record<string, string> = {};
+    const newTouched: Record<string, boolean> = {};
 
-    if (step === 0) {
+    if (currentStep === 0) {
       // Validate all shipping fields
-      const fields = ["fullName", "email", "phone", "street", "city", "province", "zip"];
+      const fields = ["fullName", "email", "phone", "street", "province", "city", "barangay", "zip"];
       fields.forEach((field) => {
         const value = formData[field as keyof typeof formData] as string;
-        validateField(field, value);
-        const error = errors[field] || "";
+        const error = getFieldError(field, value);
         if (error) newErrors[field] = error;
+        newTouched[field] = true;
       });
-    } else if (step === 1) {
+    } else if (currentStep === 1) {
       if (formData.paymentMethod === "card") {
-        if (formData.cardNumber.replace(/\s/g, "").length !== 16)
-          newErrors.cardNumber = "Valid card number required";
-        if (!/^\d{2}\/\d{2}$/.test(formData.cardExpiry))
-          newErrors.cardExpiry = "Valid expiry (MM/YY) required";
-        if (formData.cardCvc.length !== 3) newErrors.cardCvc = "Valid CVC required";
+        const fields = ["cardNumber", "cardExpiry", "cardCvc"];
+        fields.forEach((field) => {
+          const value = formData[field as keyof typeof formData] as string;
+          const error = getFieldError(field, value);
+          if (error) newErrors[field] = error;
+          newTouched[field] = true;
+        });
       }
     }
 
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    setTouched((prev) => ({ ...prev, ...newTouched }));
+    return Object.keys(newErrors).length === 0 ? null : newErrors;
   };
 
   // Fetch user's addresses when available
@@ -302,7 +377,11 @@ function CheckoutPageContent() {
             phone: def.phone,
             street: def.street_address,
             city: def.city,
+            cityCode: def.city_code || "",
             province: def.province,
+            provinceCode: def.province_code || "", 
+            barangay: def.barangay || "",
+            barangayCode: def.barangay_code || "",
             zip: def.zip_code,
           }));
         }
@@ -316,19 +395,64 @@ function CheckoutPageContent() {
     return () => { mounted = false; };
   }, [user]);
 
+  // 5. Pre-fill name, email, phone from user profile if empty
+  useEffect(() => {
+    if (user && !selectedAddressId) {
+      setFormData(prev => ({
+        ...prev,
+        fullName: prev.fullName || user.name || "",
+        email: prev.email || user.email || "",
+        phone: prev.phone || user.phone || ""
+      }));
+    }
+  }, [user, selectedAddressId]);
+
   const handleNext = () => {
-    if (validateStep()) {
+    setSubmitError(null); // Clear any previous submission errors
+    setFormSubmitted(true);
+    
+    const stepErrors = validateStep();
+    if (!stepErrors) {
       setStep(step + 1);
+      setFormSubmitted(false); // Reset for next step
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
+      // Scroll to first error
+      const firstErrorField = Object.keys(stepErrors)[0];
+      const element = document.getElementsByName(firstErrorField)[0];
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        element.focus({ preventScroll: true });
+      }
+
+      const fieldLabels: Record<string, string> = {
+        fullName: "Full Name",
+        email: "Email",
+        phone: "Phone",
+        street: "Street Address",
+        city: "City",
+        province: "Province",
+        zip: "Zip Code",
+        barangay: "Barangay",
+        cardNumber: "Card Number",
+        cardExpiry: "Expiry Date",
+        cardCvc: "CVC"
+      };
+
+      const errorFieldNames = Object.keys(stepErrors)
+        .map(f => fieldLabels[f] || f)
+        .join(", ");
+
       toast({
         title: "Validation Error",
-        description: "Please fix the errors above",
+        description: `Please fix the following fields: ${errorFieldNames}`,
         variant: "destructive",
       });
     }
   };
 
   const handlePrevious = () => {
+    setSubmitError(null);
     setStep(step - 1);
   };
 
@@ -351,10 +475,40 @@ function CheckoutPageContent() {
       return;
     }
 
-    if (!validateStep()) {
+    setSubmitError(null);
+    setFormSubmitted(true);
+
+    const stepErrors = validateStep();
+    if (stepErrors) {
+      // Scroll to first error
+      const firstErrorField = Object.keys(stepErrors)[0];
+      const element = document.getElementsByName(firstErrorField)[0];
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        element.focus({ preventScroll: true });
+      }
+
+      const fieldLabels: Record<string, string> = {
+        fullName: "Full Name",
+        email: "Email",
+        phone: "Phone",
+        street: "Street Address",
+        city: "City",
+        barangay: "Barangay",
+        province: "Province",
+        zip: "Zip Code",
+        cardNumber: "Card Number",
+        cardExpiry: "Expiry Date",
+        cardCvc: "CVC"
+      };
+
+      const errorFieldNames = Object.keys(stepErrors)
+        .map(f => fieldLabels[f] || f)
+        .join(", ");
+
       toast({
         title: "Validation Error",
-        description: "Please fix the errors above",
+        description: `Please fix the following fields: ${errorFieldNames}`,
         variant: "destructive",
       });
       return;
@@ -389,33 +543,22 @@ function CheckoutPageContent() {
       let shippingAddressId: string | null = selectedAddressId;
 
       if (user) {
-        // If user didn't select an existing address, create a new address record
+        // Find if this exact address (manually entered or modified) already exists
+        const existingAddress = addresses.find(a => 
+          a.street_address === formData.street && 
+          a.barangay === formData.barangay &&
+          a.city === formData.city &&
+          a.province === formData.province
+        );
+
+        if (!shippingAddressId && existingAddress) {
+          shippingAddressId = existingAddress.id;
+        }
+
         if (!shippingAddressId) {
           setIsSavingAddress(true);
-
           try {
-            // If saving as default, unset existing defaults first
-            if (saveAsDefault) {
-              await supabase
-                .from('addresses')
-                .update({ is_default: false })
-                .eq('user_id', user.id);
-            }
-
-            // Log the data being inserted for debugging
-            console.log('Creating new address with data:', {
-              user_id: user.id,
-              full_name: formData.fullName,
-              email: formData.email,
-              phone: formData.phone,
-              street_address: formData.street,
-              city: formData.city,
-              province: formData.province,
-              zip_code: formData.zip,
-              address_type: 'shipping',
-              is_default: saveAsDefault,
-            });
-
+            // New address: insert and possibly set as default
             const { data: created, error: createErr } = await supabase
               .from('addresses')
               .insert({
@@ -425,7 +568,11 @@ function CheckoutPageContent() {
                 phone: formData.phone,
                 street_address: formData.street,
                 city: formData.city,
+                city_code: formData.cityCode,
                 province: formData.province,
+                province_code: formData.provinceCode,
+                barangay: formData.barangay,
+                barangay_code: formData.barangayCode,
                 zip_code: formData.zip,
                 address_type: 'shipping',
                 is_default: saveAsDefault,
@@ -433,45 +580,32 @@ function CheckoutPageContent() {
               .select()
               .single();
 
-            console.log('Address creation result:', { created, error: createErr });
-
-            if (createErr) {
-              console.error('Failed to create address', createErr);
-              throw new Error('Failed to create address. Please try again.');
-            }
+            if (createErr) throw createErr;
             shippingAddressId = created.id;
           } finally {
             setIsSavingAddress(false);
           }
-        } else if (shippingAddressId) {
-          // User selected an existing address. Update its default status if saveAsDefault changed
-          const selectedAddress = addresses.find((a) => a.id === shippingAddressId);
-          if (selectedAddress && selectedAddress.is_default !== saveAsDefault) {
-            console.log('Updating address default status:', {
-              address_id: shippingAddressId,
+        } else {
+          // Existing address or matched address: update fields and default status
+          const { error: updateErr } = await supabase
+            .from('addresses')
+            .update({
+              full_name: formData.fullName,
+              email: formData.email,
+              phone: formData.phone,
+              street_address: formData.street,
+              city: formData.city,
+              city_code: formData.cityCode,
+              province: formData.province,
+              province_code: formData.provinceCode,
+              barangay: formData.barangay,
+              barangay_code: formData.barangayCode,
+              zip_code: formData.zip,
               is_default: saveAsDefault,
-            });
+            })
+            .eq('id', shippingAddressId);
 
-            // If setting this address as default, unset others first
-            if (saveAsDefault) {
-              await supabase
-                .from('addresses')
-                .update({ is_default: false })
-                .eq('user_id', user.id)
-                .neq('id', shippingAddressId);
-            }
-
-            // Update this address's default status
-            const { error: updateErr } = await supabase
-              .from('addresses')
-              .update({ is_default: saveAsDefault })
-              .eq('id', shippingAddressId);
-
-            if (updateErr) {
-              console.error('Failed to update address default status', updateErr);
-              throw new Error('Failed to update address. Please try again.');
-            }
-          }
+          if (updateErr) throw updateErr;
         }
       }
 
@@ -535,11 +669,13 @@ function CheckoutPageContent() {
         toast({
           title: "Order Already Processed",
           description: "Redirecting to confirmation...",
+          variant: "info",
         });
       } else {
         toast({
           title: "Success",
           description: "Order placed successfully",
+          variant: "success",
         });
       }
 
@@ -550,66 +686,115 @@ function CheckoutPageContent() {
       }
       router.push(`/order-confirmation/${orderId}`);
     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to create address/order', err);
-      const errorMessage = err instanceof Error ? err.message : 'Failed to save address. Please try again.';
+      console.error('[Checkout] Order submission failed:', err);
+      
+      let errorTitle = "Order Failed";
+      let errorDescription = "Something went wrong while placing your order. Please try again.";
+      
+      if (err instanceof Error) {
+        if (err.message.includes('Out of stock')) {
+          errorTitle = "Item Unavailable";
+          errorDescription = err.message;
+        } else if (err.message.includes('authorized') || err.message.includes('Session expired')) {
+          errorTitle = "Session Expired";
+          errorDescription = "Your session has expired. Please sign in again to complete your order.";
+        } else if (err.message !== 'Failed to create order. Please try again.') {
+          // If it's a specific message from the API, use it but keep it user-friendly
+          errorDescription = err.message;
+        }
+      }
+      
       toast({
-        title: "Error",
-        description: errorMessage,
+        title: errorTitle,
+        description: errorDescription,
         variant: "destructive",
       });
+      setSubmitError(errorDescription);
     } finally {
-      setIsProcessingOrder(false); // Make sure order processing always resets
+      setIsProcessingOrder(false);
     }
   };
 
-  // Update available cities when province changes
-  useEffect(() => {
-    if (formData.province) {
-      const cities = getCitiesByProvince(formData.province);
-      setAvailableCities(cities.map(c => c.name));
+  const handleProvinceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const code = e.target.value;
+    const province = geoProvinces.find(p => p.code === code)?.name || "";
+    
+    setFormData(prev => ({
+      ...prev,
+      province,
+      provinceCode: code,
+      city: "",
+      cityCode: "",
+      barangay: "",
+      barangayCode: "",
+      zip: ""
+    }));
+    
+    // Clear errors
+    setErrors(prev => ({ ...prev, province: "", city: "", barangay: "", zip: "" }));
+    setTouched(prev => ({ ...prev, province: true }));
+  };
 
-      // If current city is not in the new province's cities, clear it
-      if (formData.city && !cities.some(c => c.name.toLowerCase() === formData.city.toLowerCase())) {
-        setFormData((prev) => ({ ...prev, city: "", zip: "" }));
-      }
-    } else {
-      setAvailableCities([]);
-    }
-  }, [formData.province]);
+  const handleCityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const code = e.target.value;
+    const city = geoCities.find(c => c.code === code)?.name || "";
+    
+    // Auto-fill zip code if available
+    const suggestedZipCodes = getZipCodesForCity(city);
+    const zip = suggestedZipCodes.length > 0 ? suggestedZipCodes[0] : "";
 
-  // Update zip code suggestions when city changes
-  useEffect(() => {
-    if (formData.city && formData.province && formData.zip) {
-      validateField("zip", formData.zip);
-    }
-  }, [formData.city, formData.province]);
+    setFormData(prev => ({
+      ...prev,
+      city,
+      cityCode: code,
+      barangay: "",
+      barangayCode: "",
+      zip
+    }));
+    
+    // Clear errors
+    setErrors(prev => ({ ...prev, city: "", barangay: "", zip: "" }));
+    setTouched(prev => ({ ...prev, city: true }));
+  };
+
+  const handleBarangayChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const code = e.target.value;
+    const barangay = geoBarangays.find(b => b.code === code)?.name || "";
+    
+    setFormData(prev => ({
+      ...prev,
+      barangay,
+      barangayCode: code
+    }));
+    
+    setErrors(prev => ({ ...prev, barangay: "" }));
+    setTouched(prev => ({ ...prev, barangay: true }));
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-
-    // Debug logging for street address
-    if (name === 'street') {
-      console.log('Street address changed:', value);
-    }
-
+    
     setFormData((prev) => ({ ...prev, [name]: value }));
-
-    // Mark field as touched
     setTouched((prev) => ({ ...prev, [name]: true }));
 
-    // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: "" }));
+    // If changing a critical address field manually, decide if we should deselect the address
+    const criticalAddressFields = ["fullName", "street", "city", "province", "barangay"];
+    if (criticalAddressFields.includes(name) && selectedAddressId) {
+       // We'll keep the selectedAddressId for now to support 'updating' the selected address
+       // but if its completely different maybe we should clear it? 
+       // For now, let's keep it to allow 'Update' logic in handleSubmit.
     }
 
-    // Real-time validation for shipping fields (debounced for text inputs)
-    if (step === 0 && ["fullName", "email", "phone", "street", "city", "province", "zip"].includes(name)) {
-      // Immediate validation for zip, phone, and selects
-      if (name === "zip" || name === "phone" || name === "province" || name === "city") {
+    // Real-time validation
+    const isShippingField = ["fullName", "email", "phone", "street", "city", "province", "barangay", "zip"].includes(name);
+    const isCardField = ["cardNumber", "cardExpiry", "cardCvc"].includes(name);
+
+    if ((step === 0 && isShippingField) || (step === 1 && isCardField)) {
+      // Immediate validation for zip, phone, card fields and selects
+      if (name === "zip" || name === "phone" || name === "province" || name === "city" || isCardField) {
         validateField(name, value);
       } else {
-        // Debounced validation for text fields
+        // Debounced validation for other text fields
         setTimeout(() => {
           validateField(name, value);
         }, 500);
@@ -620,7 +805,10 @@ function CheckoutPageContent() {
   const handleBlur = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setTouched((prev) => ({ ...prev, [name]: true }));
-    if (step === 0 && ["fullName", "email", "phone", "street", "city", "province", "zip"].includes(name)) {
+    const isShippingField = ["fullName", "email", "phone", "street", "city", "province", "zip"].includes(name);
+    const isCardField = ["cardNumber", "cardExpiry", "cardCvc"].includes(name);
+
+    if ((step === 0 && isShippingField) || (step === 1 && isCardField)) {
       validateField(name, value);
     }
   };
@@ -701,6 +889,25 @@ function CheckoutPageContent() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Form */}
             <div className="lg:col-span-2">
+              {submitError && (
+                <div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <div className="flex-shrink-0 mt-0.5">
+                    <svg className="h-5 w-5 text-destructive" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-destructive">Submission Error</h3>
+                    <p className="text-sm text-destructive/80 mt-1">{submitError}</p>
+                    <button 
+                      onClick={() => setSubmitError(null)}
+                      className="text-xs font-medium text-destructive hover:underline mt-2"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              )}
               <div className="bg-card border border-border rounded-lg p-6">
                 {/* Shipping Step */}
                 {step === 0 && (
@@ -731,8 +938,12 @@ function CheckoutPageContent() {
                                 email: a.email,
                                 phone: a.phone,
                                 street: a.street_address,
-                                city: a.city,
                                 province: a.province,
+                                provinceCode: a.province_code || "", 
+                                city: a.city,
+                                cityCode: a.city_code || "",
+                                barangay: a.barangay || "",
+                                barangayCode: a.barangay_code || "",
                                 zip: a.zip_code,
                               }));
                               // Set saveAsDefault based on whether this address is the default
@@ -759,26 +970,32 @@ function CheckoutPageContent() {
                         onChange={handleInputChange}
                         onBlur={handleBlur}
                         placeholder="Juan Dela Cruz"
-                        className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${errors.fullName && touched.fullName ? "border-destructive" : "border-border"
+                        className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${(errors.fullName && (touched.fullName || formSubmitted)) ? "border-destructive border-2" : "border-border"
                           }`}
                       />
-                      {errors.fullName && touched.fullName && (
+                      {errors.fullName && (touched.fullName || formSubmitted) && (
                         <p className="text-xs text-destructive mt-1">{errors.fullName}</p>
                       )}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium mb-1">Email</label>
-                        <input
-                          type="email"
-                          name="email"
-                          value={formData.email}
-                          onChange={handleInputChange}
-                          className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${errors.email ? "border-destructive" : "border-border"
-                            }`}
-                        />
-                        {errors.email && <p className="text-xs text-destructive mt-1">{errors.email}</p>}
+                        <label className="block text-sm font-medium mb-1">
+                          Email <span className="text-destructive">*</span>
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="email"
+                            name="email"
+                            value={formData.email}
+                            onChange={handleInputChange}
+                            onBlur={handleBlur}
+                            placeholder="juan@example.ph"
+                            className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${(errors.email && (touched.email || formSubmitted)) ? "border-destructive border-2" : "border-border"
+                              }`}
+                          />
+                          {errors.email && (touched.email || formSubmitted) && <p className="text-xs text-destructive mt-1">{errors.email}</p>}
+                        </div>
                       </div>
 
                       <div>
@@ -792,13 +1009,13 @@ function CheckoutPageContent() {
                           onChange={handleInputChange}
                           onBlur={handleBlur}
                           placeholder="0912 345 6789"
-                          className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${errors.phone && touched.phone ? "border-destructive" : "border-border"
+                          className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${(errors.phone && (touched.phone || formSubmitted)) ? "border-destructive border-2" : "border-border"
                             }`}
                         />
-                        {errors.phone && touched.phone && (
+                        {errors.phone && (touched.phone || formSubmitted) && (
                           <p className="text-xs text-destructive mt-1">{errors.phone}</p>
                         )}
-                        {!errors.phone && touched.phone && formData.phone && (
+                        {!errors.phone && (touched.phone || formSubmitted) && formData.phone && (
                           <p className="text-xs text-muted-foreground mt-1">✓ Valid Philippine phone number</p>
                         )}
                       </div>
@@ -815,107 +1032,139 @@ function CheckoutPageContent() {
                         onChange={handleInputChange}
                         onBlur={handleBlur}
                         placeholder="e.g., 123 Main Street, Barangay Name"
-                        className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${errors.street && touched.street ? "border-destructive" : "border-border"
+                        className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${(errors.street && (touched.street || formSubmitted)) ? "border-destructive border-2" : "border-border"
                           }`}
                       />
-                      {errors.street && touched.street && (
+                      {errors.street && (touched.street || formSubmitted) && (
                         <p className="text-xs text-destructive mt-1">{errors.street}</p>
                       )}
-                      {!errors.street && touched.street && (
+                      {!errors.street && (touched.street || formSubmitted) && (
                         <p className="text-xs text-muted-foreground mt-1">✓ Valid address format</p>
                       )}
                     </div>
 
-                    <div className="grid grid-cols-3 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium mb-1">
-                          Province <span className="text-destructive">*</span>
-                        </label>
-                        <select
-                          name="province"
-                          value={formData.province}
-                          onChange={handleInputChange}
-                          onBlur={handleBlur}
-                          className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${errors.province && touched.province ? "border-destructive" : "border-border"
-                            }`}
-                        >
-                          <option value="">Select Province</option>
-                          {provinces.map((prov) => (
-                            <option key={prov} value={prov}>
-                              {prov}
-                            </option>
-                          ))}
-                        </select>
-                        {errors.province && touched.province && (
-                          <p className="text-xs text-destructive mt-1">{errors.province}</p>
-                        )}
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium mb-1">
+                            Province <span className="text-destructive">*</span>
+                          </label>
+                          <div className="relative">
+                            <select
+                              name="province"
+                              value={formData.provinceCode}
+                              onChange={handleProvinceChange}
+                              onBlur={handleBlur}
+                              disabled={isLoadingProvinces}
+                              className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${(errors.province && (touched.province || formSubmitted)) ? "border-destructive border-2" : "border-border"
+                                } ${isLoadingProvinces ? "opacity-50" : ""}`}
+                            >
+                              <option value="">{isLoadingProvinces ? "Loading..." : "Select Province"}</option>
+                              {geoProvinces.map((prov) => (
+                                <option key={prov.code} value={prov.code}>
+                                  {prov.name}
+                                </option>
+                              ))}
+                            </select>
+                            {isLoadingProvinces && (
+                              <div className="absolute right-8 top-1/2 -translate-y-1/2">
+                                <span className="animate-spin inline-block w-4 h-4 border-2 border-primary border-t-transparent rounded-full"></span>
+                              </div>
+                            )}
+                          </div>
+                          {errors.province && (touched.province || formSubmitted) && (
+                            <p className="text-xs text-destructive mt-1">{errors.province}</p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium mb-1">
+                            City / Municipality <span className="text-destructive">*</span>
+                          </label>
+                          <div className="relative">
+                            <select
+                              name="city"
+                              value={formData.cityCode}
+                              onChange={handleCityChange}
+                              onBlur={handleBlur}
+                              disabled={!formData.provinceCode || isLoadingCities}
+                              className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${(errors.city && (touched.city || formSubmitted)) ? "border-destructive border-2" : "border-border"
+                                } ${(!formData.provinceCode || isLoadingCities) ? "opacity-50 cursor-not-allowed" : ""}`}
+                            >
+                              <option value="">
+                                {!formData.provinceCode ? "Select province first" : isLoadingCities ? "Loading..." : "Select City"}
+                              </option>
+                              {geoCities.map((city) => (
+                                <option key={city.code} value={city.code}>
+                                  {city.name}
+                                </option>
+                              ))}
+                            </select>
+                            {isLoadingCities && (
+                              <div className="absolute right-8 top-1/2 -translate-y-1/2">
+                                <span className="animate-spin inline-block w-4 h-4 border-2 border-primary border-t-transparent rounded-full"></span>
+                              </div>
+                            )}
+                          </div>
+                          {errors.city && (touched.city || formSubmitted) && (
+                            <p className="text-xs text-destructive mt-1">{errors.city}</p>
+                          )}
+                        </div>
                       </div>
 
-                      <div>
-                        <label className="block text-sm font-medium mb-1">
-                          City <span className="text-destructive">*</span>
-                        </label>
-                        {formData.province ? (
-                          <select
-                            name="city"
-                            value={formData.city}
-                            onChange={handleInputChange}
-                            onBlur={handleBlur}
-                            disabled={!formData.province}
-                            className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${errors.city && touched.city ? "border-destructive" : "border-border"
-                              } ${!formData.province ? "opacity-50 cursor-not-allowed" : ""}`}
-                          >
-                            <option value="">Select City</option>
-                            {availableCities.map((city) => (
-                              <option key={city} value={city}>
-                                {city}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium mb-1">
+                            Barangay <span className="text-destructive">*</span>
+                          </label>
+                          <div className="relative">
+                            <select
+                              name="barangay"
+                              value={formData.barangayCode}
+                              onChange={handleBarangayChange}
+                              onBlur={handleBlur}
+                              disabled={!formData.cityCode || isLoadingBarangays}
+                              className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${(errors.barangay && (touched.barangay || formSubmitted)) ? "border-destructive border-2" : "border-border"
+                                } ${(!formData.cityCode || isLoadingBarangays) ? "opacity-50 cursor-not-allowed" : ""}`}
+                            >
+                              <option value="">
+                                {!formData.cityCode ? "Select city first" : isLoadingBarangays ? "Loading..." : "Select Barangay"}
                               </option>
-                            ))}
-                          </select>
-                        ) : (
+                              {geoBarangays.map((brgy) => (
+                                <option key={brgy.code} value={brgy.code}>
+                                  {brgy.name}
+                                </option>
+                              ))}
+                            </select>
+                            {isLoadingBarangays && (
+                              <div className="absolute right-8 top-1/2 -translate-y-1/2">
+                                <span className="animate-spin inline-block w-4 h-4 border-2 border-primary border-t-transparent rounded-full"></span>
+                              </div>
+                            )}
+                          </div>
+                          {errors.barangay && (touched.barangay || formSubmitted) && (
+                            <p className="text-xs text-destructive mt-1">{errors.barangay}</p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium mb-1">
+                            Zip Code <span className="text-destructive">*</span>
+                          </label>
                           <input
                             type="text"
-                            name="city"
-                            value={formData.city}
+                            name="zip"
+                            value={formData.zip}
                             onChange={handleInputChange}
                             onBlur={handleBlur}
-                            placeholder="Select province first"
-                            disabled
-                            className="w-full px-4 py-2 bg-input border border-border rounded-md opacity-50 cursor-not-allowed"
+                            placeholder="e.g., 1630"
+                            className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${(errors.zip && (touched.zip || formSubmitted)) ? "border-destructive" : "border-border"
+                              }`}
                           />
-                        )}
-                        {errors.city && touched.city && (
-                          <p className="text-xs text-destructive mt-1">{errors.city}</p>
-                        )}
-                        {formData.city && formData.province && !errors.city && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Valid zip codes: {getZipCodesForCity(formData.city, formData.province).slice(0, 3).join(", ")}
-                            {getZipCodesForCity(formData.city, formData.province).length > 3 && "..."}
-                          </p>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium mb-1">
-                          Zip Code <span className="text-destructive">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          name="zip"
-                          value={formData.zip}
-                          onChange={handleInputChange}
-                          onBlur={handleBlur}
-                          placeholder="1630"
-                          maxLength={4}
-                          className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${errors.zip && touched.zip ? "border-destructive" : "border-border"
-                            }`}
-                        />
-                        {errors.zip && touched.zip && (
-                          <p className="text-xs text-destructive mt-1">{errors.zip}</p>
-                        )}
-                        {!errors.zip && touched.zip && formData.zip && (
-                          <p className="text-xs text-muted-foreground mt-1">✓ Valid zip code</p>
-                        )}
+                          {errors.zip && (touched.zip || formSubmitted) && (
+                            <p className="text-xs text-destructive mt-1">{errors.zip}</p>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -994,14 +1243,15 @@ function CheckoutPageContent() {
                             placeholder="4242 4242 4242 4242"
                             value={formData.cardNumber}
                             onChange={handleInputChange}
+                            onBlur={handleBlur}
                             maxLength={19}
-                            className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${errors.cardNumber ? "border-destructive" : "border-border"
+                            className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${(errors.cardNumber && (touched.cardNumber || formSubmitted)) ? "border-destructive" : "border-border"
                               }`}
                           />
-                          {errors.cardNumber && <p className="text-xs text-destructive mt-1">{errors.cardNumber}</p>}
+                          {errors.cardNumber && (touched.cardNumber || formSubmitted) && <p className="text-xs text-destructive mt-1">{errors.cardNumber}</p>}
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
                             <label className="block text-sm font-medium mb-1">Expiry Date</label>
                             <input
@@ -1010,11 +1260,12 @@ function CheckoutPageContent() {
                               placeholder="MM/YY"
                               value={formData.cardExpiry}
                               onChange={handleInputChange}
+                              onBlur={handleBlur}
                               maxLength={5}
-                              className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${errors.cardExpiry ? "border-destructive" : "border-border"
+                              className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${(errors.cardExpiry && (touched.cardExpiry || formSubmitted)) ? "border-destructive" : "border-border"
                                 }`}
                             />
-                            {errors.cardExpiry && <p className="text-xs text-destructive mt-1">{errors.cardExpiry}</p>}
+                            {errors.cardExpiry && (touched.cardExpiry || formSubmitted) && <p className="text-xs text-destructive mt-1">{errors.cardExpiry}</p>}
                           </div>
 
                           <div>
@@ -1025,11 +1276,12 @@ function CheckoutPageContent() {
                               placeholder="123"
                               value={formData.cardCvc}
                               onChange={handleInputChange}
+                              onBlur={handleBlur}
                               maxLength={3}
-                              className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${errors.cardCvc ? "border-destructive" : "border-border"
+                              className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${(errors.cardCvc && (touched.cardCvc || formSubmitted)) ? "border-destructive" : "border-border"
                                 }`}
                             />
-                            {errors.cardCvc && <p className="text-xs text-destructive mt-1">{errors.cardCvc}</p>}
+                            {errors.cardCvc && (touched.cardCvc || formSubmitted) && <p className="text-xs text-destructive mt-1">{errors.cardCvc}</p>}
                           </div>
                         </div>
                       </div>

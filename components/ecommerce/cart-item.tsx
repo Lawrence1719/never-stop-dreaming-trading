@@ -6,6 +6,7 @@ import { Product } from "@/lib/types";
 import { formatPrice } from "@/lib/utils/formatting";
 import { useCart } from "@/lib/context/cart-context";
 import { QuantitySelector } from "./quantity-selector";
+import { useToast } from "@/hooks/use-toast";
 
 interface CartItemProps {
   product: Product;
@@ -14,6 +15,7 @@ interface CartItemProps {
 
 export function CartItem({ product, quantity }: CartItemProps) {
   const { updateQuantity, removeItem } = useCart();
+  const { toast } = useToast();
 
   return (
     <div className="flex gap-4 pb-4 border-b border-border">
@@ -40,7 +42,10 @@ export function CartItem({ product, quantity }: CartItemProps) {
             max={product.stock}
           />
           <button
-            onClick={() => removeItem(product.id)}
+            onClick={() => {
+              removeItem(product.id);
+              toast({ title: "Removed from cart", variant: "info" });
+            }}
             className="text-destructive hover:text-destructive/80 transition-colors"
           >
             <Trash2 className="w-5 h-5" />
@@ -49,8 +54,8 @@ export function CartItem({ product, quantity }: CartItemProps) {
       </div>
 
       <div className="text-right">
-        <p className="font-semibold">{formatPrice(product.price * quantity)}</p>
-        <p className="text-sm text-muted-foreground">{formatPrice(product.price)} each</p>
+        <p className="font-semibold">{formatPrice((product.price ?? 0) * quantity)}</p>
+        <p className="text-sm text-muted-foreground">{formatPrice(product.price ?? 0)} each</p>
       </div>
     </div>
   );

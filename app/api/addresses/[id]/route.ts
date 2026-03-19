@@ -31,14 +31,18 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await request.json();
-    const { street, city, province, zip, isDefault } = body;
+    const { street, city, cityCode, province, provinceCode, barangay, barangayCode, isDefault } = body;
 
     // Build update object with only provided fields
     const updates: any = {};
     if (street !== undefined) updates.street_address = street;
     if (city !== undefined) updates.city = city;
+    if (cityCode !== undefined) updates.city_code = cityCode;
     if (province !== undefined) updates.province = province;
-    if (zip !== undefined) updates.zip_code = zip;
+    if (provinceCode !== undefined) updates.province_code = provinceCode;
+    if (barangay !== undefined) updates.barangay = barangay;
+    if (barangayCode !== undefined) updates.barangay_code = barangayCode;
+    if (body.zip !== undefined) updates.zip_code = body.zip;
 
     // If setting as default, unset other defaults first
     if (isDefault === true) {
@@ -75,7 +79,11 @@ export async function PATCH(
       phone: updatedAddress.phone,
       street: updatedAddress.street_address,
       city: updatedAddress.city,
+      cityCode: updatedAddress.city_code,
       province: updatedAddress.province,
+      provinceCode: updatedAddress.province_code,
+      barangay: updatedAddress.barangay,
+      barangayCode: updatedAddress.barangay_code,
       zip: updatedAddress.zip_code,
       default: updatedAddress.is_default,
     };
