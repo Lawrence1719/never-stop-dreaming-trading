@@ -131,6 +131,10 @@ export interface Order {
   deliveredAt?: string;
   confirmedByCustomerAt?: string;
   autoConfirmed?: boolean;
+  hasRated?: boolean;
+  rating?: number | null;
+  reviewText?: string | null;
+  ratedAt?: string | null;
 }
 
 export interface Profile {

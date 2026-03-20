@@ -7,10 +7,11 @@ import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { Order } from "@/lib/types";
 import { formatPrice, formatDate } from "@/lib/utils/formatting";
-import { ChevronLeft, Download, CheckCircle, Clock } from 'lucide-react';
+import { ChevronLeft, Download, CheckCircle, Clock, Star } from 'lucide-react';
 import { useAuth } from "@/lib/context/auth-context";
 import { supabase } from "@/lib/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { RatingModal } from "@/components/orders/RatingModal";
 
 const statusColors = {
   pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
@@ -31,6 +32,11 @@ export default function OrderDetailsPage({ params }: { params: Promise<{ orderId
   const [error, setError] = useState<string | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
   const [daysUntilAutoConfirm, setDaysUntilAutoConfirm] = useState<number | null>(null);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+
+  const handleRatingSuccess = (rating: number, reviewText: string) => {
+    setOrder(prev => prev ? { ...prev, hasRated: true, rating, reviewText, ratedAt: new Date().toISOString() } : null);
+  };
 
   useEffect(() => {
     const fetchOrder = async () => {
@@ -212,7 +218,7 @@ export default function OrderDetailsPage({ params }: { params: Promise<{ orderId
           </div>
 
           {/* Customer Confirmation Section */}
-          {order.status === 'delivered' && !order.confirmedByCustomerAt && order.deliveredAt && (
+          {order.status === 'delivered' && !order.confirmedByCustomerAt && !order.autoConfirmed && order.deliveredAt && (
             <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 border-2 border-green-200 dark:border-green-800 rounded-lg p-6 mb-8">
               <div className="flex items-start gap-4">
                 <div className="flex-shrink-0 w-12 h-12 bg-green-100 dark:bg-green-900/50 rounded-full flex items-center justify-center">
@@ -253,23 +259,53 @@ export default function OrderDetailsPage({ params }: { params: Promise<{ orderId
           )}
 
           {/* Confirmation Status - After Confirmed */}
-          {order.confirmedByCustomerAt && (
-            <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-lg p-6 mb-8">
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0 w-10 h-10 bg-emerald-100 dark:bg-emerald-900/50 rounded-full flex items-center justify-center">
-                  <CheckCircle className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+          {(order.confirmedByCustomerAt || order.autoConfirmed) && (
+            <div className={`border rounded-lg p-6 mb-8 ${order.hasRated ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800' : 'bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border-2 border-blue-200 dark:border-blue-800'}`}>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center ${order.hasRated ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400' : 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400'}`}>
+                  {order.hasRated ? <CheckCircle className="w-6 h-6" /> : <Star className="w-6 h-6" />}
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-bold text-emerald-900 dark:text-emerald-100 mb-1">
-                    {order.autoConfirmed ? 'Order Completed' : 'Receipt Confirmed'}
-                  </h3>
-                  <p className="text-sm text-emerald-800 dark:text-emerald-200">
-                    {order.autoConfirmed 
-                      ? `Auto-confirmed on ${formatDate(order.confirmedByCustomerAt)}`
-                      : `You confirmed receipt on ${formatDate(order.confirmedByCustomerAt)}`
-                    }
-                  </p>
+                  {order.hasRated ? (
+                    <>
+                      <h3 className="font-bold text-emerald-900 dark:text-emerald-100 mb-1">
+                        Thanks for your feedback!
+                      </h3>
+                      <div className="flex items-center gap-1 mb-2">
+                        {[1, 2, 3, 4, 5].map(star => (
+                           <Star key={star} className={`w-4 h-4 ${star <= (order.rating || 0) ? "fill-yellow-400 text-yellow-400" : "text-emerald-200 dark:text-emerald-800 hidden"}`} />
+                        ))}
+                      </div>
+                      <p className="text-sm text-emerald-800 dark:text-emerald-200 mt-1">
+                        {order.autoConfirmed 
+                          ? `Auto-confirmed on ${formatDate(order.confirmedByCustomerAt || order.date)}`
+                          : `You confirmed receipt on ${formatDate(order.confirmedByCustomerAt || order.date)}`
+                        }
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <h3 className="text-lg font-bold text-blue-900 dark:text-blue-100 mb-2">
+                        You received this order! How was it?
+                      </h3>
+                      <p className="text-sm text-blue-800 dark:text-blue-200 mb-4 sm:mb-0">
+                        {order.autoConfirmed 
+                          ? `Order was auto-confirmed on ${formatDate(order.confirmedByCustomerAt || order.date)}.`
+                          : `You confirmed receipt on ${formatDate(order.confirmedByCustomerAt || order.date)}.`
+                        } Share your experience to help others!
+                      </p>
+                    </>
+                  )}
                 </div>
+                {!order.hasRated && (
+                  <button
+                    onClick={() => setShowRatingModal(true)}
+                    className="w-full sm:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Star className="w-5 h-5 fill-current" />
+                    Rate This Order
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -363,6 +399,14 @@ export default function OrderDetailsPage({ params }: { params: Promise<{ orderId
             </div>
           </div>
         </div>
+        {showRatingModal && (
+          <RatingModal
+            orderId={order.id}
+            isOpen={showRatingModal}
+            onClose={() => setShowRatingModal(false)}
+            onSuccess={handleRatingSuccess}
+          />
+        )}
       </main>
 
       <Footer />

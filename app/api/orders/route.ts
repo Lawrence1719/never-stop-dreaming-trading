@@ -39,7 +39,8 @@ export async function GET(request: NextRequest) {
       .from('orders')
       .select(`
         *,
-        shipping_address:addresses!shipping_address_id(*)
+        shipping_address:addresses!shipping_address_id(*),
+        reviews(id, rating, comment, created_at)
       `)
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
@@ -120,9 +121,12 @@ export async function GET(request: NextRequest) {
         paymentMethod: row.payment_method || 'card',
         shippingMethod: shippingMethodDisplay,
         trackingNumber: row.tracking_number || null,
-        deliveredAt: row.delivered_at || null,
         confirmedByCustomerAt: row.confirmed_by_customer_at || null,
         autoConfirmed: row.auto_confirmed || false,
+        hasRated: row.reviews && row.reviews.length > 0,
+        rating: row.reviews?.[0]?.rating || null,
+        reviewText: row.reviews?.[0]?.comment || null,
+        ratedAt: row.reviews?.[0]?.created_at || null,
       };
     });
 
