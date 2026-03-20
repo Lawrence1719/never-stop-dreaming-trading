@@ -12,13 +12,24 @@ export interface ProductVariant {
   updated_at?: string;
 }
 
+export interface ProductImage {
+  id: string;
+  product_id: string;
+  storage_path: string;
+  sort_order: number;
+  is_primary: boolean;
+  created_at?: string;
+}
+
 // Product: base product information only (price/stock moved to variants)
 export interface Product {
   id: string;
   name: string;
   slug: string;
   description: string;
-  images: string[];
+  image_url?: string; // Legacy support
+  images?: string[]; // Legacy support or for synthesized objects
+  product_images?: ProductImage[]; // New related table
   category: string;
   is_active?: boolean;
   created_at?: string;
@@ -42,6 +53,7 @@ export interface Product {
   stock?: number;
   sku?: string;
   compareAtPrice?: number;
+  reorder_threshold?: number;
   
   // Optional IoT metadata for refrigerated / frozen items
   iot?: {

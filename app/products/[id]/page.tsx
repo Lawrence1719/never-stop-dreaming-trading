@@ -58,6 +58,9 @@ export default function ProductDetailPage() {
               stock,
               sku,
               is_active
+            ),
+            product_images (
+              *
             )
           `)
           .eq('id', id)
@@ -81,11 +84,18 @@ export default function ProductDetailPage() {
             description: data.description || '',
             price: Number(data.price) || 0,
             compareAtPrice: data.compare_at_price ? Number(data.compare_at_price) : undefined,
-            images: data.image_url 
-              ? (Array.isArray(data.image_url) ? data.image_url : [data.image_url])
-              : data.images 
-              ? (Array.isArray(data.images) ? data.images : [data.images])
-              : [],
+            images: data.product_images?.length > 0
+              ? data.product_images
+                  .sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0))
+                  .map((img: any) => 
+                    img.storage_path.startsWith('http') 
+                      ? img.storage_path 
+                      : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-images/${img.storage_path}`
+                  )
+              : data.image_url 
+                ? (Array.isArray(data.image_url) ? data.image_url : [data.image_url])
+                : [],
+            product_images: data.product_images || [],
             category: data.category || '',
             stock: data.stock ?? 0,
             sku: data.sku || '',
@@ -109,29 +119,43 @@ export default function ProductDetailPage() {
           }
         }
         
-        // Fetch all products for recommendations
+        // Fetch all products for recommendations (including variants for correct pricing)
         const { data: allData, error: allError } = await supabase
           .from('products')
-          .select('*')
+          .select(`
+            *,
+            product_variants (
+              id,
+              variant_label,
+              price,
+              stock,
+              sku,
+              is_active
+            )
+          `)
           .order('created_at', { ascending: false });
           
         if (!allError && allData && mounted) {
-          const allMapped = allData.map((row: any) => ({
-            id: row.id,
-            name: row.name,
-            slug: row.slug || row.id,
-            description: row.description || '',
-            price: Number(row.price) || 0,
-            compareAtPrice: row.compare_at_price ? Number(row.compare_at_price) : undefined,
-            images: row.image_url ? [row.image_url] : [],
-            category: row.category || '',
-            stock: row.stock ?? 0,
-            sku: row.sku || '',
-            rating: row.rating ?? 0,
-            reviewCount: row.review_count ?? 0,
-            featured: row.featured ?? false,
-            specifications: row.specifications || {},
-          })) as Product[];
+          const allMapped = allData.map((row: any) => {
+            const rowVariants = row.product_variants?.filter((v: any) => v.is_active) || [];
+            return {
+              id: row.id,
+              name: row.name,
+              slug: row.slug || row.id,
+              description: row.description || '',
+              price: Number(row.price) || 0,
+              compareAtPrice: row.compare_at_price ? Number(row.compare_at_price) : undefined,
+              images: row.image_url ? (Array.isArray(row.image_url) ? row.image_url : [row.image_url]) : [],
+              category: row.category || '',
+              stock: row.stock ?? 0,
+              sku: row.sku || '',
+              rating: row.rating ?? 0,
+              reviewCount: row.review_count ?? 0,
+              featured: row.featured ?? false,
+              specifications: row.specifications || {},
+              variants: rowVariants,
+            };
+          }) as Product[];
           
           setProducts(allMapped);
         }
@@ -237,12 +261,7 @@ export default function ProductDetailPage() {
             </div>
             {/* Related Products Skeleton */}
             <div className="border-t border-border pt-16">
-              <div className="h-8 w-1/4 bg-muted rounded mb-4 animate-pulse" />
-              <div className="grid grid-cols-4 gap-4">
-                {[...Array(4)].map((_, i) => (
-                  <div key={i} className="bg-muted rounded-lg h-40 w-full animate-pulse" />
-                ))}
-              </div>
+              <ProductGrid products={[]} loading={true} title="Related Products" skeletonCount={4} />
             </div>
           </div>
         </main>
@@ -285,7 +304,7 @@ export default function ProductDetailPage() {
 
   const relatedProducts = products.filter((p) => p.category === product.category && p.id !== product.id);
   const inWishlist = isInWishlist(product.id);
-  const discount = product.compareAtPrice
+  const discount = product.compareAtPrice && product.price
     ? Math.round(((product.compareAtPrice - product.price) / product.compareAtPrice) * 100)
     : null;
 
@@ -300,7 +319,7 @@ export default function ProductDetailPage() {
     }
     
     // Add product with selected variant info
-    addItem(product, quantity, selectedVariant);
+    addItem(product, quantity, selectedVariant || undefined);
     toast({
       title: "Added to cart",
       description: `${quantity} ${quantity === 1 ? 'item' : 'items'} added successfully${selectedVariant ? ` (${selectedVariant.variant_label})` : ''}`,
@@ -360,7 +379,7 @@ export default function ProductDetailPage() {
           <div className="grid grid-cols-1 lg:grid-cols-[60%_40%] gap-8 lg:gap-12 mb-16 pb-8">
             {/* Images - Larger on desktop (60%) */}
             <div className="lg:sticky lg:top-8 lg:self-start">
-              <ProductImageGallery images={product.images} productName={product.name} />
+              <ProductImageGallery images={product.images || []} productName={product.name} />
             </div>
 
             {/* Details - Right column (40%) */}
@@ -383,7 +402,7 @@ export default function ProductDetailPage() {
                     </div>
                     {/* Product Badges */}
                     <ProductBadges
-                      stock={product.stock}
+                      stock={selectedVariant?.stock ?? product.stock ?? 0}
                       reorderThreshold={product.reorder_threshold}
                       featured={product.featured}
                       purchaseCount={product.reviewCount * 10}
@@ -407,16 +426,16 @@ export default function ProductDetailPage() {
                 <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 space-y-2">
                   <div className="flex items-baseline gap-3">
                     <span className="text-3xl md:text-4xl font-bold text-primary">
-                      {formatPrice(selectedVariant?.price || product.price || 0)}
+                      {formatPrice(selectedVariant?.price ?? product.price ?? 0)}
                     </span>
                     {product.compareAtPrice && (
                       <>
                         <span className="text-lg text-muted-foreground line-through">
                           {formatPrice(product.compareAtPrice)}
                         </span>
-                        {((product.compareAtPrice - (selectedVariant?.price || product.price)) / product.compareAtPrice * 100) > 0 && (
+                        {((product.compareAtPrice - (selectedVariant?.price ?? product.price ?? 0)) / product.compareAtPrice * 100) > 0 && (
                           <span className="text-sm font-bold text-accent bg-accent/20 px-2 py-1 rounded">
-                            Save {Math.round(((product.compareAtPrice - (selectedVariant?.price || product.price)) / product.compareAtPrice) * 100)}%
+                            Save {Math.round(((product.compareAtPrice - (selectedVariant?.price ?? product.price ?? 0)) / product.compareAtPrice) * 100)}%
                           </span>
                         )}
                       </>
@@ -424,7 +443,7 @@ export default function ProductDetailPage() {
                   </div>
                   {product.compareAtPrice && (
                     <p className="text-sm text-muted-foreground">
-                      Save {formatPrice(product.compareAtPrice - (selectedVariant?.price || product.price))} vs regular price
+                      Save {formatPrice(product.compareAtPrice - (selectedVariant?.price ?? product.price ?? 0))} vs regular price
                     </p>
                   )}
                 </div>
@@ -433,7 +452,7 @@ export default function ProductDetailPage() {
                 {variants.length > 0 && (
                   <VariantSelector 
                     variants={variants}
-                    selectedVariant={selectedVariant}
+                    selectedVariant={selectedVariant || undefined}
                     onVariantChange={setSelectedVariant}
                   />
                 )}
@@ -441,7 +460,7 @@ export default function ProductDetailPage() {
                 {/* Stock Status Card */}
                 <div className="bg-secondary/10 border border-border rounded-lg p-4">
                   <StockIndicator 
-                    stock={selectedVariant?.stock || product.stock} 
+                    stock={selectedVariant?.stock ?? product.stock ?? 0} 
                     reorderThreshold={product.reorder_threshold}
                     showDetailed={true}
                   />
@@ -588,16 +607,22 @@ export default function ProductDetailPage() {
           </div>
 
           {/* Product Details Accordion */}
-          <div className="mb-16 bg-card border border-border rounded-lg p-6">
+          <div className="mb-10 bg-card border border-border rounded-lg p-6">
             <h2 className="text-2xl font-bold mb-6">Product Details</h2>
-            <ProductDetailsAccordion product={product} />
+            <ProductDetailsAccordion 
+              key={product.id}
+              product={product as any} 
+              defaultValue="description" 
+            />
           </div>
 
           {/* Customer Reviews */}
-          <ProductReviews product={product} />
+          <div className="mb-10">
+            <ProductReviews product={product} />
+          </div>
 
           {/* Product Recommendations */}
-          <div className="space-y-12">
+          <div className="space-y-8">
             {/* Frequently Bought Together */}
             <ProductRecommendations
               currentProduct={product}
@@ -627,7 +652,7 @@ export default function ProductDetailPage() {
       {/* Sticky Add to Cart (Mobile Only) */}
       {product && (
         <StickyAddToCart
-          product={product}
+          product={product as any}
           quantity={quantity}
           onQuantityChange={setQuantity}
           onAddToCart={handleAddToCart}

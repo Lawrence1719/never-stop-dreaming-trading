@@ -12,13 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   getProvinces,
@@ -281,25 +275,15 @@ export function AddressDialog({
               <Label htmlFor="province">
                 Province <span className="text-destructive">*</span>
               </Label>
-              <Select
+              <SearchableSelect
+                options={geoProvinces.map(p => ({ value: p.code, label: p.name }))}
                 value={formData.provinceCode}
                 onValueChange={handleProvinceChange}
                 disabled={isLoadingProvinces}
-              >
-                <SelectTrigger
-                  id="province"
-                  className={errors.province ? "border-destructive text-left h-auto py-2" : "text-left h-auto py-2"}
-                >
-                  <SelectValue placeholder={isLoadingProvinces ? "Loading..." : "Select province"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {geoProvinces.map((province) => (
-                    <SelectItem key={province.code} value={province.code}>
-                      {province.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder={isLoadingProvinces ? "Loading..." : "Select province"}
+                searchPlaceholder="Search province..."
+                triggerClassName={errors.province ? "border-destructive h-auto py-2" : "h-auto py-2"}
+              />
               {errors.province && (
                 <p className="text-sm text-destructive">{errors.province}</p>
               )}
@@ -309,25 +293,15 @@ export function AddressDialog({
               <Label htmlFor="city">
                 City / Municipality <span className="text-destructive">*</span>
               </Label>
-              <Select
+              <SearchableSelect
+                options={geoCities.map(c => ({ value: c.code, label: c.name }))}
                 value={formData.cityCode}
                 onValueChange={handleCityChange}
                 disabled={!formData.provinceCode || isLoadingCities}
-              >
-                <SelectTrigger
-                  id="city"
-                  className={errors.city ? "border-destructive text-left h-auto py-2" : "text-left h-auto py-2"}
-                >
-                  <SelectValue placeholder={!formData.provinceCode ? "Select province first" : isLoadingCities ? "Loading..." : "Select city"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {geoCities.map((city) => (
-                    <SelectItem key={city.code} value={city.code}>
-                      {city.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder={!formData.provinceCode ? "Select province first" : isLoadingCities ? "Loading..." : "Select city"}
+                searchPlaceholder="Search city/municipality..."
+                triggerClassName={errors.city ? "border-destructive h-auto py-2" : "h-auto py-2"}
+              />
               {errors.city && (
                 <p className="text-sm text-destructive">{errors.city}</p>
               )}
@@ -339,25 +313,15 @@ export function AddressDialog({
               <Label htmlFor="barangay">
                 Barangay <span className="text-destructive">*</span>
               </Label>
-              <Select
+              <SearchableSelect
+                options={geoBarangays.map(b => ({ value: b.code, label: b.name }))}
                 value={formData.barangayCode}
                 onValueChange={handleBarangayChange}
                 disabled={!formData.cityCode || isLoadingBarangays}
-              >
-                <SelectTrigger
-                  id="barangay"
-                  className={errors.barangay ? "border-destructive text-left h-auto py-2" : "text-left h-auto py-2"}
-                >
-                  <SelectValue placeholder={!formData.cityCode ? "Select city first" : isLoadingBarangays ? "Loading..." : "Select barangay"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {geoBarangays.map((brgy) => (
-                    <SelectItem key={brgy.code} value={brgy.code}>
-                      {brgy.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder={!formData.cityCode ? "Select city first" : isLoadingBarangays ? "Loading..." : "Select barangay"}
+                searchPlaceholder="Search barangay..."
+                triggerClassName={errors.barangay ? "border-destructive h-auto py-2" : "h-auto py-2"}
+              />
               {errors.barangay && (
                 <p className="text-sm text-destructive">{errors.barangay}</p>
               )}

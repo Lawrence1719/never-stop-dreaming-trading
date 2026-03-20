@@ -12,9 +12,10 @@ interface ProductDetailsAccordionProps {
     stock: number;
     category: string;
   };
+  defaultValue?: string;
 }
 
-export function ProductDetailsAccordion({ product }: ProductDetailsAccordionProps) {
+export function ProductDetailsAccordion({ product, defaultValue }: ProductDetailsAccordionProps) {
   // Extract food-specific details from specifications
   const ingredients = product.specifications?.ingredients || product.specifications?.Ingredients || '';
   const nutrition = product.specifications?.nutrition || product.specifications?.Nutrition || '';
@@ -24,7 +25,7 @@ export function ProductDetailsAccordion({ product }: ProductDetailsAccordionProp
   const allergens = product.specifications?.allergens || product.specifications?.Allergens || '';
 
   return (
-    <Accordion type="single" collapsible className="w-full">
+    <Accordion type="single" collapsible className="w-full" defaultValue={defaultValue}>
       {/* Description */}
       <AccordionItem value="description">
         <AccordionTrigger className="text-left">

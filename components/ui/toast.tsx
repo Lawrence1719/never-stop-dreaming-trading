@@ -29,13 +29,13 @@ const toastVariants = cva(
       variant: {
         default: "border bg-background text-foreground shadow-lg backdrop-blur-sm",
         destructive:
-          "destructive group border-destructive bg-destructive/10 text-destructive-foreground dark:bg-destructive/20 border-l-4 border-l-destructive shadow-sm",
+          "destructive group border-red-500 bg-red-600 text-white shadow-lg",
         success:
-          "success group border-green-500/20 bg-green-500/10 dark:bg-green-500/20 text-green-700 dark:text-green-300 border-l-4 border-l-green-500 shadow-sm",
+          "success group border-green-500 bg-green-600 text-white shadow-lg",
         warning:
-          "warning group border-yellow-500/20 bg-yellow-500/10 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-300 border-l-4 border-l-yellow-500 shadow-sm",
+          "warning group border-orange-400 bg-orange-500 text-white shadow-lg",
         info:
-          "info group border-blue-500/20 bg-blue-500/10 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 border-l-4 border-l-blue-500 shadow-sm",
+          "info group border-blue-500 bg-blue-600 text-white shadow-lg",
       },
     },
     defaultVariants: {
@@ -50,10 +50,10 @@ const Toast = React.forwardRef<
     VariantProps<typeof toastVariants>
 >(({ className, variant, children, ...props }, ref) => {
   const Icon = {
-    success: <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />,
-    warning: <AlertTriangle className="h-5 w-5 text-yellow-500 shrink-0" />,
-    destructive: <AlertCircle className="h-5 w-5 text-destructive shrink-0" />,
-    info: <Info className="h-5 w-5 text-blue-500 shrink-0" />,
+    success: <CheckCircle2 className="h-5 w-5 text-white shrink-0" />,
+    warning: <AlertTriangle className="h-5 w-5 text-white shrink-0" />,
+    destructive: <AlertCircle className="h-5 w-5 text-white shrink-0" />,
+    info: <Info className="h-5 w-5 text-white shrink-0" />,
     default: null,
   }[variant || "default"]
 
@@ -91,10 +91,10 @@ const ToastClose = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Close>,
   React.ComponentPropsWithoutRef<typeof ToastPrimitives.Close>
 >(({ className, ...props }, ref) => (
-  <ToastPrimitives.Close
+    <ToastPrimitives.Close
     ref={ref}
     className={cn(
-      "absolute right-2 top-2 rounded-md p-1 text-foreground/50 opacity-0 transition-opacity hover:text-foreground focus:opacity-100 focus:outline-none focus:ring-2 group-hover:opacity-100 group-[.destructive]:text-red-300 group-[.destructive]:hover:text-red-50 group-[.destructive]:focus:ring-red-400 group-[.destructive]:focus:ring-offset-red-600 group-[.success]:text-green-700 group-[.success]:hover:text-green-900 group-[.success]:dark:text-green-300 group-[.success]:dark:hover:text-green-50 group-[.warning]:text-yellow-700 group-[.warning]:hover:text-yellow-900 group-[.warning]:dark:text-yellow-300 group-[.warning]:dark:hover:text-yellow-50",
+      "absolute right-2 top-2 rounded-md p-1 text-white/50 opacity-0 transition-opacity hover:text-white focus:opacity-100 focus:outline-none focus:ring-2 group-hover:opacity-100 group-[.default]:text-foreground/50 group-[.default]:hover:text-foreground",
       className
     )}
     toast-close=""

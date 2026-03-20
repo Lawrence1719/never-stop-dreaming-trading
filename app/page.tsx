@@ -11,9 +11,11 @@ import { supabase } from '@/lib/supabase/client';
 
 export default function Home() {
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchFeaturedProducts = async () => {
+      setIsLoading(true);
       try {
         // Try fetching from public API first
         const res = await fetch('/api/public/products');
@@ -39,6 +41,7 @@ export default function Home() {
               })) as Product[];
 
             setFeaturedProducts(mapped);
+            setIsLoading(false);
             return;
           }
         }
@@ -52,6 +55,7 @@ export default function Home() {
 
         if (error) {
           console.error('Supabase error:', error);
+          setIsLoading(false);
           return;
         }
 
@@ -76,6 +80,8 @@ export default function Home() {
         }
       } catch (err) {
         console.error('Failed to fetch featured products:', err);
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -117,7 +123,12 @@ export default function Home() {
 
         {/* Featured Products */}
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <ProductGrid products={featuredProducts} title="Featured Products" />
+          <ProductGrid 
+            products={featuredProducts} 
+            title="Featured Products" 
+            loading={isLoading}
+            skeletonCount={8}
+          />
         </section>
 
         {/* Categories Section */}

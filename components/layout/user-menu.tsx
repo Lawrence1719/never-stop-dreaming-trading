@@ -96,8 +96,8 @@ export function UserMenu() {
           <Loader2 className="w-4 h-4 animate-spin" />
         ) : (
           <>
-            {user.name.split(" ")[0]}
-            <ChevronDown className="w-4 h-4" />
+            <span className="max-w-[120px] truncate">{user.name}</span>
+            <ChevronDown className="w-4 h-4 shrink-0" />
           </>
         )}
       </button>

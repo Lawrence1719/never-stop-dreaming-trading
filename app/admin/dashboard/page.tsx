@@ -93,11 +93,11 @@ export default function AdminDashboard() {
             `HTTP ${res.status}: ${res.statusText}` ||
             'Failed to load dashboard data';
           
-          console.error('Dashboard API error:', {
+          console.error('Dashboard API error detail:', {
             status: res.status,
             statusText: res.statusText,
-            message: errorMessage,
-            payload,
+            errorMessage: errorMessage,
+            payload: JSON.stringify(payload) // Ensure payload is logged as string if object logging fails
           });
           
           throw new Error(errorMessage);
@@ -180,6 +180,24 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-8">
+      {error && (
+        <Card className="border-destructive bg-destructive/5">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-destructive">
+              <span className="font-semibold">Error Loading Dashboard:</span>
+              <span>{error}</span>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setDateRange(prev => prev)} // Trigger reload
+                className="ml-auto"
+              >
+                Retry
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>

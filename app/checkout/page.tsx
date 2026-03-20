@@ -29,6 +29,9 @@ import {
   getProvinces,
   getCitiesByProvince,
   getBarangaysByCity,
+  findProvinceByName,
+  findCityByName,
+  findBarangayByName,
   PSGCProvince,
   PSGCCityMunicipality,
   PSGCBarangay
@@ -36,6 +39,7 @@ import {
 import { getZipCodesForCity } from "@/lib/data/philippines-zip-codes";
 import { ChevronLeft } from 'lucide-react';
 import { formatPrice } from '@/lib/utils/formatting';
+import { SearchableSelect } from "@/components/ui/searchable-select";
 
 function CheckoutPageContent() {
   const router = useRouter();
@@ -368,8 +372,38 @@ function CheckoutPageContent() {
         if (!mounted) return;
         setAddresses(data || []);
         const def = (data || []).find((a: any) => a.is_default);
+        
         if (def) {
-          setSelectedAddressId(def.id);
+          // Repair missing codes for legacy addresses
+          let pCode = def.province_code || "";
+          let cCode = def.city_code || "";
+          let bCode = def.barangay_code || "";
+
+          const repairCodes = async () => {
+            try {
+              if (!pCode && def.province) {
+                pCode = await findProvinceByName(def.province) || "";
+              }
+              if (pCode && !cCode && def.city) {
+                cCode = await findCityByName(pCode, def.city) || "";
+              }
+              if (cCode && !bCode && def.barangay) {
+                bCode = await findBarangayByName(cCode, def.barangay) || "";
+              }
+              
+              if (mounted) {
+                setFormData(prev => ({
+                  ...prev,
+                  provinceCode: pCode,
+                  cityCode: cCode,
+                  barangayCode: bCode,
+                }));
+              }
+            } catch (err) {
+              console.warn('Failed to repair address codes:', err);
+            }
+          };
+
           setFormData((prev) => ({
             ...prev,
             fullName: def.full_name,
@@ -377,13 +411,17 @@ function CheckoutPageContent() {
             phone: def.phone,
             street: def.street_address,
             city: def.city,
-            cityCode: def.city_code || "",
+            cityCode: cCode,
             province: def.province,
-            provinceCode: def.province_code || "", 
+            provinceCode: pCode, 
             barangay: def.barangay || "",
-            barangayCode: def.barangay_code || "",
+            barangayCode: bCode,
             zip: def.zip_code,
           }));
+
+          if (!pCode || !cCode || !bCode) {
+            repairCodes();
+          }
         }
       } catch (err) {
         // eslint-disable-next-line no-console
@@ -916,22 +954,25 @@ function CheckoutPageContent() {
 
                     {/* Saved Addresses Dropdown */}
                     {user && addresses.length > 0 && (
-                      <div>
-                        <label className="block text-sm font-medium mb-1">Saved Addresses</label>
-                        <select
-                          className="w-full px-4 py-2 bg-input border border-border rounded-md"
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium">Saved Addresses</label>
+                        <SearchableSelect
+                          options={addresses.map((a) => ({ 
+                            value: a.id, 
+                            label: `${a.full_name} — ${a.street_address}` 
+                          }))}
                           value={selectedAddressId || ""}
-                          onChange={(e) => {
-                            const id = e.target.value || null;
+                          placeholder="Use different address"
+                          searchPlaceholder="Search saved addresses..."
+                          onValueChange={(val) => {
+                            const id = val || null;
                             setSelectedAddressId(id);
                             if (!id) {
-                              // When deselecting, reset saveAsDefault to true for new address
                               setSaveAsDefault(true);
                               return;
                             }
                             const a = addresses.find((ad) => ad.id === id);
                             if (a) {
-                              // Update form data with selected address
                               setFormData((prev) => ({
                                 ...prev,
                                 fullName: a.full_name,
@@ -946,16 +987,10 @@ function CheckoutPageContent() {
                                 barangayCode: a.barangay_code || "",
                                 zip: a.zip_code,
                               }));
-                              // Set saveAsDefault based on whether this address is the default
                               setSaveAsDefault(a.is_default || false);
                             }
                           }}
-                        >
-                          <option value="">Use different address</option>
-                          {addresses.map((a) => (
-                            <option key={a.id} value={a.id}>{a.full_name} — {a.street_address}</option>
-                          ))}
-                        </select>
+                        />
                       </div>
                     )}
 
@@ -1049,29 +1084,17 @@ function CheckoutPageContent() {
                           <label className="block text-sm font-medium mb-1">
                             Province <span className="text-destructive">*</span>
                           </label>
-                          <div className="relative">
-                            <select
-                              name="province"
-                              value={formData.provinceCode}
-                              onChange={handleProvinceChange}
-                              onBlur={handleBlur}
-                              disabled={isLoadingProvinces}
-                              className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${(errors.province && (touched.province || formSubmitted)) ? "border-destructive border-2" : "border-border"
-                                } ${isLoadingProvinces ? "opacity-50" : ""}`}
-                            >
-                              <option value="">{isLoadingProvinces ? "Loading..." : "Select Province"}</option>
-                              {geoProvinces.map((prov) => (
-                                <option key={prov.code} value={prov.code}>
-                                  {prov.name}
-                                </option>
-                              ))}
-                            </select>
-                            {isLoadingProvinces && (
-                              <div className="absolute right-8 top-1/2 -translate-y-1/2">
-                                <span className="animate-spin inline-block w-4 h-4 border-2 border-primary border-t-transparent rounded-full"></span>
-                              </div>
-                            )}
-                          </div>
+                          <SearchableSelect
+                            options={geoProvinces.map(p => ({ value: p.code, label: p.name }))}
+                            value={formData.provinceCode}
+                            onValueChange={(val) => {
+                              handleProvinceChange({ target: { value: val } } as any);
+                            }}
+                            disabled={isLoadingProvinces}
+                            placeholder={isLoadingProvinces ? "Loading..." : "Select Province"}
+                            searchPlaceholder="Search province..."
+                            triggerClassName={(errors.province && (touched.province || formSubmitted)) ? "border-destructive border-2" : "border-border"}
+                          />
                           {errors.province && (touched.province || formSubmitted) && (
                             <p className="text-xs text-destructive mt-1">{errors.province}</p>
                           )}
@@ -1081,31 +1104,17 @@ function CheckoutPageContent() {
                           <label className="block text-sm font-medium mb-1">
                             City / Municipality <span className="text-destructive">*</span>
                           </label>
-                          <div className="relative">
-                            <select
-                              name="city"
-                              value={formData.cityCode}
-                              onChange={handleCityChange}
-                              onBlur={handleBlur}
-                              disabled={!formData.provinceCode || isLoadingCities}
-                              className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${(errors.city && (touched.city || formSubmitted)) ? "border-destructive border-2" : "border-border"
-                                } ${(!formData.provinceCode || isLoadingCities) ? "opacity-50 cursor-not-allowed" : ""}`}
-                            >
-                              <option value="">
-                                {!formData.provinceCode ? "Select province first" : isLoadingCities ? "Loading..." : "Select City"}
-                              </option>
-                              {geoCities.map((city) => (
-                                <option key={city.code} value={city.code}>
-                                  {city.name}
-                                </option>
-                              ))}
-                            </select>
-                            {isLoadingCities && (
-                              <div className="absolute right-8 top-1/2 -translate-y-1/2">
-                                <span className="animate-spin inline-block w-4 h-4 border-2 border-primary border-t-transparent rounded-full"></span>
-                              </div>
-                            )}
-                          </div>
+                          <SearchableSelect
+                            options={geoCities.map(c => ({ value: c.code, label: c.name }))}
+                            value={formData.cityCode}
+                            onValueChange={(val) => {
+                              handleCityChange({ target: { value: val } } as any);
+                            }}
+                            disabled={!formData.provinceCode || isLoadingCities}
+                            placeholder={!formData.provinceCode ? "Select province first" : isLoadingCities ? "Loading..." : "Select City"}
+                            searchPlaceholder="Search city/municipality..."
+                            triggerClassName={(errors.city && (touched.city || formSubmitted)) ? "border-destructive border-2" : "border-border"}
+                          />
                           {errors.city && (touched.city || formSubmitted) && (
                             <p className="text-xs text-destructive mt-1">{errors.city}</p>
                           )}
@@ -1117,31 +1126,17 @@ function CheckoutPageContent() {
                           <label className="block text-sm font-medium mb-1">
                             Barangay <span className="text-destructive">*</span>
                           </label>
-                          <div className="relative">
-                            <select
-                              name="barangay"
-                              value={formData.barangayCode}
-                              onChange={handleBarangayChange}
-                              onBlur={handleBlur}
-                              disabled={!formData.cityCode || isLoadingBarangays}
-                              className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${(errors.barangay && (touched.barangay || formSubmitted)) ? "border-destructive border-2" : "border-border"
-                                } ${(!formData.cityCode || isLoadingBarangays) ? "opacity-50 cursor-not-allowed" : ""}`}
-                            >
-                              <option value="">
-                                {!formData.cityCode ? "Select city first" : isLoadingBarangays ? "Loading..." : "Select Barangay"}
-                              </option>
-                              {geoBarangays.map((brgy) => (
-                                <option key={brgy.code} value={brgy.code}>
-                                  {brgy.name}
-                                </option>
-                              ))}
-                            </select>
-                            {isLoadingBarangays && (
-                              <div className="absolute right-8 top-1/2 -translate-y-1/2">
-                                <span className="animate-spin inline-block w-4 h-4 border-2 border-primary border-t-transparent rounded-full"></span>
-                              </div>
-                            )}
-                          </div>
+                          <SearchableSelect
+                            options={geoBarangays.map(b => ({ value: b.code, label: b.name }))}
+                            value={formData.barangayCode}
+                            onValueChange={(val) => {
+                              handleBarangayChange({ target: { value: val } } as any);
+                            }}
+                            disabled={!formData.cityCode || isLoadingBarangays}
+                            placeholder={!formData.cityCode ? "Select city first" : isLoadingBarangays ? "Loading..." : "Select Barangay"}
+                            searchPlaceholder="Search barangay..."
+                            triggerClassName={(errors.barangay && (touched.barangay || formSubmitted)) ? "border-destructive border-2" : "border-border"}
+                          />
                           {errors.barangay && (touched.barangay || formSubmitted) && (
                             <p className="text-xs text-destructive mt-1">{errors.barangay}</p>
                           )}

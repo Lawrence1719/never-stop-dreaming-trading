@@ -21,7 +21,6 @@ import { Button } from "@/components/ui/button";
 
 export default function ProductsPage() {
   const [selectedCategory, setSelectedCategory] = useState("");
-  const [selectedSubcategory, setSelectedSubcategory] = useState("");
   const [priceRange, setPriceRange] = useState([0, 10000]);
   const [sortBy, setSortBy] = useState("");
 
@@ -146,22 +145,9 @@ export default function ProductsPage() {
   const filteredProducts = useMemo(() => {
     let result = [...products];
 
-    // Filter by category + subcategory
+    // Filter by category
     if (selectedCategory) {
-      const subcats = CATEGORY_TREE[selectedCategory];
-      if (selectedSubcategory) {
-        result = result.filter((p) => p.category === selectedSubcategory);
-      } else if (subcats && subcats.length > 0) {
-        // If main category has subcategories, show items matching EITHER:
-        // - the parent category name directly, OR
-        // - any of the subcategories
-        result = result.filter((p) =>
-          p.category === selectedCategory || subcats.includes(p.category)
-        );
-      } else {
-        // No subcategories defined for this category - match directly
-        result = result.filter((p) => p.category === selectedCategory);
-      }
+      result = result.filter((p) => p.category === selectedCategory);
     }
 
     // Filter by price
@@ -179,7 +165,7 @@ export default function ProductsPage() {
     }
 
     return result;
-  }, [selectedCategory, selectedSubcategory, priceRange, sortBy, products]);
+  }, [selectedCategory, priceRange, sortBy, products]);
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -205,7 +191,6 @@ export default function ProductsPage() {
                 <button
                   onClick={() => {
                     setSelectedCategory("");
-                    setSelectedSubcategory("");
                   }}
                   className={`rounded-full px-4 py-2 border-2 font-medium transition-all whitespace-nowrap ${selectedCategory === ""
                     ? "bg-primary text-primary-foreground border-primary"
@@ -219,7 +204,6 @@ export default function ProductsPage() {
                     key={cat}
                     onClick={() => {
                       setSelectedCategory(cat);
-                      setSelectedSubcategory("");
                     }}
                     className={`rounded-full px-4 py-2 border-2 font-medium transition-all whitespace-nowrap ${selectedCategory === cat
                       ? "bg-primary text-primary-foreground border-primary"
@@ -239,11 +223,10 @@ export default function ProductsPage() {
               <ProductFilter
                 onCategoryChange={(cat) => {
                   setSelectedCategory(cat);
-                  setSelectedSubcategory("");
                 }}
-                onSubcategoryChange={(sub) => setSelectedSubcategory(sub)}
                 onPriceChange={(min, max) => setPriceRange([min, max])}
                 onSortChange={setSortBy}
+                sortBy={sortBy}
               />
             </div>
 
@@ -270,65 +253,23 @@ export default function ProductsPage() {
                     <ProductFilter
                       onCategoryChange={(cat) => {
                         setSelectedCategory(cat);
-                        setSelectedSubcategory("");
                       }}
-                      onSubcategoryChange={(sub) => setSelectedSubcategory(sub)}
                       onPriceChange={(min, max) => setPriceRange([min, max])}
                       onSortChange={setSortBy}
+                      sortBy={sortBy}
                     />
                   </div>
                 </SheetContent>
               </Sheet>
             </div>
 
-            {/* Products Grid */}
             <div className="lg:col-span-4">
-              {/* Subcategory chips (visible when category selected) */}
-              {selectedCategory && CATEGORY_TREE[selectedCategory] && (
-                <div className="mb-6 pb-6 border-b border-border">
-                  <p className="text-sm font-medium text-muted-foreground mb-3">Subcategories</p>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={() => setSelectedSubcategory("")}
-                      className={`rounded-lg px-3 py-2 text-sm font-medium transition-all border ${selectedSubcategory === ""
-                        ? "bg-primary/10 text-primary border-primary"
-                        : "border-border bg-background hover:bg-muted hover:border-primary/30"
-                        }`}
-                    >
-                      All {selectedCategory}
-                    </button>
-                    {CATEGORY_TREE[selectedCategory].map((sub) => (
-                      <button
-                        key={sub}
-                        onClick={() => setSelectedSubcategory(sub)}
-                        className={`rounded-lg px-3 py-2 text-sm font-medium transition-all border ${selectedSubcategory === sub
-                          ? "bg-primary/10 text-primary border-primary"
-                          : "border-border bg-background hover:bg-muted hover:border-primary/30"
-                          }`}
-                      >
-                        {sub}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {isLoadingProducts ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {[...Array(8)].map((_, i) => (
-                    <div key={i} className="border rounded-lg p-4 space-y-3 animate-pulse">
-                      <div className="h-40 bg-muted rounded-md" />
-                      <div className="h-4 w-3/4 bg-muted rounded" />
-                      <div className="h-4 w-1/2 bg-muted rounded" />
-                      <div className="flex items-center justify-between">
-                        <div className="h-8 w-20 bg-muted rounded" />
-                        <div className="h-8 w-12 bg-muted rounded" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : filteredProducts.length > 0 ? (
-                <ProductGrid products={filteredProducts} />
+              {filteredProducts.length > 0 || isLoadingProducts ? (
+                <ProductGrid 
+                  products={filteredProducts} 
+                  loading={isLoadingProducts} 
+                  skeletonCount={8}
+                />
               ) : (
                 <div className="text-center py-16">
                   <p className="text-xl text-muted-foreground">No products found matching your criteria.</p>

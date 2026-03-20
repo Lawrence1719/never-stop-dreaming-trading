@@ -12,37 +12,63 @@ export function ProductImageGallery({ images, productName }: ProductImageGallery
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isZoomed, setIsZoomed] = useState(false);
   const [zoomPosition, setZoomPosition] = useState({ x: 50, y: 50 });
+  const [touchStart, setTouchStart] = useState<number | null>(null);
 
   // If no images, show placeholder
-  const displayImages = images.length > 0 ? images : ["/placeholder.svg"];
+  const displayImages = images && images.length > 0 ? images : ["/placeholder.svg"];
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isZoomed) return;
+    // Zoom on hover logic
     const rect = e.currentTarget.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
     setZoomPosition({ x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) });
+    if (!isZoomed) setIsZoomed(true);
   };
 
-  const toggleZoom = () => {
-    setIsZoomed(!isZoomed);
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (touchStart === null) return;
+    const touchEnd = e.targetTouches[0].clientX;
+    const diff = touchStart - touchEnd;
+
+    // Threshold for swipe
+    if (Math.abs(diff) > 50) {
+      if (diff > 0) {
+        // Swipe left -> Next
+        setSelectedIndex((prev) => (prev < displayImages.length - 1 ? prev + 1 : 0));
+      } else {
+        // Swipe right -> Prev
+        setSelectedIndex((prev) => (prev > 0 ? prev - 1 : displayImages.length - 1));
+      }
+      setTouchStart(null);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    setTouchStart(null);
   };
 
   return (
     <div className="space-y-4">
       {/* Main Image - Larger on desktop */}
-      <div className="relative bg-muted rounded-lg overflow-hidden group">
+      <div className="relative bg-muted rounded-xl overflow-hidden group shadow-sm border border-border/50">
         <div
-          className="relative w-full aspect-square md:aspect-[4/3] cursor-zoom-in"
+          className="relative w-full aspect-square md:aspect-[4/4] cursor-crosshair overflow-hidden"
           onMouseMove={handleMouseMove}
           onMouseLeave={() => setIsZoomed(false)}
-          onClick={toggleZoom}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
         >
           <img
             src={displayImages[selectedIndex]}
             alt={productName}
-            className={`w-full h-full object-cover transition-transform duration-300 ${
-              isZoomed ? 'scale-150' : 'scale-100'
+            className={`w-full h-full object-cover transition-transform duration-200 ease-out ${
+              isZoomed ? 'scale-[2.5]' : 'scale-100'
             }`}
             style={{
               transformOrigin: isZoomed ? `${zoomPosition.x}% ${zoomPosition.y}%` : 'center',
@@ -54,39 +80,24 @@ export function ProductImageGallery({ images, productName }: ProductImageGallery
               {selectedIndex + 1} / {displayImages.length}
             </div>
           )}
-          {/* Zoom Indicator */}
-          {!isZoomed && (
-            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-              <div className="bg-black/70 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2 font-medium">
-                <ZoomIn className="w-4 h-4" />
-                Click to zoom
+          {/* Zoom Indicator (Desktop Only) */}
+          <div className="hidden md:flex absolute inset-0 pointer-events-none items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+            {!isZoomed && (
+              <div className="bg-black/40 backdrop-blur-sm text-white px-4 py-2 rounded-full text-xs flex items-center gap-2 font-medium">
+                <ZoomIn className="w-3 h-3" />
+                Hover to zoom
               </div>
-            </div>
-          )}
-          {/* Zoom Controls */}
-          {isZoomed && (
-            <div className="absolute top-4 right-4 flex gap-2">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsZoomed(false);
-                }}
-                className="bg-black/70 text-white p-2 rounded-lg hover:bg-black/90 transition-colors"
-                title="Close zoom"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-          {/* Navigation Arrows (Mobile) */}
-          {displayImages.length > 1 && (
+            )}
+          </div>
+          {/* Navigation Arrows (Visible on hover on Desktop) */}
+          {displayImages.length > 1 && !isZoomed && (
             <>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   setSelectedIndex((prev) => (prev > 0 ? prev - 1 : displayImages.length - 1));
                 }}
-                className="md:hidden absolute left-2 top-1/2 -translate-y-1/2 bg-black/70 text-white p-2 rounded-full hover:bg-black/90 active:scale-95 transition-all shadow-lg"
+                className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/90 dark:bg-black/70 text-foreground p-3 rounded-full hover:bg-white dark:hover:bg-black shadow-xl opacity-0 group-hover:opacity-100 transition-all active:scale-95"
                 aria-label="Previous image"
               >
                 <ChevronLeft className="w-5 h-5" />
@@ -96,7 +107,7 @@ export function ProductImageGallery({ images, productName }: ProductImageGallery
                   e.stopPropagation();
                   setSelectedIndex((prev) => (prev < displayImages.length - 1 ? prev + 1 : 0));
                 }}
-                className="md:hidden absolute right-2 top-1/2 -translate-y-1/2 bg-black/70 text-white p-2 rounded-full hover:bg-black/90 active:scale-95 transition-all shadow-lg"
+                className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/90 dark:bg-black/70 text-foreground p-3 rounded-full hover:bg-white dark:hover:bg-black shadow-xl opacity-0 group-hover:opacity-100 transition-all active:scale-95"
                 aria-label="Next image"
               >
                 <ChevronRight className="w-5 h-5" />
@@ -106,9 +117,9 @@ export function ProductImageGallery({ images, productName }: ProductImageGallery
         </div>
       </div>
 
-      {/* Thumbnail Gallery - Enhanced */}
+      {/* Thumbnail Gallery */}
       {displayImages.length > 1 && (
-        <div className="grid grid-cols-4 md:grid-cols-6 gap-2">
+        <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
           {displayImages.map((image, index) => (
             <button
               key={index}
@@ -116,16 +127,16 @@ export function ProductImageGallery({ images, productName }: ProductImageGallery
                 setSelectedIndex(index);
                 setIsZoomed(false);
               }}
-              className={`bg-muted rounded-lg overflow-hidden border-2 transition-all hover:scale-105 ${
+              className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 transition-all hover:scale-105 active:scale-95 ${
                 selectedIndex === index
-                  ? "border-primary ring-2 ring-primary/20 shadow-lg"
-                  : "border-transparent hover:border-primary/50"
+                  ? "border-primary ring-2 ring-primary/20 shadow-md"
+                  : "border-border hover:border-primary/50"
               }`}
             >
               <img
                 src={image}
                 alt={`${productName} view ${index + 1}`}
-                className="w-full aspect-square object-cover"
+                className="w-full h-full object-cover"
               />
             </button>
           ))}
@@ -134,10 +145,17 @@ export function ProductImageGallery({ images, productName }: ProductImageGallery
 
       {/* Mobile Swipe Indicator */}
       {displayImages.length > 1 && (
-        <div className="md:hidden flex items-center justify-center gap-2 text-sm text-muted-foreground">
-          <span>Swipe to view more images</span>
-          <span className="text-xs">
-            {selectedIndex + 1} / {displayImages.length}
+        <div className="md:hidden flex flex-col items-center justify-center gap-2 py-2">
+           <div className="flex gap-1.5">
+            {displayImages.map((_, i) => (
+              <div 
+                key={i} 
+                className={`h-1.5 rounded-full transition-all ${i === selectedIndex ? 'w-6 bg-primary' : 'w-1.5 bg-muted-foreground/30'}`} 
+              />
+            ))}
+          </div>
+          <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">
+            Swipe to view
           </span>
         </div>
       )}
