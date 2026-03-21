@@ -8,6 +8,7 @@ import { Footer } from "@/components/layout/footer";
 import { useToast } from "@/hooks/use-toast";
 import { validateEmail } from "@/lib/utils/validation";
 import { Mail } from 'lucide-react';
+import { supabase } from "@/lib/supabase/client";
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
@@ -22,7 +23,8 @@ export default function ForgotPasswordPage() {
     e.preventDefault();
     setError("");
 
-    if (!validateEmail(email)) {
+    const trimmedEmail = email.trim();
+    if (!validateEmail(trimmedEmail)) {
       setError("Please enter a valid email address");
       return;
     }
@@ -30,8 +32,13 @@ export default function ForgotPasswordPage() {
     setIsLoading(true);
 
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
+        redirectTo: `${window.location.origin}/auth/reset-password`,
+      });
+
+      if (resetError) {
+        throw new Error(resetError.message);
+      }
 
       setSubmitted(true);
       toast({
@@ -39,11 +46,11 @@ export default function ForgotPasswordPage() {
         description: "Check your email for reset link",
         variant: "success",
       });
-    } catch (err) {
-      setError("Something went wrong. Please try again.");
+    } catch (err: any) {
+      setError(err?.message || "Something went wrong. Please try again.");
       toast({
         title: "Request Failed",
-        description: "Failed to send reset link. Please try again.",
+        description: err?.message || "Failed to send reset link. Please try again.",
         variant: "destructive",
       });
     } finally {

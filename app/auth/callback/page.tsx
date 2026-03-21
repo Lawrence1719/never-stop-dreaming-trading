@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
+import { supabase } from "@/lib/supabase/client";
 
 function AuthCallbackContent() {
   const router = useRouter();
@@ -22,12 +23,36 @@ function AuthCallbackContent() {
       return;
     }
 
-    // If user state is populated, we are successfully logged in.
+    // Verify if there's a code to exchange (PKCE flow)
+    const code = searchParams.get('code');
+    if (code) {
+      supabase.auth.exchangeCodeForSession(code).then(({ error: exchangeError }) => {
+        if (exchangeError) {
+          setError(exchangeError.message);
+        } else {
+          // Successfully exchanged, meaning email is confirmed!
+          if (!hasShownToast.current) {
+            hasShownToast.current = true;
+            toast({
+              title: "Success",
+              description: "Email confirmed successfully!",
+              variant: "success",
+            });
+            setTimeout(() => {
+              router.replace('/');
+            }, 1500);
+          }
+        }
+      });
+      return;
+    }
+
+    // If user state is populated (implicit flow fallback or already logged in)
     if (user && !hasShownToast.current) {
       hasShownToast.current = true;
       toast({
         title: "Success",
-        description: "Email confirmed! Welcome to Never Stop Dreaming Trading 🎉",
+        description: "Email confirmed successfully!",
         variant: "success",
       });
       setTimeout(() => {
@@ -38,7 +63,7 @@ function AuthCallbackContent() {
     // We also give it a timeout just in case the link was invalid 
     // but didn't return an explicit error_description.
     const timeout = setTimeout(() => {
-      if (!user) {
+      if (!user && !code) {
         // Assume failure or already processed
         router.replace('/login');
       }

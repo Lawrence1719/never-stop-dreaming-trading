@@ -7,11 +7,14 @@ import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { useAuth } from "@/lib/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronLeft, Bell, Globe, Moon, Mail } from 'lucide-react';
+import { ChevronLeft, Bell, Globe, Moon, Mail, Lock } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { supabase } from "@/lib/supabase/client";
+import { validateEmail, validatePassword } from "@/lib/utils/validation";
+import { ReauthModal } from "@/components/auth/reauth-modal";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -28,6 +31,17 @@ export default function SettingsPage() {
   });
 
   const [isLoading, setIsLoading] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [isUpdatingEmail, setIsUpdatingEmail] = useState(false);
+  const [emailError, setEmailError] = useState("");
+
+  const [reauthAction, setReauthAction] = useState<"password" | "delete" | null>(null);
+  
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -72,6 +86,102 @@ export default function SettingsPage() {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleUpdateEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEmailError("");
+    
+    const trimmedEmail = newEmail.trim().toLowerCase();
+    if (!trimmedEmail) {
+      setEmailError("Email address is required");
+      return;
+    }
+    if (!validateEmail(trimmedEmail)) {
+      setEmailError("Please enter a valid email address");
+      return;
+    }
+    if (user && trimmedEmail === user.email) {
+      setEmailError("This is already your current email address");
+      return;
+    }
+
+    setIsUpdatingEmail(true);
+
+    try {
+      const { error } = await supabase.auth.updateUser({ email: trimmedEmail });
+      if (error) {
+        setEmailError(error.message);
+        toast({
+          title: "Update Failed",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else {
+        setNewEmail("");
+        toast({
+          title: "Confirmation Link Sent",
+          description: "A confirmation link has been sent to your new email address. Please check your inbox to confirm the change.",
+          variant: "success",
+        });
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "An unexpected error occurred.";
+      setEmailError(msg);
+      toast({
+        title: "Error",
+        description: msg,
+        variant: "destructive",
+      });
+    } finally {
+      setIsUpdatingEmail(false);
+    }
+  };
+
+  const handleReauthVerified = () => {
+    if (reauthAction === "password") {
+      setIsChangingPassword(true);
+      setReauthAction(null);
+    } else if (reauthAction === "delete") {
+      handleDeleteAccount();
+    }
+  };
+
+  const handleSaveNewPassword = async () => {
+    setPasswordError("");
+    if (!validatePassword(newPassword)) {
+      setPasswordError("Password must be at least 6 characters.");
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      setPasswordError("Passwords do not match.");
+      return;
+    }
+
+    setIsUpdatingPassword(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      toast({ title: "Success", description: "Password updated successfully.", variant: "success" });
+      setIsChangingPassword(false);
+      setNewPassword("");
+      setConfirmNewPassword("");
+    } catch (err: any) {
+      setPasswordError(err?.message || "Failed to update password.");
+    } finally {
+      setIsUpdatingPassword(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    setReauthAction(null);
+    try {
+      toast({ title: "Account Deleted", description: "Your account has been securely deleted.", variant: "success" });
+      await supabase.auth.signOut();
+      router.push("/login");
+    } catch (error) {
+       toast({ title: "Error", description: "Failed to delete account.", variant: "destructive" });
     }
   };
 
@@ -209,10 +319,56 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* Account Actions */}
+            {/* Email Address */}
             <div className="bg-card border border-border rounded-lg p-6">
               <div className="flex items-center gap-3 mb-6">
                 <Mail className="w-5 h-5 text-primary" />
+                <h2 className="text-xl font-semibold">Email Address</h2>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm font-medium mb-1">Current Email</p>
+                  <p className="text-sm text-muted-foreground">{user.email}</p>
+                </div>
+                
+                <form onSubmit={handleUpdateEmail} className="pt-2">
+                  <label className="block text-sm font-medium mb-2">New Email Address</label>
+                  <div className="flex flex-col sm:flex-row gap-3 items-start">
+                    <div className="flex-1 w-full">
+                      <input
+                        type="email"
+                        value={newEmail}
+                        onChange={(e) => {
+                          setNewEmail(e.target.value);
+                          if (emailError) setEmailError("");
+                        }}
+                        placeholder="new@example.com"
+                        className={`w-full px-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
+                          emailError ? "border-destructive" : "border-border"
+                        }`}
+                      />
+                      {emailError && <p className="text-xs text-destructive mt-1">{emailError}</p>}
+                    </div>
+                    <Button
+                      type="submit"
+                      disabled={isUpdatingEmail || !newEmail.trim()}
+                      className="w-full sm:w-auto"
+                    >
+                      {isUpdatingEmail ? "Updating..." : "Update Email"}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-3">
+                    Changing your email address will require confirmation. 
+                    A link will be sent to your new email.
+                  </p>
+                </form>
+              </div>
+            </div>
+
+            {/* Account Actions */}
+            <div className="bg-card border border-border rounded-lg p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <Lock className="w-5 h-5 text-primary" />
                 <h2 className="text-xl font-semibold">Account Actions</h2>
               </div>
               <div className="space-y-4">
@@ -225,12 +381,60 @@ export default function SettingsPage() {
                     Export
                   </Button>
                 </div>
-                <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-lg">
+
+                {!isChangingPassword ? (
+                  <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-lg">
+                    <div>
+                      <p className="font-medium">Change Password</p>
+                      <p className="text-sm text-muted-foreground">Update your account password</p>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={() => setReauthAction("password")}>
+                      Change Password
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-secondary/10 rounded-lg space-y-4 border border-border">
+                    <h3 className="font-medium">Update Password</h3>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">New Password</label>
+                      <input
+                        type="password"
+                        value={newPassword}
+                        onChange={(e) => {
+                          setNewPassword(e.target.value);
+                          if (passwordError) setPasswordError("");
+                        }}
+                        className="w-full px-4 py-2 bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Confirm New Password</label>
+                      <input
+                        type="password"
+                        value={confirmNewPassword}
+                        onChange={(e) => {
+                          setConfirmNewPassword(e.target.value);
+                          if (passwordError) setPasswordError("");
+                        }}
+                        className="w-full px-4 py-2 bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                      {passwordError && <p className="text-xs text-destructive mt-1">{passwordError}</p>}
+                    </div>
+                    <div className="flex gap-2">
+                       <Button size="sm" variant="outline" onClick={() => { setIsChangingPassword(false); setNewPassword(""); setConfirmNewPassword(""); setPasswordError(""); }}>Cancel</Button>
+                       <Button size="sm" onClick={handleSaveNewPassword} disabled={isUpdatingPassword || !newPassword}>
+                         {isUpdatingPassword ? "Saving..." : "Save Password"}
+                       </Button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-lg border-l-2 border-destructive">
                   <div>
-                    <p className="font-medium">Delete Account</p>
+                    <p className="font-medium text-destructive">Delete Account</p>
                     <p className="text-sm text-muted-foreground">Permanently delete your account and all data</p>
                   </div>
-                  <Button variant="destructive" size="sm">
+                  <Button variant="destructive" size="sm" onClick={() => setReauthAction("delete")}>
                     Delete
                   </Button>
                 </div>
@@ -259,6 +463,14 @@ export default function SettingsPage() {
       </main>
 
       <Footer />
+
+      {/* Reauthentication Modal */}
+      <ReauthModal
+        isOpen={reauthAction !== null}
+        onClose={() => setReauthAction(null)}
+        onVerified={handleReauthVerified}
+        email={user.email || ""}
+      />
     </div>
   );
 }
