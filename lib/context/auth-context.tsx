@@ -288,6 +288,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             phone,
             role: "customer",
           },
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       });
 

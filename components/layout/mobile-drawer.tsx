@@ -40,9 +40,34 @@ export function MobileDrawer() {
           <div className="fixed left-0 top-0 h-full w-64 bg-card border-r border-border z-50 overflow-y-auto">
             <div className="p-4 space-y-4">
               {user && (
-                <div className="pb-4 border-b border-border">
-                  <p className="font-medium">{user.name}</p>
-                  <p className="text-sm text-muted-foreground">{user.email}</p>
+                <div className="pb-4 border-b border-border space-y-3">
+                  <div>
+                    <p className="font-medium">{user.name}</p>
+                    <p className="text-sm text-muted-foreground">{user.email}</p>
+                  </div>
+                  <nav className="space-y-1 pt-2">
+                    <Link
+                      href="/profile"
+                      className="block px-4 py-2 rounded-md hover:bg-secondary/10 transition-colors text-sm"
+                      onClick={() => setIsOpen(false)}
+                    >
+                      Profile
+                    </Link>
+                    <Link
+                      href="/orders"
+                      className="block px-4 py-2 rounded-md hover:bg-secondary/10 transition-colors text-sm"
+                      onClick={() => setIsOpen(false)}
+                    >
+                      My Orders
+                    </Link>
+                    <Link
+                      href="/profile/settings"
+                      className="block px-4 py-2 rounded-md hover:bg-secondary/10 transition-colors text-sm"
+                      onClick={() => setIsOpen(false)}
+                    >
+                      Settings
+                    </Link>
+                  </nav>
                 </div>
               )}
 
