@@ -1,260 +1,337 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useRef } from 'react';
-import { Search, Plus } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
+import { useState, useEffect, useRef } from "react";
+import { supabase } from "@/lib/supabase/client";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { supabase } from '@/lib/supabase/client';
+  Cog6ToothIcon,
+  XMarkIcon,
+  CircleStackIcon,
+} from "@heroicons/react/24/solid";
 
-interface InventoryItem {
-  id: string;
-  product: string;
-  sku: string;
-  current: number;
-  reserved: number;
-  available: number;
-  status: 'in_stock' | 'low_stock' | 'out_stock';
-  lastUpdate: string;
-}
+// ================= TYPES =================
+type InventoryState = { quantity: number; weight: number };
+type ConfigState = { product_name: string; unit_weight: number };
 
-export default function InventoryPage() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [inventory, setInventory] = useState<InventoryItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+const OFFLINE_THRESHOLD_SECONDS = 8;
 
-  // Debounce search term
+// ================= COMPONENT =================
+export default function Dashboard() {
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const [liveStock, setLiveStock] = useState<InventoryState>({
+    quantity: 0,
+    weight: 0,
+  });
+
+  const [config, setConfig] = useState<ConfigState>({
+    product_name: "",
+    unit_weight: 0,
+  });
+
+  const [editName, setEditName] = useState("");
+  const [editWeight, setEditWeight] = useState(0);
+
+  const [isOnline, setIsOnline] = useState(false);
+  const lastSeenRef = useRef<Date | null>(null);
+  const [lastSeen, setLastSeen] = useState<Date | null>(null);
+
+  // ================= STALE CHECK =================
   useEffect(() => {
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
-    searchTimeoutRef.current = setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm);
-    }, 300);
+    const interval = setInterval(() => {
+      if (!lastSeenRef.current) { setIsOnline(false); return; }
+      const secondsAgo = (Date.now() - lastSeenRef.current.getTime()) / 1000;
+      if (secondsAgo > OFFLINE_THRESHOLD_SECONDS) setIsOnline(false);
+    }, 1500);
+    return () => clearInterval(interval);
+  }, []);
 
-    return () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current);
-      }
-    };
-  }, [searchTerm]);
-
+  // ================= INITIAL LOAD =================
   useEffect(() => {
-    const controller = new AbortController();
-    
-    async function fetchInventory() {
-      setIsLoading(true);
-      setError(null);
-      
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
+    loadSettings();
+    fetchDeviceStatus();
+  }, []);
 
-        const params = new URLSearchParams();
-        if (debouncedSearchTerm) params.append('search', debouncedSearchTerm);
-
-        const res = await fetch(`/api/admin/products?${params.toString()}`, {
-          method: 'GET',
-          credentials: 'include',
-          signal: controller.signal,
-          headers: session?.access_token
-            ? {
-                Authorization: `Bearer ${session.access_token}`,
-              }
-            : undefined,
-        });
-
-        if (!res.ok) {
-          const payload = await res.json().catch(() => ({}));
-          throw new Error(payload.error || 'Failed to load inventory');
-        }
-
-        const payload = await res.json();
-        const products = payload.data || [];
-        
-        // Transform products to inventory items
-        const inventoryItems: InventoryItem[] = products.map((product: any) => {
-          const stock = product.stock || 0;
-          let status: 'in_stock' | 'low_stock' | 'out_stock' = 'in_stock';
-          if (stock === 0) {
-            status = 'out_stock';
-          } else if (stock <= 10) {
-            status = 'low_stock';
+  // ================= REALTIME: DEVICE STATUS =================
+  useEffect(() => {
+    const channel = supabase
+      .channel("device-status-realtime")
+      .on("postgres_changes",
+        { event: "*", schema: "public", table: "device_status" },
+        (payload: any) => {
+          if (payload.new) {
+            const newDate = new Date(payload.new.last_seen);
+            lastSeenRef.current = newDate;
+            setLastSeen(newDate);
+            setIsOnline(payload.new.is_online ?? false);
           }
-          
-          // For now, reserved is 0 (can be calculated from cart/orders later)
-          const reserved = 0;
-          const available = Math.max(0, stock - reserved);
-          
-          return {
-            id: product.id,
-            product: product.name,
-            sku: product.sku,
-            current: stock,
-            reserved,
-            available,
-            status,
-            lastUpdate: 'Recently', // Can be enhanced with actual updated_at
-          };
-        });
-        
-        setInventory(inventoryItems);
-      } catch (err) {
-        if (err instanceof DOMException && err.name === 'AbortError') {
-          return;
         }
-        console.error('Failed to load inventory', err);
-        setError(err instanceof Error ? err.message : 'Failed to load inventory');
-        setInventory([]);
-      } finally {
-        if (!controller.signal.aborted) {
-          setIsLoading(false);
+      ).subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
+  // ================= REALTIME: INVENTORY =================
+  useEffect(() => {
+    if (!config.product_name) return;
+
+    const channel = supabase
+      .channel("inventory-realtime")
+      .on("postgres_changes",
+        { event: "*", schema: "public", table: "inventory" },
+        (payload: any) => {
+          if (payload.new && payload.new.item_name === config.product_name) {
+            setLiveStock({
+              quantity: payload.new.quantity ?? 0,
+              weight: payload.new.weight ?? 0,
+            });
+          }
         }
-      }
+      ).subscribe();
+
+    const interval = setInterval(() => fetchInventory(config.product_name), 3000);
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(interval);
+    };
+  }, [config.product_name]);
+
+  // ================= DATA FUNCTIONS =================
+  async function loadSettings() {
+    const { data, error } = await supabase
+      .from("device_settings").select("*").eq("id", 1).maybeSingle();
+    if (!error && data) {
+      setConfig(data);
+      setEditName(data.product_name);
+      setEditWeight(data.unit_weight);
+      fetchInventory(data.product_name);
     }
+  }
 
-    fetchInventory();
-
-    return () => controller.abort();
-  }, [debouncedSearchTerm, statusFilter]);
-
-  const filteredInventory = inventory.filter(
-    (item) =>
-      (statusFilter === 'all' || item.status === statusFilter)
-  );
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'in_stock':
-        return 'default';
-      case 'low_stock':
-        return 'secondary';
-      case 'out_stock':
-        return 'destructive';
-      default:
-        return 'outline';
+  async function fetchDeviceStatus() {
+    const { data } = await supabase
+      .from("device_status").select("is_online, last_seen").eq("id", 1).maybeSingle();
+    if (data) {
+      const newDate = data.last_seen ? new Date(data.last_seen) : null;
+      lastSeenRef.current = newDate;
+      setLastSeen(newDate);
+      setIsOnline(data.is_online ?? false);
     }
+  }
+
+  async function fetchInventory(name: string) {
+    if (!name) return;
+    const { data } = await supabase
+      .from("inventory").select("quantity, weight").eq("item_name", name).maybeSingle();
+    if (data) {
+      setLiveStock({ quantity: data.quantity ?? 0, weight: data.weight ?? 0 });
+    }
+  }
+
+  // ================= FORMAT TIMESTAMP =================
+  function formatTime(ts: string) {
+    const date = new Date(ts);
+    return date.toLocaleString("en-PH", {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true,
+    });
+  }
+
+  // ================= SAVE SETTINGS =================
+  const handleSave = async () => {
+    setLoading(true);
+    const { error } = await supabase
+      .from("device_settings")
+      .update({ product_name: editName, unit_weight: editWeight })
+      .eq("id", 1);
+
+    if (!error) {
+      await supabase.from("inventory").upsert(
+        { item_name: editName, quantity: 0, weight: 0 },
+        { onConflict: "item_name" }
+      );
+      setConfig({ product_name: editName, unit_weight: editWeight });
+      setIsSettingsOpen(false);
+    } else {
+      alert("Save failed: " + error.message);
+    }
+    setLoading(false);
   };
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Inventory Management</h1>
-          <p className="text-muted-foreground mt-1">Monitor and manage product stock levels</p>
-        </div>
-        <Button className="gap-2">
-          <Plus className="h-4 w-4" />
-          Adjust Stock
-        </Button>
+// ================= UI =================
+return (
+  <div className="bg-background min-h-screen text-foreground p-6">
+
+    {/* ── TOP BAR ── */}
+    <div className="flex items-center justify-between mb-6 max-w-6xl mx-auto">
+      <div>
+        <h1 className="text-xl font-black tracking-tight">NSD SmartWeigh</h1>
+        <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mt-0.5">
+          Automatic Inventory System
+        </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Stock Levels</CardTitle>
-          <CardDescription>Current inventory status across all products</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {/* Filters */}
-          <div className="flex flex-col md:flex-row gap-3 mb-6">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by product or SKU..."
-                className="pl-10"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full md:w-40">
-                <SelectValue placeholder="Stock Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Stock</SelectItem>
-                <SelectItem value="in_stock">In Stock</SelectItem>
-                <SelectItem value="low_stock">Low Stock</SelectItem>
-                <SelectItem value="out_stock">Out of Stock</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Error Message */}
-          {error && (
-            <div className="mb-4 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-              <p className="text-sm text-destructive">{error}</p>
-            </div>
+      {/* ✅ Online indicator — top, outside cards */}
+      <div className="flex items-center gap-2 bg-card border border-border rounded-2xl px-4 py-2.5 shadow-sm">
+        <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 transition-colors duration-500 ${isOnline
+            ? "bg-green-500 shadow-[0_0_8px_2px_rgba(34,197,94,0.5)] animate-pulse"
+            : "bg-muted-foreground"
+          }`} />
+        <div className="flex flex-col">
+          <span className={`text-[10px] font-black uppercase tracking-widest leading-none ${isOnline ? "text-green-500" : "text-muted-foreground"
+            }`}>
+            {isOnline ? "Device Online" : "Device Offline"}
+          </span>
+          {lastSeen && (
+            <span className="text-[9px] text-muted-foreground mt-0.5 leading-none">
+              Last seen {formatTime(lastSeen.toISOString())}
+            </span>
           )}
-
-          {/* Table */}
-          <div className="border rounded-lg overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Product</TableHead>
-                  <TableHead>SKU</TableHead>
-                  <TableHead>Current</TableHead>
-                  <TableHead>Reserved</TableHead>
-                  <TableHead>Available</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Last Updated</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  Array.from({ length: 5 }).map((_, idx) => (
-                    <TableRow key={`loading-${idx}`} className="animate-pulse">
-                      <TableCell><div className="h-4 bg-muted rounded w-32" /></TableCell>
-                      <TableCell><div className="h-4 bg-muted rounded w-20" /></TableCell>
-                      <TableCell><div className="h-4 bg-muted rounded w-12" /></TableCell>
-                      <TableCell><div className="h-4 bg-muted rounded w-12" /></TableCell>
-                      <TableCell><div className="h-4 bg-muted rounded w-12" /></TableCell>
-                      <TableCell><div className="h-4 bg-muted rounded w-16" /></TableCell>
-                      <TableCell><div className="h-4 bg-muted rounded w-20" /></TableCell>
-                    </TableRow>
-                  ))
-                ) : filteredInventory.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">
-                      No inventory items found.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredInventory.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell className="font-medium">{item.product}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{item.sku}</TableCell>
-                      <TableCell>{item.current}</TableCell>
-                      <TableCell>{item.reserved}</TableCell>
-                      <TableCell className="font-medium">{item.available}</TableCell>
-                      <TableCell>
-                        <Badge variant={getStatusColor(item.status)}>
-                          {item.status.replace('_', ' ')}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{item.lastUpdate}</TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
-  );
+
+    {/* ── MAIN LAYOUT ── */}
+    <div className="flex flex-col gap-6 max-w-6xl mx-auto">
+
+      {/* ── INVENTORY CARDS ROW — side by side ── */}
+      <div className="flex gap-6">
+
+        {/* ── SLOT #1 — ACTIVE ── */}
+        <div className="flex-1 bg-card text-card-foreground border border-border rounded-[2.5rem] shadow-2xl overflow-hidden shadow-black/5 dark:shadow-black/50">
+          <div className="p-5 border-b border-border flex justify-between items-center">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <CircleStackIcon className="h-4 w-4" />
+              <span className="text-[10px] font-bold uppercase tracking-widest">
+                Inventory Slot #1
+              </span>
+            </div>
+            <button
+              onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+              className="p-2 hover:bg-accent hover:text-accent-foreground transition-colors rounded-full"
+            >
+              {isSettingsOpen
+                ? <XMarkIcon className="h-6 w-6" />
+                : <Cog6ToothIcon className="h-6 w-6 text-muted-foreground" />
+              }
+            </button>
+          </div>
+
+          <div className="p-10">
+            {!isSettingsOpen ? (
+              <div className="text-center animate-in fade-in zoom-in duration-300">
+                <p className="text-muted-foreground text-xs font-bold uppercase tracking-widest mb-2">
+                  Currently Storing
+                </p>
+                <h2 className="text-2xl font-black mb-8 truncate tracking-wide">
+                  {config.product_name || "—"}
+                </h2>
+                <div className="relative inline-block mb-8">
+                  <span className="text-9xl font-black tabular-nums tracking-tighter">
+                    {liveStock.quantity}
+                  </span>
+                  <span className="absolute -right-8 bottom-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                    pcs
+                  </span>
+                </div>
+                <div className="bg-muted/50 rounded-2xl p-4 border border-border mt-4 shadow-inner">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-muted-foreground font-medium">Total Weight</span>
+                    <span className="text-primary font-mono font-bold text-lg tracking-wider">
+                      {liveStock.weight.toFixed(1)}g
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">
+                    Product Name
+                  </label>
+                  <input
+                    className="w-full mt-1 p-4 bg-background border border-input text-foreground rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">
+                    Weight Per Unit (g)
+                  </label>
+                  <input
+                    type="number"
+                    className="w-full mt-1 p-4 bg-background border border-input text-foreground rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all font-mono"
+                    value={editWeight}
+                    onChange={(e) => setEditWeight(Number(e.target.value))}
+                  />
+                </div>
+                <button
+                  onClick={handleSave}
+                  disabled={loading}
+                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-black tracking-widest py-4 rounded-2xl transition-all shadow-lg active:scale-95 disabled:opacity-50"
+                >
+                  {loading ? "SAVING..." : "UPDATE SLOT"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── SLOT #2 — STATIC / COMING SOON ── */}
+        <div className="flex-1 relative bg-card text-card-foreground border border-border rounded-[2.5rem] overflow-hidden shadow-black/5 dark:shadow-black/50 opacity-50 pointer-events-none select-none">
+
+          {/* Disabled overlay */}
+          <div className="absolute inset-0 z-10 flex items-center justify-center">
+            <div className="bg-card/90 backdrop-blur-sm border border-border rounded-2xl px-5 py-3 shadow-lg">
+              <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                Coming Soon
+              </p>
+            </div>
+          </div>
+
+          <div className="p-5 border-b border-border flex justify-between items-center">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <CircleStackIcon className="h-4 w-4" />
+              <span className="text-[10px] font-bold uppercase tracking-widest">
+                Inventory Slot #2
+              </span>
+            </div>
+            <Cog6ToothIcon className="h-6 w-6 text-muted-foreground m-2" />
+          </div>
+
+          <div className="p-10 text-center">
+            <p className="text-muted-foreground text-xs font-bold uppercase tracking-widest mb-2">
+              Currently Storing
+            </p>
+            <h2 className="text-2xl font-black mb-8 tracking-wide">—</h2>
+            <div className="relative inline-block mb-8">
+              <span className="text-9xl font-black tabular-nums tracking-tighter">0</span>
+              <span className="absolute -right-8 bottom-4 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                pcs
+              </span>
+            </div>
+            <div className="bg-muted/50 rounded-2xl p-4 border border-border mt-4 shadow-inner">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-muted-foreground font-medium">Total Weight</span>
+                <span className="text-primary font-mono font-bold text-lg tracking-wider">0.0g</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    {/* ── FOOTER ── */}
+    <p className="text-center text-muted-foreground text-[10px] mt-8 font-bold uppercase tracking-widest">
+      NSD SmartWeigh · Capstone Project 2026
+    </p>
+
+  </div>
+);
 }
