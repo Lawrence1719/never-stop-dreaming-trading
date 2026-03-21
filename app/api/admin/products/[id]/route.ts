@@ -50,7 +50,7 @@ export async function GET(
     const supabaseAdmin = getClient();
     const { data, error } = await supabaseAdmin
       .from('products')
-      .select('*')
+      .select('*, product_images(*), product_variants(*)')
       .eq('id', id)
       .single();
 
@@ -112,6 +112,33 @@ export async function PUT(
         error: 'Failed to update product',
         details: error.message 
       }, { status: 500 });
+    }
+
+    // Sync product images
+    if (body.product_images && Array.isArray(body.product_images)) {
+      // Simplest way: Delete all existing and re-insert 
+      // (Or a more complex diff if performance matters, but for few images this is safe)
+      await supabaseAdmin
+        .from('product_images')
+        .delete()
+        .eq('product_id', id);
+
+      if (body.product_images.length > 0) {
+        const imagesToInsert = body.product_images.map((img: any, index: number) => ({
+          product_id: id,
+          storage_path: img.storage_path,
+          sort_order: img.sort_order ?? index,
+          is_primary: img.is_primary || false,
+        }));
+
+        const { error: imagesError } = await supabaseAdmin
+          .from('product_images')
+          .insert(imagesToInsert);
+
+        if (imagesError) {
+          console.error('Failed to sync product images', imagesError);
+        }
+      }
     }
 
     return NextResponse.json({ data });

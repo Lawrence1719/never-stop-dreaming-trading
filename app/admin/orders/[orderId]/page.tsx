@@ -106,8 +106,6 @@ export default function OrderDetailPage() {
   const [notes, setNotes] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [updateSuccess, setUpdateSuccess] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
   const [isConfirmingPayment, setIsConfirmingPayment] = useState(false);
 
   const { toast } = useToast();
@@ -326,6 +324,8 @@ export default function OrderDetailPage() {
       // Refresh order data and get the updated status
       await fetchOrder(false);
       
+      const appliedStatus = newStatus;
+      
       // Reset the form after successful update
       setShowConfirmDialog(false);
       setNotes('');
@@ -333,17 +333,8 @@ export default function OrderDetailPage() {
       setCourier('');
       // Reset newStatus to empty string to clear selection
       setNewStatus('');
-      setUpdateSuccess(true);
       
-      // Show success message
-      setSuccessMessage(`Order status updated to ${newStatus}`);
-      setUpdateSuccess(true);
-      
-      // Auto-hide success message
-      setTimeout(() => {
-        setUpdateSuccess(false);
-        setSuccessMessage('');
-      }, 5000);
+      toast({ title: 'Success', description: `Order status updated to ${appliedStatus}` });
     } catch (err) {
       console.error('Failed to update status', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to update order status';
@@ -415,22 +406,8 @@ export default function OrderDetailPage() {
       // Refresh order data
       await fetchOrder(false);
       
-      // Show success message
-      setSuccessMessage('Payment confirmed successfully');
-      setUpdateSuccess(true);
-      
-      // Auto-hide success message
-      setTimeout(() => {
-        setUpdateSuccess(false);
-        setSuccessMessage('');
-      }, 5000);
-
       toast({ title: 'Success!', description: 'Payment confirmed successfully' });
       
-      // Force page reload to ensure UI updates
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
     } catch (err) {
       console.error('Failed to confirm payment', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to confirm payment';
@@ -490,7 +467,7 @@ export default function OrderDetailPage() {
   }
 
   const availableStatuses = getAvailableStatuses();
-  const canUpdateStatus = availableStatuses.length > 0 && order.status !== 'delivered' && order.status !== 'cancelled';
+  const canUpdateStatus = availableStatuses.length > 0 && order.status !== 'cancelled';
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -517,9 +494,13 @@ export default function OrderDetailPage() {
               <div className="space-y-4">
                 {order.items.map((item, index) => (
                   <div key={index} className="flex gap-4 pb-4 border-b last:border-0 last:pb-0">
-                    <div className="w-16 h-16 bg-muted rounded-lg flex items-center justify-center">
+                    <div className="w-16 h-16 bg-muted rounded-lg flex items-center justify-center overflow-hidden shrink-0">
                       {item.image ? (
-                        <img src={item.image} alt={item.name} className="w-full h-full object-cover rounded-lg" />
+                        <img 
+                          src={item.image.startsWith('http') ? item.image : supabase.storage.from('product_images').getPublicUrl(item.image).data.publicUrl} 
+                          alt={item.name} 
+                          className="w-full h-full object-cover rounded-lg" 
+                        />
                       ) : (
                         <Package className="w-8 h-8 text-muted-foreground" />
                       )}
@@ -574,57 +555,14 @@ export default function OrderDetailPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {/* Initial status - only show if no history or if current status is different from first history entry */}
-                {(!order.status_history || order.status_history.length === 0 || 
-                  (order.status_history.length > 0 && order.status_history[0].new_status !== order.status)) && (
-                  <div className="flex gap-4">
-                    <div className="flex flex-col items-center">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 ${STATUS_COLORS[order.status] || 'bg-gray-100'}`}>
-                        {getStatusIcon(order.status)}
-                      </div>
-                      {order.status_history && order.status_history.length > 0 && (
-                        <div className="w-0.5 h-6 bg-border mt-2" />
-                      )}
-                    </div>
-                    <div className="flex-1 pb-2">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-semibold capitalize">{order.status}</span>
-                        <StatusBadge status={order.status} showIcon={false} className="text-xs" />
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {formatDate(order.created_at)}
-                      </p>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {(() => {
-                          const statusDescriptions: Record<string, string> = {
-                            pending: 'Order created and waiting for payment/approval',
-                            paid: 'Payment confirmed and order approved',
-                            processing: 'Order is being prepared for shipment',
-                            shipped: 'Order has been shipped and is in transit',
-                            delivered: 'Order has been delivered to customer',
-                            cancelled: 'Order has been cancelled',
-                            duplicate: 'Duplicate order detected and marked',
-                          };
-                          return statusDescriptions[order.status.toLowerCase()] || 'Order status updated';
-                        })()}
-                      </p>
-                      {availableStatuses.length > 0 && (
-                        <p className="text-xs text-muted-foreground mt-2 italic">
-                          Next step likely: {availableStatuses[0]}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-                
                 {/* Status history */}
-                {order.status_history && order.status_history.map((history, index) => (
+                {order.status_history && [...order.status_history].sort((a, b) => new Date(b.changed_at).getTime() - new Date(a.changed_at).getTime()).map((history, index, sortedHistory) => (
                   <div key={history.id} className="flex gap-4">
                     <div className="flex flex-col items-center">
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 ${STATUS_COLORS[history.new_status] || 'bg-gray-100'}`}>
                         {getStatusIcon(history.new_status)}
                       </div>
-                      {index < order.status_history.length - 1 && (
+                      {index < sortedHistory.length - 1 && (
                         <div className="w-0.5 h-6 bg-border mt-2" />
                       )}
                     </div>
@@ -666,7 +604,7 @@ export default function OrderDetailPage() {
                       {history.notes && (
                         <p className="text-sm text-muted-foreground mt-1 italic">{history.notes}</p>
                       )}
-                      {index === order.status_history.length - 1 && availableStatuses.length > 0 && (
+                      {index === 0 && availableStatuses.length > 0 && (
                         <p className="text-xs text-muted-foreground mt-2 italic">
                           Next step: {availableStatuses[0]}
                         </p>
@@ -694,7 +632,9 @@ export default function OrderDetailPage() {
               </div>
               <div>
                 <Label className="text-muted-foreground">Payment Method</Label>
-                <p className="font-medium capitalize">{order.payment_method}</p>
+                <p className="font-medium">
+                  {order.payment_method?.toUpperCase() === 'COD' ? 'COD' : <span className="capitalize">{order.payment_method}</span>}
+                </p>
               </div>
               <div>
                 <Label className="text-muted-foreground">Payment Status</Label>
@@ -710,7 +650,11 @@ export default function OrderDetailPage() {
                   <StatusBadge status={order.status} />
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Since {formatDate(order.created_at)}
+                  Since {formatDate(order.status_history && order.status_history.length > 0 
+                    ? order.status_history.reduce((latest, current) => 
+                        new Date(latest.changed_at) > new Date(current.changed_at) ? latest : current
+                      ).changed_at 
+                    : order.created_at)}
                 </p>
               </div>
               {order.paid_at && (
@@ -831,7 +775,11 @@ export default function OrderDetailPage() {
                   <div className="p-3 bg-muted rounded-lg">
                     <StatusBadge status={order.status} />
                     <p className="text-xs text-muted-foreground mt-1">
-                      Since {formatDate(order.created_at)}
+                      Since {formatDate(order.status_history && order.status_history.length > 0 
+                        ? order.status_history.reduce((latest, current) => 
+                            new Date(latest.changed_at) > new Date(current.changed_at) ? latest : current
+                          ).changed_at 
+                        : order.created_at)}
                     </p>
                   </div>
                 </div>
@@ -928,7 +876,7 @@ export default function OrderDetailPage() {
                 <div className="flex gap-2">
                   <Button
                     onClick={() => {
-                      setNewStatus(order.status);
+                      setNewStatus('');
                       setTrackingNumber('');
                       setCourier('');
                       setNotes('');
@@ -955,16 +903,7 @@ export default function OrderDetailPage() {
                   </Button>
                 </div>
                 
-                {updateSuccess && successMessage && (
-                  <div className="p-3 bg-green-100 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg animate-in slide-in-from-top">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />
-                      <p className="text-sm font-medium text-green-800 dark:text-green-400">
-                        {successMessage}
-                      </p>
-                    </div>
-                  </div>
-                )}
+                
               </CardContent>
             </Card>
           )}
@@ -994,6 +933,13 @@ export default function OrderDetailPage() {
                 <span className="font-semibold capitalize">{order.status}</span> to{' '}
                 <span className="font-semibold capitalize">{newStatus}</span>?
               </p>
+              {newStatus === 'delivered' && order.payment_method === 'cod' && order.payment_status === 'pending' && (
+                <div className="mb-4 p-3 bg-orange-100 dark:bg-orange-900/30 border border-orange-300 dark:border-orange-700 rounded-lg">
+                  <p className="text-sm text-orange-800 dark:text-orange-400 font-medium">
+                    ⚠️ Warning: COD Payment is still pending. Ensure cash is collected upon delivery.
+                  </p>
+                </div>
+              )}
               {newStatus === 'shipped' && trackingNumber && (
                 <p className="text-sm text-muted-foreground mb-4">
                   Tracking: {trackingNumber} ({courier})

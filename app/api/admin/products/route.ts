@@ -73,6 +73,12 @@ export async function GET(request: NextRequest) {
           sku,
           reorder_threshold,
           is_active
+        ),
+        product_images (
+          id,
+          storage_path,
+          sort_order,
+          is_primary
         )
         `
       )
@@ -172,6 +178,25 @@ export async function POST(request: NextRequest) {
     if (error) {
       console.error('Failed to create product', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Handle product images if provided
+    if (body.product_images && Array.isArray(body.product_images) && body.product_images.length > 0) {
+      const imagesToInsert = body.product_images.map((img: any, index: number) => ({
+        product_id: data.id,
+        storage_path: img.storage_path,
+        sort_order: img.sort_order ?? index,
+        is_primary: img.is_primary || false,
+      }));
+
+      const { error: imagesError } = await supabaseAdmin
+        .from('product_images')
+        .insert(imagesToInsert);
+
+      if (imagesError) {
+        console.error('Failed to insert product images', imagesError);
+        // We don't fail the whole request, but log it
+      }
     }
 
     return NextResponse.json({ data }, { status: 201 });

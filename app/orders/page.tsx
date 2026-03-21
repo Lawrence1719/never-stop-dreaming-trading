@@ -7,14 +7,16 @@ import { Footer } from "@/components/layout/footer";
 import { useAuth } from "@/lib/context/auth-context";
 import { formatPrice, formatDate } from "@/lib/utils/formatting";
 import { Order } from "@/lib/types";
-import { ChevronRight, Eye } from 'lucide-react';
+import { ChevronRight, Eye, Star } from 'lucide-react';
 import { supabase } from "@/lib/supabase/client";
+import { RatingModal } from "@/components/orders/RatingModal";
 
 const statusColors = {
   pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
   processing: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
   shipped: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
   delivered: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+  completed: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400",
   cancelled: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
 };
 
@@ -23,6 +25,13 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [ratingOrder, setRatingOrder] = useState<Order | null>(null);
+
+  const handleRatingSuccess = (orderId: string, rating: number, reviewText: string) => {
+    setOrders(orders.map(o => 
+      o.id === orderId ? { ...o, hasRated: true, rating, reviewText, ratedAt: new Date().toISOString() } : o
+    ));
+  };
 
   // Fetch user orders
   useEffect(() => {
@@ -157,27 +166,53 @@ export default function OrdersPage() {
                     </div>
                   </div>
 
-                  <div className="flex gap-3">
+                  <div className="flex gap-3 flex-wrap">
                     <Link
                       href={`/orders/${order.id}`}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 border border-primary text-primary rounded-lg hover:bg-primary/10 transition-colors text-sm font-medium"
+                      className="flex-1 min-w-[120px] flex items-center justify-center gap-2 px-4 py-2 border border-primary text-primary rounded-lg hover:bg-primary/10 transition-colors text-sm font-medium"
                     >
                       <Eye className="w-4 h-4" />
                       View Details
                     </Link>
                     <Link
                       href={`/order-tracking/${order.id}`}
-                      className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors text-sm font-medium"
+                      className="flex-1 min-w-[120px] flex items-center gap-2 justify-center px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors text-sm font-medium"
                     >
                       Track
                       <ChevronRight className="w-4 h-4" />
                     </Link>
+
+                    {order.status === 'delivered' && (order.confirmedByCustomerAt || order.autoConfirmed) && (
+                      order.hasRated ? (
+                        <div className="flex-1 min-w-[120px] flex items-center justify-center gap-2 px-4 py-2 bg-muted text-muted-foreground rounded-lg text-sm font-medium border border-border">
+                          <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                          Rated
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setRatingOrder(order)}
+                          className="flex-1 min-w-[120px] flex items-center justify-center gap-2 px-4 py-2 border border-secondary text-secondary-foreground hover:text-primary rounded-lg hover:bg-secondary/20 transition-colors text-sm font-medium"
+                        >
+                          <Star className="w-4 h-4" />
+                          Rate
+                        </button>
+                      )
+                    )}
                   </div>
                 </div>
               ))}
             </div>
           )}
         </div>
+
+        {ratingOrder && (
+          <RatingModal
+            orderId={ratingOrder.id}
+            isOpen={!!ratingOrder}
+            onClose={() => setRatingOrder(null)}
+            onSuccess={(rating, reviewText) => handleRatingSuccess(ratingOrder.id, rating, reviewText)}
+          />
+        )}
       </main>
 
       <Footer />

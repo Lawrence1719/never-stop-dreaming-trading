@@ -11,6 +11,7 @@ import { ChevronLeft, Bell, Globe, Moon, Mail } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -162,19 +163,21 @@ export default function SettingsPage() {
               <div className="space-y-4">
                 <div>
                   <Label htmlFor="language">Language</Label>
-                  <select
-                    id="language"
+                  <SearchableSelect
+                    options={[
+                      { value: "en", label: "English" },
+                      { value: "es", label: "Spanish" },
+                      { value: "fr", label: "French" },
+                      { value: "de", label: "German" },
+                    ]}
                     value={preferences.language}
-                    onChange={(e) =>
-                      setPreferences((prev) => ({ ...prev, language: e.target.value }))
+                    onValueChange={(val) =>
+                      setPreferences((prev) => ({ ...prev, language: val }))
                     }
-                    className="w-full mt-2 px-4 py-2 bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                  >
-                    <option value="en">English</option>
-                    <option value="es">Spanish</option>
-                    <option value="fr">French</option>
-                    <option value="de">German</option>
-                  </select>
+                    placeholder="Select language"
+                    searchPlaceholder="Search language..."
+                    triggerClassName="mt-2"
+                  />
                 </div>
               </div>
             </div>
@@ -188,18 +191,20 @@ export default function SettingsPage() {
               <div className="space-y-4">
                 <div>
                   <Label htmlFor="theme">Theme</Label>
-                  <select
-                    id="theme"
+                  <SearchableSelect
+                    options={[
+                      { value: "light", label: "Light" },
+                      { value: "dark", label: "Dark" },
+                      { value: "system", label: "System" },
+                    ]}
                     value={preferences.theme}
-                    onChange={(e) =>
-                      setPreferences((prev) => ({ ...prev, theme: e.target.value }))
+                    onValueChange={(val) =>
+                      setPreferences((prev) => ({ ...prev, theme: val }))
                     }
-                    className="w-full mt-2 px-4 py-2 bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                  >
-                    <option value="light">Light</option>
-                    <option value="dark">Dark</option>
-                    <option value="system">System</option>
-                  </select>
+                    placeholder="Select theme"
+                    searchPlaceholder="Search theme..."
+                    triggerClassName="mt-2"
+                  />
                 </div>
               </div>
             </div>

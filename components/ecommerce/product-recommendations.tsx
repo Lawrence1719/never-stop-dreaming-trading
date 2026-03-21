@@ -8,12 +8,14 @@ interface ProductRecommendationsProps {
   currentProduct: Product;
   allProducts: Product[];
   type?: 'frequently-bought' | 'similar' | 'category';
+  loading?: boolean;
 }
 
 export function ProductRecommendations({ 
   currentProduct, 
   allProducts,
-  type = 'similar'
+  type = 'similar',
+  loading = false
 }: ProductRecommendationsProps) {
   // Get similar products (same category, different product)
   const similarProducts = allProducts
@@ -37,15 +39,15 @@ export function ProductRecommendations({
     .sort((a, b) => (b.reviewCount || 0) - (a.reviewCount || 0))
     .slice(0, 4);
 
-  if (type === 'frequently-bought' && frequentlyBoughtTogether.length === 0) {
+  if (!loading && type === 'frequently-bought' && frequentlyBoughtTogether.length === 0) {
     return null;
   }
 
-  if (type === 'similar' && similarProducts.length === 0) {
+  if (!loading && type === 'similar' && similarProducts.length === 0) {
     return null;
   }
 
-  if (type === 'category' && categoryBestsellers.length === 0) {
+  if (!loading && type === 'category' && categoryBestsellers.length === 0) {
     return null;
   }
 
@@ -64,7 +66,11 @@ export function ProductRecommendations({
   return (
     <div className="border-t border-border pt-8 mt-8">
       <h2 className="text-2xl font-bold mb-6">{title}</h2>
-      <ProductGrid products={products} />
+      <ProductGrid 
+        products={products} 
+        loading={loading} 
+        skeletonCount={type === 'frequently-bought' ? 3 : 4} 
+      />
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { AlertCircle, Loader2, Upload, X, Image as ImageIcon } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 
 /**
  * Product Form Data Type
@@ -17,8 +18,16 @@ export interface ProductFormData {
   name: string;
   description: string;
   price: string;
-  image_url: string;
-  category: string; // Stores as "Main Category → Subcategory"
+  image_url: string; // Legacy/Main preview
+  product_images: {
+    id?: string;
+    storage_path: string;
+    is_primary: boolean;
+    sort_order: number;
+    file?: File; // Temporary for new uploads
+    preview?: string; // Temporary for UI
+  }[];
+  category: string;
   stock: number;
   sku: string;
   reorder_threshold: number;
@@ -26,48 +35,14 @@ export interface ProductFormData {
 }
 
 interface ProductFormProps {
-  /** Initial data for editing existing products (optional) */
-  initialData?: Partial<ProductFormData>;
-  /** Callback when form is submitted with valid data */
+  initialData?: Partial<ProductFormData> & { product_images?: any[] };
   onSubmit: (data: ProductFormData) => Promise<void>;
-  /** Callback when form is cancelled */
   onCancel?: () => void;
-  /** Show cancel button */
   showCancel?: boolean;
-  /** Submit button text */
   submitText?: string;
-  /** Loading state (external) */
   isLoading?: boolean;
 }
 
-/**
- * ProductForm Component
- * 
- * A comprehensive form for creating/editing products with cascading category selection.
- * 
- * Features:
- * - Two-level cascading category dropdowns
- * - Full form validation
- * - Auto-generated SKU option
- * - Image URL validation
- * - Controlled components with React state
- * - TypeScript typed
- * - Accessible with proper labels
- * 
- * Category Format:
- * Categories are stored in the format: "Main Category → Subcategory"
- * Example: "Food & Pantry → Canned goods"
- * 
- * Usage:
- * ```tsx
- * <ProductForm
- *   onSubmit={async (data) => {
- *     await saveProduct(data);
- *   }}
- *   submitText="Create Product"
- * />
- * ```
- */
 export function ProductForm({
   initialData,
   onSubmit,
@@ -92,10 +67,14 @@ export function ProductForm({
   const [formData, setFormData] = useState<ProductFormData>({
     name: initialData?.name || "",
     description: initialData?.description || "",
-    price: initialData?.price || "",
+    price: initialData?.price?.toString() || "",
     image_url: initialData?.image_url || "",
+    product_images: (initialData?.product_images || []).map((img, idx) => ({
+      ...img,
+      sort_order: img.sort_order ?? idx
+    })),
     category: initialData?.category || "",
-    stock: initialData?.stock || 0,
+    stock: Number(initialData?.stock) || 0,
     sku: initialData?.sku || "",
     reorder_threshold: initialData?.reorder_threshold || 5,
     is_active: initialData?.is_active ?? true,
@@ -105,9 +84,7 @@ export function ProductForm({
   const [mainCategory, setMainCategory] = useState<string>(initialCategory.main);
   const [subcategory, setSubcategory] = useState<string>(initialCategory.sub);
 
-  // Image upload state
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string>(initialData?.image_url || "");
+  // Image upload & gallery state
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [dragActive, setDragActive] = useState(false);
@@ -184,43 +161,63 @@ export function ProductForm({
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
 
     if (!allowedTypes.includes(file.type)) {
-      return 'Please upload a JPEG, PNG, or WebP image';
+      return `File ${file.name} is not a valid image. Please upload JPEG, PNG, or WebP.`;
     }
 
     if (file.size > maxSize) {
-      return 'Image size must be less than 5MB';
+      return `File ${file.name} is too large (max 5MB).`;
     }
 
     return null;
   };
 
-  const handleImageSelect = (file: File) => {
-    const error = validateImageFile(file);
-    if (error) {
-      setErrors((prev) => ({ ...prev, imageFile: error }));
+  const handleImagesSelect = (files: FileList | File[]) => {
+    const newFiles = Array.from(files);
+    const validFiles: File[] = [];
+    let errorMessage = null;
+
+    for (const file of newFiles) {
+      const error = validateImageFile(file);
+      if (error) {
+        errorMessage = error;
+        break;
+      }
+      validFiles.push(file);
+    }
+
+    if (errorMessage) {
+      setErrors((prev) => ({ ...prev, imageFile: errorMessage || "" }));
       return;
     }
 
-    setImageFile(file);
+    const imagesToAdd = validFiles.map((file, idx) => ({
+      storage_path: "", // Will be filled after upload
+      is_primary: formData.product_images.length === 0 && idx === 0, // First image added becomes primary
+      sort_order: formData.product_images.length + idx,
+      file,
+      preview: URL.createObjectURL(file), // Create a temporary URL for preview
+    }));
+
+    setFormData((prev) => ({
+      ...prev,
+      product_images: [...prev.product_images, ...imagesToAdd],
+    }));
+
     setErrors((prev) => {
       const newErrors = { ...prev };
       delete newErrors.imageFile;
-      delete newErrors.image_url;
+      delete newErrors.image_url; // Clear legacy image_url error if images are being added
       return newErrors;
     });
-
-    // Create preview
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setImagePreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
   };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      handleImageSelect(file);
+    if (e.target.files && e.target.files.length > 0) {
+      handleImagesSelect(e.target.files);
+      // Clear the input value so the same file can be selected again
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   };
 
@@ -239,57 +236,80 @@ export function ProductForm({
     e.stopPropagation();
     setDragActive(false);
 
-    const file = e.dataTransfer.files?.[0];
-    if (file) {
-      handleImageSelect(file);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleImagesSelect(e.dataTransfer.files);
     }
   };
 
-  const removeImage = () => {
-    setImageFile(null);
-    setImagePreview("");
-    setFormData((prev) => ({ ...prev, image_url: "" }));
+  const removeImage = (index: number) => {
+    setFormData((prev) => {
+      const newImages = prev.product_images.filter((_, i) => i !== index);
+      // Ensure one remains primary if we removed the primary one
+      if (prev.product_images[index]?.is_primary && newImages.length > 0) {
+        newImages[0].is_primary = true;
+      }
+      return { ...prev, product_images: newImages };
+    });
+
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   };
 
-  const uploadImageToSupabase = async (): Promise<string | null> => {
-    if (!imageFile) return formData.image_url || null;
+  const setPrimaryImage = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      product_images: prev.product_images.map((img, i) => ({
+        ...img,
+        is_primary: i === index,
+      })),
+    }));
+  };
 
+  const uploadImagesToSupabase = async (): Promise<any[]> => {
+    const imagesToProcess = formData.product_images;
+    const finalImages = [];
+    
     setIsUploadingImage(true);
     setUploadProgress(0);
 
     try {
-      // Generate unique filename
-      const fileExt = imageFile.name.split('.').pop();
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+      for (let i = 0; i < imagesToProcess.length; i++) {
+        const img = imagesToProcess[i];
+        
+        if (img.file) {
+          // It's a new upload
+          const fileExt = img.file.name.split('.').pop();
+          const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
 
-      // Upload to Supabase Storage
-      const { data, error } = await supabase.storage
-        .from('product-images')
-        .upload(fileName, imageFile, {
-          cacheControl: '3600',
-          upsert: false
-        });
+          const { data, error } = await supabase.storage
+            .from('product-images')
+            .upload(fileName, img.file, {
+              cacheControl: '3600',
+              upsert: false
+            });
 
-      if (error) throw error;
+          if (error) throw error;
+          
+          finalImages.push({
+            storage_path: data.path, // Store only path!
+            is_primary: img.is_primary,
+            sort_order: i
+          });
+        } else {
+          // It's an existing image
+          finalImages.push({
+            ...img,
+            sort_order: i
+          });
+        }
+        setUploadProgress(Math.round(((i + 1) / imagesToProcess.length) * 100));
+      }
 
-      setUploadProgress(100);
-
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('product-images')
-        .getPublicUrl(fileName);
-
-      return publicUrl;
+      return finalImages;
     } catch (error: any) {
       console.error('Image upload error:', error);
-      setErrors((prev) => ({ 
-        ...prev, 
-        imageFile: error.message || 'Failed to upload image. Please try again.' 
-      }));
-      return null;
+      return [];
     } finally {
       setIsUploadingImage(false);
       setUploadProgress(0);
@@ -324,7 +344,9 @@ export function ProductForm({
       newErrors.price = "Valid price is required";
     }
     if (!mainCategory) newErrors.mainCategory = "Main category is required";
-    if (!subcategory) newErrors.subcategory = "Subcategory is required";
+    if (!subcategory && availableSubcategories.length > 0) {
+      newErrors.subcategory = "Subcategory is required";
+    }
     if (!formData.sku.trim()) newErrors.sku = "SKU is required";
     if (formData.stock < 0) newErrors.stock = "Stock cannot be negative";
     if (formData.reorder_threshold < 0) {
@@ -358,17 +380,27 @@ export function ProductForm({
       return;
     }
 
-    // Upload image if a new file was selected
-    if (imageFile) {
-      const imageUrl = await uploadImageToSupabase();
-      if (!imageUrl) {
-        // Upload failed, error already set
-        return;
-      }
-      formData.image_url = imageUrl;
-    }
+    try {
+      // 1. Upload images if needed
+      const finalImages = await uploadImagesToSupabase();
+      
+      // Update the main image_url for legacy compatibility (use primary)
+      const primaryImg = finalImages.find(img => img.is_primary) || finalImages[0];
+      const mainImageUrl = primaryImg ? primaryImg.storage_path : formData.image_url;
 
-    await onSubmit(formData);
+      const submissionData = {
+        ...formData,
+        image_url: mainImageUrl,
+        product_images: finalImages
+      };
+
+      await onSubmit(submissionData);
+    } catch (err: any) {
+      // Handle error (e.g., set a form-level error message)
+      console.error("Submission error:", err);
+      // Optionally set a general error state for the form
+      // setErrors(prev => ({ ...prev, general: "Failed to submit product. Please try again." }));
+    }
   };
 
   return (
@@ -452,21 +484,14 @@ export function ProductForm({
           <Label htmlFor="mainCategory" className="text-sm font-medium">
             Main Category
           </Label>
-          <select
-            id="mainCategory"
+          <SearchableSelect
+            options={MAIN_CATEGORIES.map((cat) => ({ value: cat, label: cat }))}
             value={mainCategory}
-            onChange={(e) => handleMainCategoryChange(e.target.value)}
-            className={`w-full px-3 py-2 bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${
-              errors.mainCategory ? "border-destructive" : "border-border"
-            }`}
-          >
-            <option value="">-- Select Main Category --</option>
-            {MAIN_CATEGORIES.map((cat) => (
-              <option key={cat} value={cat}>
-                {cat}
-              </option>
-            ))}
-          </select>
+            onValueChange={handleMainCategoryChange}
+            placeholder="-- Select Main Category --"
+            searchPlaceholder="Search main category..."
+            triggerClassName={errors.mainCategory ? "border-destructive bg-background" : "bg-background"}
+          />
           {errors.mainCategory && (
             <p className="text-sm text-destructive flex items-center gap-1">
               <AlertCircle className="w-4 h-4" />
@@ -480,26 +505,17 @@ export function ProductForm({
           <Label htmlFor="subcategory" className="text-sm font-medium">
             Subcategory
           </Label>
-          <select
-            id="subcategory"
+          <SearchableSelect
+            options={availableSubcategories.map((sub) => ({ value: sub, label: sub }))}
             value={subcategory}
-            onChange={(e) => setSubcategory(e.target.value)}
+            onValueChange={setSubcategory}
             disabled={!mainCategory || availableSubcategories.length === 0}
-            className={`w-full px-3 py-2 bg-background border rounded-md focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed ${
-              errors.subcategory ? "border-destructive" : "border-border"
-            }`}
-          >
-            <option value="">
-              {mainCategory
-                ? "-- Select Subcategory --"
-                : "-- Select Main Category First --"}
-            </option>
-            {availableSubcategories.map((sub) => (
-              <option key={sub} value={sub}>
-                {sub}
-              </option>
-            ))}
-          </select>
+            placeholder={mainCategory
+              ? availableSubcategories.length === 0 ? "-- No Subcategories Found --" : "-- Select Subcategory --"
+              : "-- Select Main Category First --"}
+            searchPlaceholder="Search subcategory..."
+            triggerClassName={errors.subcategory ? "border-destructive bg-background" : "bg-background"}
+          />
           {errors.subcategory && (
             <p className="text-sm text-destructive flex items-center gap-1">
               <AlertCircle className="w-4 h-4" />
@@ -516,46 +532,100 @@ export function ProductForm({
             </p>
           </div>
         )}
-      </div>
-
-      {/* Image Upload */}
-      <div className="space-y-2">
+            {/* Image Upload Gallery */}
+      <div className="space-y-4">
         <Label className="text-sm font-medium">
-          Product Image
+          Product Gallery ({formData.product_images.length})
         </Label>
         
-        {imagePreview ? (
-          /* Image Preview */
-          <div className="relative border-2 border-border rounded-lg p-4 bg-muted/30">
-            <div className="relative w-full h-64 mb-3">
-              <img
-                src={imagePreview}
-                alt="Product preview"
-                className="w-full h-full object-contain rounded"
+        {/* Gallery Grid */}
+        {formData.product_images.length > 0 && (
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            {formData.product_images.map((img, index) => {
+              const imageUrl = img.preview || (img.storage_path ? (
+                img.storage_path.startsWith('http') 
+                  ? img.storage_path 
+                  : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-images/${img.storage_path}`
+              ) : "/placeholder-image.jpg");
+
+              return (
+                <div 
+                  key={index} 
+                  className={`relative group aspect-square border-2 rounded-lg overflow-hidden bg-muted/30 transition-all ${
+                    img.is_primary ? "border-primary shadow-md" : "border-border"
+                  }`}
+                >
+                  <img
+                    src={imageUrl}
+                    alt={`Product ${index + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                  
+                  {/* Actions Overlay */}
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 px-2">
+                    {!img.is_primary && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        className="w-full text-[10px] h-7"
+                        onClick={() => setPrimaryImage(index)}
+                      >
+                        Set Primary
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      className="w-full text-[10px] h-7"
+                      onClick={() => removeImage(index)}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+
+                  {/* Badges */}
+                  {img.is_primary && (
+                    <div className="absolute top-2 left-2 bg-primary text-primary-foreground text-[10px] px-2 py-0.5 rounded-full font-bold shadow-sm">
+                      PRIMARY
+                    </div>
+                  )}
+                  {img.file && (
+                    <div className="absolute top-2 right-2 bg-blue-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold shadow-sm">
+                      NEW
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            
+            {/* Add More Button */}
+            <label
+              htmlFor="image-upload-more"
+              className="flex flex-col items-center justify-center aspect-square border-2 border-dashed border-border rounded-lg hover:border-primary/50 hover:bg-primary/5 cursor-pointer transition-colors"
+            >
+              <Upload className="w-6 h-6 text-muted-foreground" />
+              <span className="text-[10px] mt-1 font-medium text-muted-foreground uppercase">Add More</span>
+              <input
+                id="image-upload-more"
+                type="file"
+                multiple
+                accept="image/jpeg,image/png,image/webp"
+                onChange={handleFileInputChange}
+                className="hidden"
               />
-            </div>
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                {imageFile ? `${imageFile.name} (${(imageFile.size / 1024).toFixed(1)} KB)` : 'Current image'}
-              </p>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={removeImage}
-                className="text-destructive hover:text-destructive"
-              >
-                <X className="w-4 h-4 mr-1" />
-                Remove
-              </Button>
-            </div>
+            </label>
           </div>
-        ) : (
-          /* Upload Zone */
+        )}
+
+        {/* Initial Upload Zone if empty */}
+        {formData.product_images.length === 0 && (
           <div className="space-y-0">
             <input
               ref={fileInputRef}
               type="file"
+              multiple
               accept="image/jpeg,image/png,image/webp"
               onChange={handleFileInputChange}
               className="hidden"
@@ -567,37 +637,34 @@ export function ProductForm({
               onDragLeave={handleDrag}
               onDragOver={handleDrag}
               onDrop={handleDrop}
-              className={`block border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${
+              className={`block border-2 border-dashed rounded-lg p-10 text-center transition-colors cursor-pointer ${
                 dragActive 
                   ? 'border-primary bg-primary/5' 
                   : 'border-border hover:border-primary/50'
               } ${errors.imageFile ? 'border-destructive' : ''}`}
             >
-              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-2 mx-auto">
+              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-3 mx-auto">
                 {isUploadingImage ? (
                   <Loader2 className="w-8 h-8 text-primary animate-spin" />
                 ) : (
                   <Upload className="w-8 h-8 text-primary" />
                 )}
               </div>
-              <p className="text-sm font-medium">
-                {isUploadingImage ? 'Uploading...' : 'Drop image here or click to upload'}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                JPEG, PNG or WebP (max 5MB)
+              <p className="text-sm font-medium">Click to upload or drag and drop</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                You can upload up to 10 images. Primary image will be used in lists.
               </p>
             </label>
           </div>
         )}
-
         {errors.imageFile && (
           <p className="text-sm text-destructive flex items-center gap-1">
             <AlertCircle className="w-4 h-4" />
             {errors.imageFile}
           </p>
         )}
-
-        {isUploadingImage && uploadProgress > 0 && (
+      </div>
+      {isUploadingImage && uploadProgress > 0 && (
           <div className="space-y-1">
             <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
               <div 
@@ -606,13 +673,13 @@ export function ProductForm({
               />
             </div>
             <p className="text-xs text-muted-foreground text-center">
-              Uploading... {uploadProgress}%
+              Uploading images... {uploadProgress}%
             </p>
           </div>
         )}
 
         <p className="text-xs text-muted-foreground">
-          Optional: Upload a product image or leave blank
+          First image will be used as the primary thumbnail. You can upload up to 10 images.
         </p>
       </div>
 

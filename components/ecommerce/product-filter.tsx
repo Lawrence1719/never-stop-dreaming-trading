@@ -1,49 +1,44 @@
 "use client";
 
-import { useState } from "react";
 import { CATEGORY_TREE, MAIN_CATEGORIES } from "@/lib/data/categories";
+import { SearchableSelect } from "@/components/ui/searchable-select";
+import { useState } from "react";
 
 interface ProductFilterProps {
   onCategoryChange: (category: string) => void;
   onPriceChange: (min: number, max: number) => void;
   onSortChange: (sort: string) => void;
-  // Optional: notified when subcategory changes
-  onSubcategoryChange?: (subcategory: string) => void;
+  sortBy?: string;
 }
 
-export function ProductFilter({ onCategoryChange, onPriceChange, onSortChange, onSubcategoryChange }: ProductFilterProps) {
+export function ProductFilter({ onCategoryChange, onPriceChange, onSortChange, sortBy = "" }: ProductFilterProps) {
   const [priceRange, setPriceRange] = useState([0, 10000]);
   const [selectedMainCategory, setSelectedMainCategory] = useState("");
-  const [selectedSubcategory, setSelectedSubcategory] = useState("");
-
-  const handleMainSelect = (cat: string) => {
-    setSelectedMainCategory(cat);
-    setSelectedSubcategory("");
-    onCategoryChange(cat);
-    onSubcategoryChange?.("");
-  };
-
-  const handleSubSelect = (sub: string) => {
-    setSelectedSubcategory(sub);
-    onSubcategoryChange?.(sub);
-  };
-
-  return (
-    <div className="space-y-6 sticky top-20">
-      {/* Sort */}
-      <div>
-        <h3 className="font-semibold mb-3">Sort By</h3>
-        <select
-          onChange={(e) => onSortChange(e.target.value)}
-          className="w-full px-3 py-2 bg-input border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-        >
-          <option value="">Featured</option>
-          <option value="price-low">Price: Low to High</option>
-          <option value="price-high">Price: High to Low</option>
-          <option value="newest">Newest</option>
-          <option value="rating">Highest Rated</option>
-        </select>
-      </div>
+ 
+   const handleMainSelect = (cat: string) => {
+     setSelectedMainCategory(cat);
+     onCategoryChange(cat);
+   };
+ 
+   return (
+     <div className="space-y-6 sticky top-20">
+       {/* Sort */}
+       <div>
+         <h3 className="font-semibold mb-3">Sort By</h3>
+         <SearchableSelect
+           options={[
+             { value: "", label: "Featured" },
+             { value: "price-low", label: "Price: Low to High" },
+             { value: "price-high", label: "Price: High to Low" },
+             { value: "newest", label: "Newest" },
+             { value: "rating", label: "Highest Rated" },
+           ]}
+           value={sortBy}
+           onValueChange={onSortChange}
+           placeholder="Sort by..."
+           searchPlaceholder="Search sort options..."
+         />
+       </div>
 
       {/* Main Categories (Sidebar) */}
       <div>
@@ -67,30 +62,6 @@ export function ProductFilter({ onCategoryChange, onPriceChange, onSortChange, o
           ))}
         </div>
       </div>
-
-      {/* Subcategories (shown when main category selected) */}
-      {selectedMainCategory && CATEGORY_TREE[selectedMainCategory] && (
-        <div>
-          <h3 className="font-semibold mb-3 text-sm">{selectedMainCategory}</h3>
-          <div className="space-y-2">
-            <button
-              onClick={() => handleSubSelect("")}
-              className={`w-full text-left px-3 py-2 rounded-md text-sm transition-all ${selectedSubcategory === "" ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted"}`}
-            >
-              All {selectedMainCategory}
-            </button>
-            {CATEGORY_TREE[selectedMainCategory].map((sub) => (
-              <button
-                key={sub}
-                onClick={() => handleSubSelect(sub)}
-                className={`w-full text-left px-3 py-2 rounded-md text-sm transition-all ${selectedSubcategory === sub ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted"}`}
-              >
-                {sub}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Price Range */}
       <div>

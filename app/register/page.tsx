@@ -12,7 +12,7 @@ import { User, Mail, Lock, Phone, Eye, EyeOff } from 'lucide-react';
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { register, user, isLoading: authLoading } = useAuth();
+  const { register, user, isLoading: authLoading, resendConfirmationEmail } = useAuth();
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -31,6 +31,24 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState<"weak" | "medium" | "strong" | "">("");
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+
+  // Reset form state on mount
+  useEffect(() => {
+    setFormData({
+      firstName: "",
+      middleName: "",
+      lastName: "",
+      email: "",
+      phone: "",
+      password: "",
+      confirmPassword: "",
+    });
+    setTermsAccepted(false);
+    setErrors({});
+    setPasswordStrength("");
+  }, []);
 
   // Redirect if already logged in or after successful registration
   useEffect(() => {
@@ -176,10 +194,11 @@ export default function RegisterPage() {
         return;
       }
 
-      // Success - show success toast
+      // Success - show success state
+      setIsSuccess(true);
       toast({
-        title: "Success",
-        description: "Account created successfully! Redirecting...",
+        title: "Check your email",
+        description: "Please check your email to confirm your account before logging in.",
         variant: "success",
       });
       // Redirect will be handled by useEffect when user state updates
@@ -196,6 +215,61 @@ export default function RegisterPage() {
     }
   };
 
+  const handleResendEmail = async () => {
+    setIsResending(true);
+    const { error } = await resendConfirmationEmail(formData.email);
+    setIsResending(false);
+    
+    if (error) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to resend email.",
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Email Sent",
+        description: "Confirmation email sent! Please check your inbox.",
+        variant: "success",
+      });
+    }
+  };
+
+  if (isSuccess) {
+    return (
+      <div className="flex flex-col min-h-screen">
+        <Navbar />
+        <main className="flex-1 flex items-center justify-center px-4 py-16">
+          <div className="w-full max-w-md text-center">
+            <div className="w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center mx-auto mb-6">
+              <Mail className="w-8 h-8" />
+            </div>
+            <h1 className="text-3xl font-bold mb-4">Check your email</h1>
+            <p className="text-muted-foreground mb-8">
+              We've sent a confirmation link to <span className="font-semibold text-foreground">{formData.email}</span>. Please click the link to verify your account before logging in.
+            </p>
+            <div className="space-y-4">
+              <Link
+                href="/login"
+                className="block w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-semibold"
+              >
+                Go to Login
+              </Link>
+              <button
+                onClick={handleResendEmail}
+                disabled={isResending}
+                className="w-full px-4 py-2 border border-primary text-primary rounded-lg hover:bg-primary/10 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isResending ? "Sending..." : "Resend confirmation email"}
+              </button>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
@@ -208,7 +282,7 @@ export default function RegisterPage() {
             <p className="text-xs text-muted-foreground mt-1">Quick sign-up · Takes less than a minute</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
             {/* Name (First / Middle / Last) */}
             <div>
               <label className="block text-sm font-medium mb-2">Name</label>
@@ -275,7 +349,7 @@ export default function RegisterPage() {
                   onChange={handleChange}
                   onBlur={handleEmailBlur}
                   placeholder="you@example.com"
-                  autoComplete="email"
+                  autoComplete="off"
                   className={`w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
                     errors.email ? "border-destructive" : "border-border"
                   }`}
@@ -317,6 +391,7 @@ export default function RegisterPage() {
                   value={formData.password}
                   onChange={handleChange}
                   placeholder="••••••••"
+                  autoComplete="new-password"
                   className={`w-full pl-10 pr-10 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
                     errors.password ? "border-destructive" : "border-border"
                   }`}
@@ -362,6 +437,7 @@ export default function RegisterPage() {
                   value={formData.confirmPassword}
                   onChange={handleChange}
                   placeholder="••••••••"
+                  autoComplete="new-password"
                   className={`w-full pl-10 pr-10 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
                     errors.confirmPassword ? "border-destructive" : "border-border"
                   }`}
