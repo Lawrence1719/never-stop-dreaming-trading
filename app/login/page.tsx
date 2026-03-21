@@ -28,6 +28,13 @@ function LoginPageContent() {
   const [isResending, setIsResending] = useState(false);
   const [justLoggedIn, setJustLoggedIn] = useState(false);
 
+  useEffect(() => {
+    // Reset form state on mount
+    setEmail("");
+    setPassword("");
+    setErrors({});
+  }, []);
+
   const { isMigrating } = useCart();
 
   // Redirect if already logged in; wait for cart migration to finish so migrated
@@ -216,7 +223,7 @@ function LoginPageContent() {
             <p className="text-muted-foreground">Sign in to your account</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
             {/* General Form Error */}
             {errors.form && (
               <div className="p-4 bg-destructive/10 border border-destructive rounded-lg">
@@ -241,7 +248,7 @@ function LoginPageContent() {
                   className={`w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
                     errors.email ? "border-destructive" : "border-border"
                   }`}
-                  autoComplete="email"
+                  autoComplete="off"
                 />
               </div>
               {errors.email && <p className="text-xs text-destructive mt-1">{errors.email}</p>}
