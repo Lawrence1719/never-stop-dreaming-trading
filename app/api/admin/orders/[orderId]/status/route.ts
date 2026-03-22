@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getClient } from '@/lib/supabase/admin';
+import { sendOrderStatusEmail } from '@/lib/emails/order-emails';
 
 // Allowed status transitions
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
@@ -215,6 +216,23 @@ export async function PUT(
     } catch (historyErr) {
       console.error('Error logging status history (table may not exist yet)', historyErr);
       // Continue - history logging is optional
+    }
+
+    return NextResponse.json({
+      success: true,
+      order_id: orderId,
+      previous_status: currentStatus,
+      new_status: status,
+      updated_at: updatedOrder.updated_at,
+      tracking_number: updatedOrder.tracking_number,
+      courier: updatedOrder.courier,
+    });
+    
+    // Trigger status email if shipped or delivered
+    if (status === 'shipped' || status === 'delivered') {
+      sendOrderStatusEmail(orderId).catch((err: any) => {
+        console.error('Failed to send order status email:', err);
+      });
     }
 
     return NextResponse.json({

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getClient } from '@/lib/supabase/admin';
+import { sendOrderStatusEmail } from '@/lib/emails/order-emails';
 
 /**
  * GET /api/admin/orders/[orderId]
@@ -167,7 +168,7 @@ export async function PUT(
     const {
       data: { user },
       error: userError,
-    } = await supabaseAdmin.auth.getUser(token);
+    } = await supabaseAdmin.auth.getUser(token || undefined);
 
     console.log('[PUT] User authenticated:', !!user, 'Error:', userError?.message);
 
@@ -392,6 +393,12 @@ export async function PUT(
     };
 
     console.log('[PUT] Success! Returning updated order');
+
+    if ((status === 'shipped' || status === 'delivered') && currentStatus !== status) {
+      sendOrderStatusEmail(orderId).catch((err: any) => {
+        console.error('Failed to send order status email:', err);
+      });
+    }
 
     return NextResponse.json(responseData);
     

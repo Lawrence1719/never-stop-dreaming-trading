@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { sendOrderConfirmationEmail } from '@/lib/emails/order-emails';
 
 /**
  * POST /api/orders/create
@@ -119,6 +120,12 @@ export async function POST(request: NextRequest) {
     }
 
     const { data: createdOrder, duplicate, message } = result;
+
+    if (createdOrder?.id && !duplicate) {
+      sendOrderConfirmationEmail(createdOrder.id).catch((err: any) => {
+        console.error('Failed to trigger order confirmation email:', err);
+      });
+    }
 
     return NextResponse.json({
       data: createdOrder,
