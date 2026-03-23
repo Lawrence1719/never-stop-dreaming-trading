@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { LayoutDashboard, Package, ShoppingCart, Users, BarChart3, Zap, Settings, ChevronDown, FileText, MapPin, Gift, BookOpen, ChevronRight, Link2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -178,8 +179,16 @@ export default function AdminSidebar({ isOpen }: { isOpen: boolean }) {
       )}
     >
       <div className="h-16 border-b border-border flex items-center justify-center px-4">
-        <Link href="/admin/dashboard" className="font-bold text-lg">
-          {isOpen ? 'Admin Panel' : 'AP'}
+        <Link href="/admin/dashboard" className="flex items-center justify-center">
+          <div className="relative w-10 h-10">
+            <Image
+              src="/Logo_NSD1.png"
+              alt="Admin Panel"
+              fill
+              className="object-contain"
+            />
+          </div>
+          {isOpen && <span className="ml-2 font-bold text-lg whitespace-nowrap">Admin Panel</span>}
         </Link>
       </div>
 

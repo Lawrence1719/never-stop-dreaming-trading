@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Menu, X } from 'lucide-react';
 import { useAuth } from "@/lib/context/auth-context";
@@ -38,6 +39,19 @@ export function MobileDrawer() {
             onClick={() => setIsOpen(false)}
           />
           <div className="fixed left-0 top-0 h-full w-64 bg-card border-r border-border z-50 overflow-y-auto">
+            <div className="p-4 border-b border-border">
+              <Link href="/" className="flex items-center gap-2" onClick={() => setIsOpen(false)}>
+                <div className="relative w-8 h-8">
+                  <Image
+                    src="/Logo_NSD1.png"
+                    alt="Logo"
+                    fill
+                    className="object-contain"
+                  />
+                </div>
+                <span className="font-bold">NSD Trading</span>
+              </Link>
+            </div>
             <div className="p-4 space-y-4">
               {user && (
                 <div className="pb-4 border-b border-border space-y-3">

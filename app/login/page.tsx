@@ -3,6 +3,7 @@
 import { useState, Suspense } from "react";
 import { useRouter } from 'next/navigation';
 import Link from "next/link";
+import Image from "next/image";
 import { Footer } from "@/components/layout/footer";
 import { Navbar } from "@/components/layout/navbar";
 import { useAuth } from "@/lib/context/auth-context";
@@ -219,6 +220,17 @@ function LoginPageContent() {
       <main className="flex-1 flex items-center justify-center px-4 py-16">
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
+            <div className="flex justify-center mb-6">
+              <div className="relative w-20 h-20">
+                <Image
+                  src="/Logo_NSD1.png"
+                  alt="Logo"
+                  fill
+                  className="object-contain"
+                  priority
+                />
+              </div>
+            </div>
             <h1 className="text-3xl font-bold mb-2">Welcome Back</h1>
             <p className="text-muted-foreground">Sign in to your account</p>
           </div>

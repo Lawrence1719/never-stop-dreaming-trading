@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Search, Heart, ShoppingCart } from 'lucide-react';
 import { useCart } from "@/lib/context/cart-context";
 import { useWishlist } from "@/lib/context/wishlist-context";
@@ -30,10 +31,14 @@ export function Navbar() {
             {/* Logo */}
             <div className="flex items-center gap-8">
               <Link href="/" className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                  <span className="text-primary-foreground font-bold">
-                    {storeName.split(' ').map(w => w[0]).join('').substring(0, 3).toUpperCase()}
-                  </span>
+                <div className="flex items-center justify-center relative w-10 h-10">
+                  <Image
+                    src="/Logo_NSD1.png"
+                    alt={storeName}
+                    fill
+                    className="object-contain"
+                    priority
+                  />
                 </div>
                 <span className="font-bold text-lg hidden sm:inline">{storeName}</span>
               </Link>

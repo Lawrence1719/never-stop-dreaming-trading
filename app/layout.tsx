@@ -10,6 +10,9 @@ export const metadata: Metadata = {
   title: "Never Stop Dreaming Trading",
   description: "Premium trading tools, courses, and analytics for serious traders",
   generator: "v0.app",
+  icons: {
+    icon: "/Logo_NSD1.png",
+  },
 };
 
 export default function RootLayout({

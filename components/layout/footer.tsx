@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { Facebook, Twitter, Linkedin, Instagram, Mail, Phone, MapPin } from 'lucide-react';
 import { useSettings } from "@/lib/hooks/use-settings";
 import { MAIN_CATEGORIES } from "@/lib/data/categories";
@@ -19,7 +20,14 @@ export function Footer() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
           {/* About */}
           <div>
-            <h3 className="font-bold text-lg mb-4">{storeName}</h3>
+            <div className="mb-4 relative w-32 h-12">
+              <Image
+                src="/Logo_NSD1.png"
+                alt={storeName}
+                fill
+                className="object-contain object-left"
+              />
+            </div>
             <p className="text-sm text-muted-foreground mb-4">
               {tagline}
             </p>

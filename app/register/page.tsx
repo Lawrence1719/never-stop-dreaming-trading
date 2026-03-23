@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from 'next/navigation';
 import Link from "next/link";
+import Image from "next/image";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { useAuth } from "@/lib/context/auth-context";
@@ -277,6 +278,16 @@ export default function RegisterPage() {
       <main className="flex-1 flex items-center justify-center px-4 py-16">
       <div className="w-full max-w-xl">
           <div className="text-center mb-8">
+            <div className="flex justify-center mb-6">
+              <div className="relative w-24 h-24">
+                <Image
+                  src="/Logo_NSD1.png"
+                  alt="Logo"
+                  fill
+                  className="object-contain"
+                />
+              </div>
+            </div>
             <h1 className="text-3xl font-bold mb-2">Create Account</h1>
             <p className="text-muted-foreground">Join Never Stop Dreaming Trading</p>
             <p className="text-xs text-muted-foreground mt-1">Quick sign-up · Takes less than a minute</p>
