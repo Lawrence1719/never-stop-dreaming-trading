@@ -5,7 +5,20 @@ import { getClient } from '@/lib/supabase/admin';
 // though it should be fine. Let's import it safely.
 import { formatPrice } from '@/lib/utils/formatting';
 
-const resend = new Resend(process.env.RESEND_API_KEY || process.env.RESEND_NSD_API_KEY);
+let resendInstance: Resend | null = null;
+
+function getResend() {
+  if (resendInstance) return resendInstance;
+  
+  const apiKey = process.env.RESEND_API_KEY || process.env.RESEND_NSD_API_KEY;
+  if (!apiKey) {
+    throw new Error('Resend API key is missing. Pass it to the constructor `new Resend("re_123")`');
+  }
+  
+  resendInstance = new Resend(apiKey);
+  return resendInstance;
+}
+
 
 const getAppUrl = () => {
   return process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
@@ -97,7 +110,7 @@ export async function sendOrderConfirmationEmail(orderId: string) {
       </div>
     `;
 
-    await resend.emails.send({
+    await getResend().emails.send({
       from: 'onboarding@resend.dev',
       to: userEmail,
       subject: 'Order Confirmed - Never Stop Dreaming Trading',
@@ -161,7 +174,7 @@ export async function sendOrderStatusEmail(orderId: string) {
       </div>
     `;
 
-    await resend.emails.send({
+    await getResend().emails.send({
       from: 'onboarding@resend.dev',
       to: userEmail,
       subject: `${statusTitle} - Never Stop Dreaming Trading`,
