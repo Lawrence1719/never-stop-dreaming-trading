@@ -5,6 +5,8 @@ import Image from "next/image";
 import { Facebook, Twitter, Linkedin, Instagram, Mail, Phone, MapPin } from 'lucide-react';
 import { useSettings } from "@/lib/hooks/use-settings";
 import { MAIN_CATEGORIES } from "@/lib/data/categories";
+import { useTheme } from "next-themes";
+import { Logo } from "@/components/ui/logo";
 
 export function Footer() {
   const { settings } = useSettings();
@@ -17,16 +19,10 @@ export function Footer() {
   return (
     <footer className="bg-card border-t border-border mt-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
-          {/* About */}
-          <div>
-            <div className="mb-4 relative w-32 h-12">
-              <Image
-                src="/Logo_Light.png"
-                alt={storeName}
-                fill
-                className="object-contain object-left"
-              />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-8 mb-8">
+          <div className="lg:col-span-2">
+            <div className="mb-4">
+              <Logo variant="long" />
             </div>
             <p className="text-sm text-muted-foreground mb-4">
               {tagline}

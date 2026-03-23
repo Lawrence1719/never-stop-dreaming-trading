@@ -10,6 +10,8 @@ import { useAuth } from "@/lib/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { validateEmail, validatePassword, validatePhoneNumber } from "@/lib/utils/validation";
 import { User, Mail, Lock, Phone, Eye, EyeOff } from 'lucide-react';
+import { useTheme } from "next-themes";
+import { Logo } from "@/components/ui/logo";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -271,6 +273,7 @@ export default function RegisterPage() {
     );
   }
 
+
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
@@ -279,14 +282,7 @@ export default function RegisterPage() {
         <div className="w-full max-w-xl">
           <div className="text-center mb-8">
             <div className="flex justify-center mb-6">
-              <div className="relative w-24 h-24">
-                <Image
-                  src="/Logo_Light.png"
-                  alt="Logo"
-                  fill
-                  className="object-contain"
-                />
-              </div>
+              <Logo variant="long" className="h-16 w-auto" />
             </div>
             <h1 className="text-3xl font-bold mb-2">Create Account</h1>
             <p className="text-muted-foreground">Join Never Stop Dreaming Trading</p>

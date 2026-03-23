@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { sendOrderConfirmationEmail } from '@/lib/emails/order-emails';
+import { createNotification, checkLowStockAndNotify } from '@/lib/notifications/service';
 
 /**
  * POST /api/orders/create
@@ -125,6 +126,62 @@ export async function POST(request: NextRequest) {
       sendOrderConfirmationEmail(createdOrder.id).catch((err: any) => {
         console.error('Failed to trigger order confirmation email:', err);
       });
+
+      // Notify customer about order receipt
+      createNotification({
+        userId: user.id,
+        title: 'Order Received!',
+        message: 'Order Received! We are processing your order.',
+        type: 'success',
+        link: `/profile/orders/${createdOrder.id}`,
+        targetRole: 'customer',
+      }).catch(err => console.error('Failed to notify customer of new order:', err));
+
+      // Notify all admins about the new order
+      (async () => {
+        try {
+          const supabaseAdmin = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+            process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+          );
+          
+          const { data: profile } = await supabaseAdmin
+            .from('profiles')
+            .select('name')
+            .eq('id', user.id)
+            .single();
+
+          const customerName = profile?.name || 'A customer';
+
+          const { data: admins } = await supabaseAdmin
+            .from('profiles')
+            .select('id')
+            .eq('role', 'admin');
+
+          if (admins && admins.length > 0) {
+            const orderNum = createdOrder.id.slice(0, 8).toUpperCase();
+            for (const admin of admins) {
+              await createNotification({
+                userId: admin.id,
+                title: 'New Order Received',
+                message: `New order #${orderNum} received from ${customerName}. Total: ${new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(total)}.`,
+                type: 'success',
+                link: `/admin/orders/${createdOrder.id}`,
+                targetRole: 'admin',
+              }).catch(err => console.error('Failed to notify admin of new order:', err));
+            }
+          }
+        } catch (err) {
+          console.error('Error in admin new order notification:', err);
+        }
+      })();
+
+      // Check for low stock levels and notify admins
+      if (items && Array.isArray(items)) {
+        checkLowStockAndNotify(items).catch((err: any) => {
+          console.error('Failed to run low stock check:', err);
+        });
+      }
     }
 
     return NextResponse.json({

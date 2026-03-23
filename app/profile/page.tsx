@@ -8,13 +8,15 @@ import { Footer } from "@/components/layout/footer";
 import { useAuth } from "@/lib/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase/client";
-import { User, Settings, LogOut, MapPin, CreditCard, Package, Shield, ShieldCheck, LayoutDashboard } from 'lucide-react';
+import { User, Settings, LogOut, MapPin, CreditCard, Package, Shield, ShieldCheck, LayoutDashboard, Bell } from 'lucide-react';
 import { formatDate, formatPrice, formatRelativeTime } from "@/lib/utils/formatting";
+import { useNotifications } from "@/hooks/use-notifications";
 
 export default function ProfilePage() {
   const router = useRouter();
   const { user, logout, isLoading } = useAuth();
   const { toast } = useToast();
+  const { unreadCount } = useNotifications('customer', { limit: 1 });
   const [totalOrders, setTotalOrders] = useState(0);
   const [totalSpent, setTotalSpent] = useState(0);
   const [savedAddresses, setSavedAddresses] = useState(0);
@@ -190,7 +192,7 @@ export default function ProfilePage() {
             <div className="md:col-span-2 space-y-6">
               <div className="bg-card border border-border rounded-lg p-6">
                 <h3 className="font-semibold mb-4">Quick Actions</h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <Link
                     href="/profile/edit"
                     className="p-4 border border-border rounded-lg hover:bg-secondary/10 hover:border-primary/30 transition-all text-center group"
@@ -214,6 +216,20 @@ export default function ProfilePage() {
                       <p className="font-bold text-xs text-primary">Admin Panel</p>
                     </Link>
                   )}
+                  <Link
+                    href="/notifications"
+                    className="p-4 border border-border rounded-lg hover:bg-secondary/10 hover:border-primary/30 transition-all text-center group relative"
+                  >
+                    <div className="relative w-fit mx-auto">
+                      <Bell className="w-6 h-6 mb-2 text-primary group-hover:scale-110 transition-transform" />
+                      {unreadCount > 0 && (
+                        <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-bold border border-background animate-in zoom-in">
+                          {unreadCount > 9 ? '9+' : unreadCount}
+                        </span>
+                      )}
+                    </div>
+                    <p className="font-medium text-xs">Notifications</p>
+                  </Link>
                   <Link
                     href="/orders"
                     className="p-4 border border-border rounded-lg hover:bg-secondary/10 hover:border-primary/30 transition-all text-center group"

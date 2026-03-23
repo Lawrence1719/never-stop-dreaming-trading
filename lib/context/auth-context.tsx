@@ -92,7 +92,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (error) {
-        console.error("Error fetching user profile:", error);
+        console.error("Error fetching user profile:", {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint
+        });
         const userMetadata = session.user.user_metadata || {};
         const userData: User = {
           id: session.user.id,

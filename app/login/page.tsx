@@ -13,7 +13,8 @@ import { validateEmail, validatePassword } from "@/lib/utils/validation";
 import { Mail, Lock } from 'lucide-react';
 import { useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useTheme } from "@/lib/context/theme-context";
+import { useTheme } from "next-themes";
+import { Logo } from "@/components/ui/logo";
 
 function LoginPageContent() {
   const router = useRouter();
@@ -214,6 +215,7 @@ function LoginPageContent() {
     );
   }
 
+
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
@@ -222,15 +224,7 @@ function LoginPageContent() {
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
             <div className="flex justify-center mb-6">
-              <div className="relative w-20 h-20">
-                <Image
-                  src="/Logo_Light.png"
-                  alt="Logo"
-                  fill
-                  className="object-contain"
-                  priority
-                />
-              </div>
+              <Logo variant="long" className="h-16 w-auto" priority />
             </div>
             <h1 className="text-3xl font-bold mb-2">Welcome Back</h1>
             <p className="text-muted-foreground">Sign in to your account</p>

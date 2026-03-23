@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getClient } from '@/lib/supabase/admin';
 import { sendOrderStatusEmail } from '@/lib/emails/order-emails';
+import { createNotification } from '@/lib/notifications/service';
 
 /**
  * GET /api/admin/orders/[orderId]
@@ -398,6 +399,40 @@ export async function PUT(
       sendOrderStatusEmail(orderId).catch((err: any) => {
         console.error('Failed to send order status email:', err);
       });
+    }
+
+    // Trigger in-app notification for the customer
+    if (order.user_id && currentStatus !== status) {
+      const getStatusTitle = (s: string) => {
+        switch (s) {
+          case 'processing': return 'Order Processing';
+          case 'shipped': return 'Order Shipped';
+          case 'delivered': return 'Order Delivered';
+          case 'cancelled': return 'Order Cancelled';
+          default: return `Order Update: ${s.charAt(0).toUpperCase() + s.slice(1)}`;
+        }
+      };
+
+      const getStatusType = (s: string): 'info' | 'success' | 'warning' | 'error' | 'order' => {
+        if (s === 'delivered') return 'success';
+        if (s === 'cancelled') return 'error';
+        if (s === 'shipped' || s === 'processing') return 'order';
+        return 'info';
+      };
+
+      const getStatusMessage = (s: string) => {
+        if (s === 'delivered') return 'Your order has been delivered. Enjoy!';
+        return `Your order has been ${s}!`;
+      };
+
+      createNotification({
+        userId: order.user_id,
+        title: getStatusTitle(status),
+        message: getStatusMessage(status),
+        type: getStatusType(status),
+        link: `/profile/orders/${order.id}`,
+        targetRole: 'customer',
+      }).catch(err => console.error('Failed to trigger customer notification:', err));
     }
 
     return NextResponse.json(responseData);

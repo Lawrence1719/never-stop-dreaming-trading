@@ -4,16 +4,21 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Package, ShoppingCart, Users, BarChart3, Zap, Settings, ChevronDown, FileText, MapPin, Gift, BookOpen, ChevronRight, Link2 } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Users, BarChart3, Zap, Settings, ChevronDown, FileText, MapPin, Gift, BookOpen, ChevronRight, Link2, Bell } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useNotifications } from '@/hooks/use-notifications';
+import { Badge } from '@/components/ui/badge';
+import { useTheme } from 'next-themes';
+import { Logo } from '@/components/ui/logo';
 
 interface MenuItem {
   label: string;
   href?: string;
   icon: any;
   submenu?: MenuItem[];
+  badge?: number;
 }
 
 const menuItems: MenuItem[] = [
@@ -43,6 +48,11 @@ const menuItems: MenuItem[] = [
       { label: 'All Customers', href: '/admin/customers', icon: Users },
       { label: 'Groups', href: '/admin/customer-groups', icon: FileText },
     ],
+  },
+  {
+    label: 'Notifications',
+    href: '/admin/notifications',
+    icon: Bell,
   },
   /*{
     label: 'IoT & Tracking',
@@ -123,24 +133,38 @@ function SidebarItem({
             <Icon className="h-4 w-4" />
             {isOpen && <span>{item.label}</span>}
           </div>
-          {isOpen && (
-            <ChevronRight
-              className={cn('h-4 w-4 transition-transform', expanded && 'rotate-90')}
-            />
-          )}
+          <div className="flex items-center gap-1">
+            {isOpen && item.badge !== undefined && item.badge > 0 && (
+              <Badge variant="destructive" className="h-4 min-w-[16px] px-1 text-[10px] flex items-center justify-center">
+                {item.badge}
+              </Badge>
+            )}
+            {isOpen && (
+              <ChevronRight
+                className={cn('h-4 w-4 transition-transform', expanded && 'rotate-90')}
+              />
+            )}
+          </div>
         </button>
       ) : (
         <Link href={item.href!}>
           <div
             className={cn(
-              'px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2 transition-colors',
+              'px-3 py-2 rounded-md text-sm font-medium flex items-center justify-between transition-colors',
               isActive
                 ? 'bg-primary text-primary-foreground'
                 : 'hover:bg-muted'
             )}
           >
-            <Icon className="h-4 w-4" />
-            {isOpen && <span>{item.label}</span>}
+            <div className="flex items-center gap-2">
+              <Icon className="h-4 w-4" />
+              {isOpen && <span>{item.label}</span>}
+            </div>
+            {isOpen && item.badge !== undefined && item.badge > 0 && (
+              <Badge variant={isActive ? "secondary" : "destructive"} className={cn("h-4 min-w-[16px] px-1 text-[10px] flex items-center justify-center", isActive && "bg-white text-primary")}>
+                {item.badge}
+              </Badge>
+            )}
           </div>
         </Link>
       )}
@@ -170,6 +194,15 @@ function SidebarItem({
 
 export default function AdminSidebar({ isOpen }: { isOpen: boolean }) {
   const pathname = usePathname();
+  const { unreadCount } = useNotifications('admin');
+
+
+  const updatedMenuItems = menuItems.map(item => {
+    if (item.label === 'Notifications') {
+      return { ...item, badge: unreadCount };
+    }
+    return item;
+  });
 
   return (
     <aside
@@ -180,21 +213,14 @@ export default function AdminSidebar({ isOpen }: { isOpen: boolean }) {
     >
       <div className="h-16 border-b border-border flex items-center justify-center px-4">
         <Link href="/admin/dashboard" className="flex items-center justify-center">
-          <div className="relative w-10 h-10">
-            <Image
-              src="/Logo_Light.png"
-              alt="Admin Panel"
-              fill
-              className="object-contain"
-            />
-          </div>
+          <Logo variant="square" className="h-10 w-10" />
           {isOpen && <span className="ml-2 font-bold text-lg whitespace-nowrap">Admin Panel</span>}
         </Link>
       </div>
 
       <ScrollArea className="flex-1">
         <div className="p-3 space-y-1">
-          {menuItems.map((item, idx) => (
+          {updatedMenuItems.map((item, idx) => (
             <SidebarItem
               key={idx}
               item={item}

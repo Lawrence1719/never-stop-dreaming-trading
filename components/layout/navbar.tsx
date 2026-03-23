@@ -13,37 +13,28 @@ import { UserMenu } from "./user-menu";
 import { ThemeToggle } from "./theme-toggle";
 import { MobileDrawer } from "@/components/layout/mobile-drawer";
 import { useTheme } from "@/lib/context/theme-context";
+import { NotificationBell } from "./notification-bell";
+import { Logo } from "@/components/ui/logo";
 export function Navbar() {
   const [searchOpen, setSearchOpen] = useState(false);
   const { cart } = useCart();
   const { wishlist } = useWishlist();
   const { user } = useAuth();
   const { settings } = useSettings();
-  const { theme } = useTheme();
   
   const cartCount = cart.items.reduce((sum, item) => sum + item.quantity, 0);
   const wishlistCount = user ? wishlist.length : 0;
   const storeName = settings?.general.storeName || 'Never Stop Dreaming';
-  
-  const logoSrc = theme === 'dark' ? '/Logo_Light.png' : '/Logo_Light.png'; // Use Light for both until Dark is added
 
   return (
     <>
       <nav className="sticky top-0 z-40 bg-card border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
             <div className="flex items-center gap-8">
-              <Link href="/" className="flex items-center gap-2">
-                <div className="flex items-center justify-center relative w-10 h-10">
-                  <Image
-                    src={logoSrc}
-                    alt={storeName}
-                    fill
-                    className="object-contain"
-                    priority
-                  />
-                </div>
+              <Link href="/" className="flex items-center gap-1.5">
+                <Logo variant="square" priority />
                 <span className="font-bold text-lg hidden sm:inline">{storeName}</span>
               </Link>
 
@@ -105,6 +96,9 @@ export function Navbar() {
                   </span>
                 )}
               </Link>
+
+              {/* Notifications */}
+              <NotificationBell />
 
               {/* Theme Toggle */}
               <ThemeToggle />
