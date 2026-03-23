@@ -22,7 +22,7 @@ export function Footer() {
           <div>
             <div className="mb-4 relative w-32 h-12">
               <Image
-                src="/Logo_NSD1.png"
+                src="/Logo_Light.png"
                 alt={storeName}
                 fill
                 className="object-contain object-left"
@@ -57,8 +57,8 @@ export function Footer() {
             <ul className="space-y-2 text-sm">
               {MAIN_CATEGORIES.map((category) => (
                 <li key={category}>
-                  <Link 
-                    href={`/products?category=${encodeURIComponent(category)}`} 
+                  <Link
+                    href={`/products?category=${encodeURIComponent(category)}`}
                     className="hover:text-primary transition-colors"
                   >
                     {category}

@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   description: "Premium trading tools, courses, and analytics for serious traders",
   generator: "v0.app",
   icons: {
-    icon: "/Logo_NSD1.png",
+    icon: "/Logo_Light.png",
   },
 };
 

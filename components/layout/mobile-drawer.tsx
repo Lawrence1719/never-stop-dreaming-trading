@@ -8,12 +8,16 @@ import { Menu, X } from 'lucide-react';
 import { useAuth } from "@/lib/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { ThemeToggle } from "./theme-toggle";
+import { useTheme } from "@/lib/context/theme-context";
 
 export function MobileDrawer() {
   const [isOpen, setIsOpen] = useState(false);
   const { user, logout } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
+  const { theme } = useTheme();
+
+  const logoSrc = theme === 'dark' ? '/Logo_Light.png' : '/Logo_Light.png'; // Use Light for both until Dark is added
 
   const links = [
     { id: "home", label: "Home", href: "/" },
@@ -43,7 +47,7 @@ export function MobileDrawer() {
               <Link href="/" className="flex items-center gap-2" onClick={() => setIsOpen(false)}>
                 <div className="relative w-8 h-8">
                   <Image
-                    src="/Logo_NSD1.png"
+                    src={logoSrc}
                     alt="Logo"
                     fill
                     className="object-contain"

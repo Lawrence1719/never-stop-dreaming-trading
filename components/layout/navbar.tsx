@@ -12,16 +12,20 @@ import { SearchModal } from "./search-modal";
 import { UserMenu } from "./user-menu";
 import { ThemeToggle } from "./theme-toggle";
 import { MobileDrawer } from "@/components/layout/mobile-drawer";
+import { useTheme } from "@/lib/context/theme-context";
 export function Navbar() {
   const [searchOpen, setSearchOpen] = useState(false);
   const { cart } = useCart();
   const { wishlist } = useWishlist();
   const { user } = useAuth();
   const { settings } = useSettings();
-
+  const { theme } = useTheme();
+  
   const cartCount = cart.items.reduce((sum, item) => sum + item.quantity, 0);
   const wishlistCount = user ? wishlist.length : 0;
   const storeName = settings?.general.storeName || 'Never Stop Dreaming';
+  
+  const logoSrc = theme === 'dark' ? '/Logo_Light.png' : '/Logo_Light.png'; // Use Light for both until Dark is added
 
   return (
     <>
@@ -33,7 +37,7 @@ export function Navbar() {
               <Link href="/" className="flex items-center gap-2">
                 <div className="flex items-center justify-center relative w-10 h-10">
                   <Image
-                    src="/Logo_NSD1.png"
+                    src={logoSrc}
                     alt={storeName}
                     fill
                     className="object-contain"

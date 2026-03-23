@@ -123,7 +123,7 @@ export default function RegisterPage() {
       setErrors((prev) => ({ ...prev, [name]: "" }));
     }
   };
-  
+
   const handleEmailBlur = (e: React.FocusEvent<HTMLInputElement>) => {
     // Trim email on blur to remove any trailing whitespace
     const trimmedEmail = e.target.value.trim().toLowerCase();
@@ -157,7 +157,7 @@ export default function RegisterPage() {
     try {
       // Trim email before sending to ensure no whitespace issues
       const trimmedEmail = formData.email.trim().toLowerCase();
-      
+
       const fullName = [formData.firstName, formData.middleName, formData.lastName]
         .map((part) => part.trim())
         .filter(Boolean)
@@ -169,11 +169,11 @@ export default function RegisterPage() {
         formData.phone.trim(),
         formData.password
       );
-      
+
       if (error) {
         // Show specific error messages based on error type
         let errorMessage = "Registration failed. Please try again.";
-        
+
         if (error.message) {
           if (error.message.includes("already registered") || error.message.includes("already exists")) {
             errorMessage = "This email is already registered. Please use a different email or try logging in.";
@@ -185,7 +185,7 @@ export default function RegisterPage() {
             errorMessage = error.message;
           }
         }
-        
+
         toast({
           title: "Registration Failed",
           description: errorMessage,
@@ -220,7 +220,7 @@ export default function RegisterPage() {
     setIsResending(true);
     const { error } = await resendConfirmationEmail(formData.email);
     setIsResending(false);
-    
+
     if (error) {
       toast({
         title: "Error",
@@ -276,12 +276,12 @@ export default function RegisterPage() {
       <Navbar />
 
       <main className="flex-1 flex items-center justify-center px-4 py-16">
-      <div className="w-full max-w-xl">
+        <div className="w-full max-w-xl">
           <div className="text-center mb-8">
             <div className="flex justify-center mb-6">
               <div className="relative w-24 h-24">
                 <Image
-                  src="/Logo_NSD1.png"
+                  src="/Logo_Light.png"
                   alt="Logo"
                   fill
                   className="object-contain"
@@ -307,9 +307,8 @@ export default function RegisterPage() {
                     value={formData.firstName}
                     onChange={handleChange}
                     placeholder="First"
-                    className={`w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
-                      errors.firstName ? "border-destructive" : "border-border"
-                    }`}
+                    className={`w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${errors.firstName ? "border-destructive" : "border-border"
+                      }`}
                   />
                 </div>
 
@@ -335,9 +334,8 @@ export default function RegisterPage() {
                     value={formData.lastName}
                     onChange={handleChange}
                     placeholder="Last"
-                    className={`w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
-                      errors.lastName ? "border-destructive" : "border-border"
-                    }`}
+                    className={`w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${errors.lastName ? "border-destructive" : "border-border"
+                      }`}
                   />
                 </div>
               </div>
@@ -361,9 +359,8 @@ export default function RegisterPage() {
                   onBlur={handleEmailBlur}
                   placeholder="you@example.com"
                   autoComplete="off"
-                  className={`w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
-                    errors.email ? "border-destructive" : "border-border"
-                  }`}
+                  className={`w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${errors.email ? "border-destructive" : "border-border"
+                    }`}
                 />
               </div>
               {errors.email && <p className="text-xs text-destructive mt-1">{errors.email}</p>}
@@ -382,9 +379,8 @@ export default function RegisterPage() {
                   onChange={handleChange}
                   placeholder="912 345 6789"
                   autoComplete="tel"
-                  className={`w-full pl-2 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
-                    errors.phone ? "border-destructive" : "border-border"
-                  }`}
+                  className={`w-full pl-2 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${errors.phone ? "border-destructive" : "border-border"
+                    }`}
                 />
               </div>
               {errors.phone && <p className="text-xs text-destructive mt-1">{errors.phone}</p>}
@@ -403,9 +399,8 @@ export default function RegisterPage() {
                   onChange={handleChange}
                   placeholder="••••••••"
                   autoComplete="new-password"
-                  className={`w-full pl-10 pr-10 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
-                    errors.password ? "border-destructive" : "border-border"
-                  }`}
+                  className={`w-full pl-10 pr-10 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${errors.password ? "border-destructive" : "border-border"
+                    }`}
                 />
                 <button
                   type="button"
@@ -421,13 +416,12 @@ export default function RegisterPage() {
                 <div className="mt-2">
                   <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
                     <div
-                      className={`h-full transition-all ${
-                        passwordStrength === "weak"
+                      className={`h-full transition-all ${passwordStrength === "weak"
                           ? "w-1/3 bg-destructive"
                           : passwordStrength === "medium"
-                          ? "w-2/3 bg-amber-500"
-                          : "w-full bg-emerald-500"
-                      }`}
+                            ? "w-2/3 bg-amber-500"
+                            : "w-full bg-emerald-500"
+                        }`}
                     />
                   </div>
                   <p className="text-xs text-muted-foreground mt-1 capitalize">
@@ -449,9 +443,8 @@ export default function RegisterPage() {
                   onChange={handleChange}
                   placeholder="••••••••"
                   autoComplete="new-password"
-                  className={`w-full pl-10 pr-10 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
-                    errors.confirmPassword ? "border-destructive" : "border-border"
-                  }`}
+                  className={`w-full pl-10 pr-10 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${errors.confirmPassword ? "border-destructive" : "border-border"
+                    }`}
                 />
                 <button
                   type="button"

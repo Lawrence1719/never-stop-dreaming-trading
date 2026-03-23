@@ -13,6 +13,7 @@ import { validateEmail, validatePassword } from "@/lib/utils/validation";
 import { Mail, Lock } from 'lucide-react';
 import { useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useTheme } from "@/lib/context/theme-context";
 
 function LoginPageContent() {
   const router = useRouter();
@@ -95,30 +96,30 @@ function LoginPageContent() {
     try {
       const trimmedEmail = email.trim().toLowerCase();
       console.log('Attempting login with email:', trimmedEmail);
-      
+
       const { error } = await login(trimmedEmail, password);
-      
+
       console.log('Login result:', { error });
-      
+
       if (error) {
         const errorMessage = error.message || "Invalid email or password";
         console.error('Login error:', errorMessage);
-        
+
         // Set form error
         setErrors({ form: errorMessage });
-        
-        if (errorMessage.toLowerCase().includes("email not confirmed") || 
-            errorMessage.toLowerCase().includes("email_not_confirmed") ||
-            errorMessage.toLowerCase().includes("confirm your email")) {
+
+        if (errorMessage.toLowerCase().includes("email not confirmed") ||
+          errorMessage.toLowerCase().includes("email_not_confirmed") ||
+          errorMessage.toLowerCase().includes("confirm your email")) {
           setShowResendConfirmation(true);
           toast({
             title: "Email Not Confirmed",
             description: "Please confirm your email address before logging in. Check your inbox for the confirmation link.",
             variant: "destructive",
           });
-        } else if (errorMessage.toLowerCase().includes("invalid") || 
-                   errorMessage.toLowerCase().includes("credentials") ||
-                   errorMessage.toLowerCase().includes("password")) {
+        } else if (errorMessage.toLowerCase().includes("invalid") ||
+          errorMessage.toLowerCase().includes("credentials") ||
+          errorMessage.toLowerCase().includes("password")) {
           toast({
             title: "Invalid Credentials",
             description: "The email or password you entered is incorrect. Please try again.",
@@ -141,7 +142,7 @@ function LoginPageContent() {
         variant: "success",
       });
       setShowResendConfirmation(false);
-      
+
       // Delay to ensure toast is visible before redirect
       await new Promise(resolve => setTimeout(resolve, 1500));
       // Clear the flag to allow useEffect to handle redirect
@@ -173,7 +174,7 @@ function LoginPageContent() {
     setIsResending(true);
     try {
       const { error } = await resendConfirmationEmail(email.trim());
-      
+
       if (error) {
         toast({
           title: "Error",
@@ -223,7 +224,7 @@ function LoginPageContent() {
             <div className="flex justify-center mb-6">
               <div className="relative w-20 h-20">
                 <Image
-                  src="/Logo_NSD1.png"
+                  src="/Logo_Light.png"
                   alt="Logo"
                   fill
                   className="object-contain"
@@ -257,9 +258,8 @@ function LoginPageContent() {
                     if (errors.form) setErrors((prev) => ({ ...prev, form: "" }));
                   }}
                   placeholder="you@example.com"
-                  className={`w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
-                    errors.email ? "border-destructive" : "border-border"
-                  }`}
+                  className={`w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${errors.email ? "border-destructive" : "border-border"
+                    }`}
                   autoComplete="off"
                 />
               </div>
@@ -280,9 +280,8 @@ function LoginPageContent() {
                     if (errors.form) setErrors((prev) => ({ ...prev, form: "" }));
                   }}
                   placeholder="••••••••"
-                  className={`w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
-                    errors.password ? "border-destructive" : "border-border"
-                  }`}
+                  className={`w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${errors.password ? "border-destructive" : "border-border"
+                    }`}
                   autoComplete="current-password"
                 />
               </div>

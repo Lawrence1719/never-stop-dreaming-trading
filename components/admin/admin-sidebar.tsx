@@ -182,7 +182,7 @@ export default function AdminSidebar({ isOpen }: { isOpen: boolean }) {
         <Link href="/admin/dashboard" className="flex items-center justify-center">
           <div className="relative w-10 h-10">
             <Image
-              src="/Logo_NSD1.png"
+              src="/Logo_Light.png"
               alt="Admin Panel"
               fill
               className="object-contain"
