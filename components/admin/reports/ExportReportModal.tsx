@@ -1,29 +1,29 @@
 'use client';
 
 import React, { useState } from 'react';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogDescription, 
-  DialogFooter, 
-  DialogHeader, 
-  DialogTitle 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
 } from '@/components/ui/select';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from '@/components/ui/table';
 import { formatPrice } from '@/lib/utils/formatting';
 import { FileText, FileSpreadsheet, Download, Printer } from 'lucide-react';
@@ -57,140 +57,17 @@ export function ExportReportModal({ isOpen, onClose, reportType, data }: ExportR
     return `${reportType}-report-${today}.${ext}`;
   };
 
-  const executeDownloadManual = (content: any, mimeType: string, extension: string) => {
-    try {
-      const filename = getFilename(extension);
-      const blob = content instanceof Blob ? content : new Blob([content], { type: mimeType });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.style.display = 'none';
-      a.href = url;
-      a.setAttribute('download', filename);
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      
-      // Keep URL alive for 1 minute just to be safe for slow OS interactions
-      setTimeout(() => {
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-      }, 60000);
-    } catch (error) {
-      console.error('[Export] Download failed:', error);
+  const formatCurrencyForPDF = (amount: number | string) => {
+    if (typeof amount === 'string' && amount.includes('₱')) {
+      return amount.replace('₱', 'PHP ');
     }
+    const val = typeof amount === 'number' ? amount : parseFloat(amount.toString().replace(/[^0-9.-]+/g, ""));
+    return `PHP ${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
-  const handlePrint = () => {
-    const reportName = getReportName();
-    const today = new Date().toLocaleString();
-    
-    // Create a new window for printing
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
 
-    // Generate HTML for the printable report
-    let reportHtml = `
-      <html>
-        <head>
-          <title>${reportName} Report - NSD</title>
-          <style>
-            body { font-family: sans-serif; padding: 40px; color: #333; }
-            .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #3b82f6; padding-bottom: 20px; }
-            .title { font-size: 28px; font-weight: bold; color: #3b82f6; margin: 0; }
-            .subtitle { font-size: 14px; color: #666; margin-top: 5px; }
-            .section { margin-top: 30px; }
-            .section-title { font-size: 18px; font-weight: bold; border-bottom: 1px solid #ddd; padding-bottom: 5px; margin-bottom: 15px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-            th { text-align: left; background: #f3f4f6; padding: 10px; font-size: 12px; }
-            td { padding: 10px; border-bottom: 1px solid #eee; font-size: 12px; }
-            .text-right { text-align: right; }
-            .footer { margin-top: 50px; font-size: 10px; color: #999; text-align: center; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1 class="title">NSD ${reportName} Report</h1>
-            <p class="subtitle">Generated on: ${today}</p>
-          </div>
-          
-          <div class="section">
-            <div class="section-title">Summary Statistics</div>
-            <table>
-              <thead><tr><th>Metric</th><th class="text-right">Value</th></tr></thead>
-              <tbody>
-    `;
 
-    if (reportType === 'sales') {
-      reportHtml += `
-        <tr><td>Total Revenue</td><td class="text-right">${formatPrice(data.summary.totalRevenue)}</td></tr>
-        <tr><td>Total Orders</td><td class="text-right">${data.summary.totalOrders}</td></tr>
-        <tr><td>Avg. Order Value</td><td class="text-right">${formatPrice(data.summary.averageOrderValue)}</td></tr>
-        <tr><td>Conversion Rate</td><td class="text-right">${data.summary.conversionRate.toFixed(2)}%</td></tr>
-      `;
-    } else if (reportType === 'inventory') {
-      reportHtml += `
-        <tr><td>Total Products</td><td class="text-right">${data.summary.totalProducts}</td></tr>
-        <tr><td>In Stock</td><td class="text-right">${data.summary.inStock}</td></tr>
-        <tr><td>Low Stock</td><td class="text-right">${data.summary.lowStock}</td></tr>
-        <tr><td>Availability</td><td class="text-right">${data.summary.inStockPercentage}%</td></tr>
-      `;
-    } else if (reportType === 'customers') {
-      reportHtml += `
-        <tr><td>Total Customers</td><td class="text-right">${data.summary.totalCustomers}</td></tr>
-        <tr><td>Active Customers</td><td class="text-right">${data.summary.activeCustomers}</td></tr>
-        <tr><td>Avg. Order Value</td><td class="text-right">${formatPrice(data.summary.avgOrderValue)}</td></tr>
-        <tr><td>Lifetime Value</td><td class="text-right">${formatPrice(data.summary.customerLifetimeValue)}</td></tr>
-      `;
-    }
 
-    reportHtml += `</tbody></table></div>`;
-
-    // Add list items
-    reportHtml += `
-      <div class="section">
-        <div class="section-title">${reportType === 'sales' ? 'Top Performing Products' : reportType === 'inventory' ? 'Low Stock Items' : 'Top Customers'}</div>
-        <table>
-          <thead>
-            <tr>
-              <th>${reportType === 'sales' ? 'Product' : reportType === 'inventory' ? 'Product' : 'Name'}</th>
-              <th>${reportType === 'sales' ? 'Units Sold' : reportType === 'inventory' ? 'SKU' : 'Email'}</th>
-              <th class="text-right">${reportType === 'sales' ? 'Revenue' : reportType === 'inventory' ? 'Stock' : 'Total Spent'}</th>
-            </tr>
-          </thead>
-          <tbody>
-    `;
-
-    if (reportType === 'sales') {
-      data.topProducts.forEach((p: any) => {
-        reportHtml += `<tr><td>${p.name}</td><td>${p.sold}</td><td class="text-right">${formatPrice(p.revenue)}</td></tr>`;
-      });
-    } else if (reportType === 'inventory') {
-      data.lowStockItems.forEach((p: any) => {
-        reportHtml += `<tr><td>${p.name}</td><td>${p.sku}</td><td class="text-right">${p.stock}</td></tr>`;
-      });
-    } else if (reportType === 'customers') {
-      data.topCustomers.forEach((p: any) => {
-        reportHtml += `<tr><td>${p.name}</td><td>${p.email}</td><td class="text-right">${p.totalSpent}</td></tr>`;
-      });
-    }
-
-    reportHtml += `
-            </tbody>
-          </table>
-        </div>
-        <div class="footer">
-          &copy; ${new Date().getFullYear()} Never Stop Dreaming Trading - Admin Panel
-        </div>
-        <script>
-          window.onload = function() { window.print(); window.close(); };
-        </script>
-      </body>
-    </html>
-    `;
-
-    printWindow.document.write(reportHtml);
-    printWindow.document.close();
-  };
 
   const triggerDownload = (url: string, filename: string) => {
     const link = document.createElement('a');
@@ -213,119 +90,171 @@ export function ExportReportModal({ isOpen, onClose, reportType, data }: ExportR
 
   const handleDownload = () => {
     if (format === 'pdf') {
-       exportToPDF();
+      exportToPDF();
     } else if (format === 'csv') {
-       exportToCSV();
+      exportToCSV();
     } else {
-       exportToExcel();
+      exportToExcel();
     }
     // Don't call onClose() here — triggerDownload handles it
   };
 
   const exportToPDF = () => {
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
     const reportName = getReportName();
     const filename = getFilename('pdf');
+    const today = new Date().toLocaleString();
+    const pageWidth = 210; // A4 mm
 
-    doc.setFontSize(22);
-    doc.setTextColor(59, 130, 246);
-    doc.text(`NSD ${reportName} Report`, pageWidth / 2, 20, { align: 'center' });
-    
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text(`Generated on: ${new Date().toLocaleString()}`, pageWidth / 2, 28, { align: 'center' });
+    const buildPDF = (logoBase64: string | null, logoWidth: number, logoHeight: number) => {
+      const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+      let y = 14;
 
-    if (reportType === 'sales') {
-      const summaryData = [
-        ['Total Revenue', formatPrice(data.summary.totalRevenue)],
-        ['Total Orders', data.summary.totalOrders.toString()],
-        ['Avg. Order Value', formatPrice(data.summary.averageOrderValue)],
-        ['Conversion Rate', `${data.summary.conversionRate.toFixed(2)}%`]
-      ];
-      autoTable(doc, {
-        startY: 45,
-        head: [['Metric', 'Value']],
-        body: summaryData,
-        theme: 'grid',
-        headStyles: { fillColor: [59, 130, 246] }
-      });
-      const finalY = (doc as any).lastAutoTable.finalY || 80;
-      doc.text('Top Performing Products', 14, finalY + 15);
-      const productsData = data.topProducts.map((p: any) => [p.name, p.sold.toString(), formatPrice(p.revenue)]);
-      autoTable(doc, {
-        startY: finalY + 20,
-        head: [['Product', 'Units Sold', 'Revenue']],
-        body: productsData,
-        theme: 'striped',
-        headStyles: { fillColor: [16, 185, 129] }
-      });
-    } else if (reportType === 'inventory') {
-      const summaryData = [
-        ['Total Products', data.summary.totalProducts.toString()],
-        ['In Stock', data.summary.inStock.toString()],
-        ['Low Stock', data.summary.lowStock.toString()],
-        ['Out of Stock', data.summary.outOfStock.toString()],
-        ['Availability', `${data.summary.inStockPercentage}%`]
-      ];
-      autoTable(doc, {
-        startY: 45,
-        head: [['Metric', 'Value']],
-        body: summaryData,
-        theme: 'grid',
-        headStyles: { fillColor: [59, 130, 246] }
-      });
-      const finalY = (doc as any).lastAutoTable.finalY || 80;
-      doc.text('Low Stock Items', 14, finalY + 15);
-      const lowStockData = data.lowStockItems.map((p: any) => [p.name, p.sku, p.stock.toString(), p.status]);
-      autoTable(doc, {
-        startY: finalY + 20,
-        head: [['Product', 'SKU', 'Stock', 'Status']],
-        body: lowStockData,
-        theme: 'striped',
-        headStyles: { fillColor: [234, 179, 8] }
-      });
-    } else if (reportType === 'customers') {
-      const summaryData = [
-        ['Total Customers', data.summary.totalCustomers.toString()],
-        ['Active Customers', data.summary.activeCustomers.toString()],
-        ['Avg. Order Value', formatPrice(data.summary.avgOrderValue)],
-        ['Lifetime Value', formatPrice(data.summary.customerLifetimeValue)]
-      ];
-      autoTable(doc, {
-        startY: 45,
-        head: [['Metric', 'Value']],
-        body: summaryData,
-        theme: 'grid',
-        headStyles: { fillColor: [59, 130, 246] }
-      });
-      const finalY = (doc as any).lastAutoTable.finalY || 80;
-      doc.text('Top Customers', 14, finalY + 15);
-      const customerData = data.topCustomers.map((p: any) => [p.name, p.email, p.orders.toString(), p.totalSpent]);
-      autoTable(doc, {
-        startY: finalY + 20,
-        head: [['Name', 'Email', 'Orders', 'Total Spent']],
-        body: customerData,
-        theme: 'striped',
-        headStyles: { fillColor: [16, 185, 129] }
-      });
-    }
+      // Logo with aspect ratio
+      if (logoBase64) {
+        const maxW = 75;
+        const ratio = logoHeight / logoWidth;
+        const logoW = maxW;
+        const logoH = maxW * ratio;
+        doc.addImage(logoBase64, 'PNG', (pageWidth - logoW) / 2, y, logoW, logoH);
+        y += logoH + 4;
+      }
 
-    // Use data URI — avoids blob UUID naming issue in some browsers
-    const dataUri = doc.output('datauristring');
-    triggerDownload(dataUri, filename);
+      // Title block
+      doc.setFontSize(26);
+      doc.setTextColor(59, 130, 246);
+      doc.text(`${reportName} Report`, pageWidth / 2, y, { align: 'center' });
+      y += 10;
+
+      doc.setFontSize(8);
+      doc.setTextColor(107, 114, 128);
+      doc.text(`Generated: ${today}`, pageWidth - 14, y, { align: 'right' });
+      y += 2;
+
+      // Divider
+      doc.setDrawColor(59, 130, 246);
+      doc.setLineWidth(0.5);
+      doc.line(14, y, pageWidth - 14, y);
+      y += 8;
+
+      // Summary table
+      let summaryBody: string[][] = [];
+      if (reportType === 'sales') {
+        summaryBody = [
+          ['Total Revenue', formatCurrencyForPDF(data.summary.totalRevenue)],
+          ['Total Orders', data.summary.totalOrders.toString()],
+          ['Avg. Order Value', formatCurrencyForPDF(data.summary.averageOrderValue)],
+          ['Conversion Rate', `${data.summary.conversionRate.toFixed(2)}%`],
+        ];
+      } else if (reportType === 'inventory') {
+        summaryBody = [
+          ['Total Products', data.summary.totalProducts.toString()],
+          ['In Stock', data.summary.inStock.toString()],
+          ['Low Stock', data.summary.lowStock.toString()],
+          ['Out of Stock', data.summary.outOfStock.toString()],
+          ['Availability', `${data.summary.inStockPercentage}%`],
+        ];
+      } else {
+        summaryBody = [
+          ['Total Customers', data.summary.totalCustomers.toString()],
+          ['Active Customers', data.summary.activeCustomers.toString()],
+          ['Avg. Order Value', formatCurrencyForPDF(data.summary.avgOrderValue)],
+          ['Lifetime Value', formatCurrencyForPDF(data.summary.customerLifetimeValue)],
+        ];
+      }
+
+      autoTable(doc, {
+        startY: y,
+        head: [['Metric', 'Value']],
+        body: summaryBody,
+        theme: 'grid',
+        headStyles: { fillColor: [59, 130, 246], textColor: 255, fontStyle: 'bold', fontSize: 10 },
+        columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } },
+        styles: { fontSize: 10 },
+      });
+      y = (doc as any).lastAutoTable.finalY + 10;
+
+      // Detail table
+      let detailHead: string[] = [];
+      let detailBody: string[][] = [];
+      let detailTitle = '';
+
+      if (reportType === 'sales') {
+        detailTitle = 'Top Performing Products';
+        detailHead = ['Product Name', 'Units Sold', 'Revenue'];
+        detailBody = data.topProducts.map((p: any) => [p.name, p.sold.toString(), formatCurrencyForPDF(p.revenue)]);
+      } else if (reportType === 'inventory') {
+        detailTitle = 'Low Stock Alerts';
+        detailHead = ['Product', 'SKU', 'Stock', 'Status'];
+        detailBody = data.lowStockItems.map((p: any) => [p.name, p.sku, p.stock.toString(), p.status]);
+      } else {
+        detailTitle = 'Top Customers';
+        detailHead = ['Name', 'Email', 'Orders', 'Total Spent'];
+        detailBody = data.topCustomers.map((p: any) => [p.name, p.email, p.orders.toString(), formatCurrencyForPDF(p.totalSpent)]);
+      }
+
+      doc.setFontSize(11);
+      doc.setTextColor(55, 65, 81);
+      doc.text(detailTitle, 14, y);
+      y += 4;
+
+      autoTable(doc, {
+        startY: y,
+        head: [detailHead],
+        body: detailBody,
+        theme: 'striped',
+        headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold', fontSize: 10 },
+        styles: { fontSize: 9.5 },
+        didParseCell: (hookData) => {
+          // Highlight low/critical stock rows in inventory
+          if (reportType === 'inventory' && hookData.row.section === 'body') {
+            const status = (hookData.row.raw as string[])[3];
+            if (status === 'critical') hookData.cell.styles.textColor = [220, 38, 38];
+          }
+        },
+      });
+
+      // Footer on each page
+      const totalPages = (doc as any).internal.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        const footerY = doc.internal.pageSize.getHeight() - 8;
+        doc.setFontSize(8);
+        doc.setTextColor(156, 163, 175);
+        doc.text(`© ${new Date().getFullYear()} Never Stop Dreaming Trading — Admin Panel`, 14, footerY);
+        doc.text(`Page ${i} of ${totalPages}`, pageWidth - 14, footerY, { align: 'right' });
+      }
+
+      // Trigger save via data URI (more reliable for filenames)
+      const dataUri = doc.output('datauristring');
+      triggerDownload(dataUri, filename);
+    };
+
+    // Load logo as base64 via canvas
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = '/nsd_light_long_logo.png';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(img, 0, 0);
+      buildPDF(canvas.toDataURL('image/png'), img.naturalWidth, img.naturalHeight);
+    };
+    img.onerror = () => buildPDF(null, 0, 0); // fallback — no logo if image fails
   };
+
 
   const exportToCSV = () => {
     let csvContent = '';
     if (reportType === 'sales') {
       csvContent = 'Metric,Value\n';
-      csvContent += `Total Revenue,${data.summary.totalRevenue}\n`;
+      csvContent += `Total Revenue,${formatCurrencyForPDF(data.summary.totalRevenue)}\n`;
       csvContent += `Total Orders,${data.summary.totalOrders}\n`;
-      csvContent += `Avg. Order Value,${data.summary.averageOrderValue}\n`;
+      csvContent += `Avg. Order Value,${formatCurrencyForPDF(data.summary.averageOrderValue)}\n`;
       csvContent += `Conversion Rate,${data.summary.conversionRate.toFixed(2)}%\n\n`;
       csvContent += 'Product Name,Units Sold,Revenue\n';
-      data.topProducts.forEach((p: any) => { csvContent += `"${p.name}",${p.sold},${p.revenue}\n`; });
+      data.topProducts.forEach((p: any) => { csvContent += `"${p.name}",${p.sold},${formatCurrencyForPDF(p.revenue)}\n`; });
     } else if (reportType === 'inventory') {
       csvContent = 'Metric,Value\n';
       csvContent += `Total Products,${data.summary.totalProducts}\n`;
@@ -338,10 +267,10 @@ export function ExportReportModal({ isOpen, onClose, reportType, data }: ExportR
       csvContent = 'Metric,Value\n';
       csvContent += `Total Customers,${data.summary.totalCustomers}\n`;
       csvContent += `Active Customers,${data.summary.activeCustomers}\n`;
-      csvContent += `Avg. Order Value,${data.summary.avgOrderValue}\n`;
-      csvContent += `Lifetime Value,${data.summary.customerLifetimeValue}\n\n`;
+      csvContent += `Avg. Order Value,${formatCurrencyForPDF(data.summary.avgOrderValue)}\n`;
+      csvContent += `Lifetime Value,${formatCurrencyForPDF(data.summary.customerLifetimeValue)}\n\n`;
       csvContent += 'Name,Email,Orders,Total Spent,Status\n';
-      data.topCustomers.forEach((p: any) => { csvContent += `"${p.name}",${p.email},${p.orders},${p.totalSpent},${p.status}\n`; });
+      data.topCustomers.forEach((p: any) => { csvContent += `"${p.name}",${p.email},${p.orders},${formatCurrencyForPDF(p.totalSpent)},${p.status}\n`; });
     }
 
     const blob = new Blob(['﻿', csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -352,19 +281,19 @@ export function ExportReportModal({ isOpen, onClose, reportType, data }: ExportR
   const exportToExcel = () => {
     const wb = XLSX.utils.book_new();
     const filename = getFilename('xlsx');
-    
+
     if (reportType === 'sales') {
       const summaryWS = XLSX.utils.aoa_to_sheet([
         ['Metric', 'Value'],
-        ['Total Revenue', data.summary.totalRevenue],
+        ['Total Revenue', formatCurrencyForPDF(data.summary.totalRevenue)],
         ['Total Orders', data.summary.totalOrders],
-        ['Avg. Order Value', data.summary.averageOrderValue],
+        ['Avg. Order Value', formatCurrencyForPDF(data.summary.averageOrderValue)],
         ['Conversion Rate', `${data.summary.conversionRate.toFixed(2)}%`]
       ]);
       XLSX.utils.book_append_sheet(wb, summaryWS, 'Summary');
       const productsWS = XLSX.utils.aoa_to_sheet([
         ['Product Name', 'Units Sold', 'Revenue'],
-        ...data.topProducts.map((p: any) => [p.name, p.sold, p.revenue])
+        ...data.topProducts.map((p: any) => [p.name, p.sold, formatCurrencyForPDF(p.revenue)])
       ]);
       XLSX.utils.book_append_sheet(wb, productsWS, 'Top Products');
     } else if (reportType === 'inventory') {
@@ -386,13 +315,13 @@ export function ExportReportModal({ isOpen, onClose, reportType, data }: ExportR
         ['Metric', 'Value'],
         ['Total Customers', data.summary.totalCustomers],
         ['Active Customers', data.summary.activeCustomers],
-        ['Avg. Order Value', data.summary.avgOrderValue],
-        ['Lifetime Value', data.summary.customerLifetimeValue]
+        ['Avg. Order Value', formatCurrencyForPDF(data.summary.avgOrderValue)],
+        ['Lifetime Value', formatCurrencyForPDF(data.summary.customerLifetimeValue)]
       ]);
       XLSX.utils.book_append_sheet(wb, summaryWS, 'Summary');
       const customersWS = XLSX.utils.aoa_to_sheet([
         ['Name', 'Email', 'Orders', 'Total Spent', 'Status'],
-        ...data.topCustomers.map((p: any) => [p.name, p.email, p.orders, p.totalSpent, p.status])
+        ...data.topCustomers.map((p: any) => [p.name, p.email, p.orders, formatCurrencyForPDF(p.totalSpent), p.status])
       ]);
       XLSX.utils.book_append_sheet(wb, customersWS, 'Top Customers');
     }
@@ -414,20 +343,20 @@ export function ExportReportModal({ isOpen, onClose, reportType, data }: ExportR
               Review your report before downloading — what you see is what you get.
             </DialogDescription>
           </div>
-          <Button variant="outline" size="sm" onClick={handlePrint} className="gap-2 shrink-0">
-            <Printer className="h-4 w-4" />
-            Print
-          </Button>
         </div>
 
         {/* Scrollable document preview */}
         <div className="flex-1 overflow-y-auto bg-muted/40 px-6 py-5">
           <div className="bg-white dark:bg-zinc-900 shadow-md rounded-lg border px-8 py-8 space-y-6 text-sm text-foreground">
             {/* Doc header */}
-            <div className="text-center border-b pb-5">
-              <p className="text-xs text-muted-foreground uppercase tracking-widest mb-1">Never Stop Dreaming Trading</p>
-              <h2 className="text-2xl font-bold text-blue-600">NSD {getReportName()} Report</h2>
-              <p className="text-xs text-muted-foreground mt-1">Generated on: {new Date().toLocaleString()}</p>
+            <div className="border-b pb-8 text-center ring-offset-background">
+              <img src="/nsd_light_long_logo.png" alt="Logo" className="h-20 w-auto mx-auto mb-2" />
+              <h2 className="text-3xl font-bold text-blue-600 tracking-tight">{getReportName()} Report</h2>
+              <div className="flex justify-end mt-4">
+                <p className="text-[10px] text-muted-foreground font-mono opacity-70">
+                  Generated: {new Date().toLocaleString()}
+                </p>
+              </div>
             </div>
 
             {/* Summary stats */}
@@ -443,9 +372,9 @@ export function ExportReportModal({ isOpen, onClose, reportType, data }: ExportR
                   </TableHeader>
                   <TableBody>
                     {reportType === 'sales' && (<>
-                      <TableRow><TableCell>Total Revenue</TableCell><TableCell className="text-right font-semibold text-green-600">{formatPrice(data.summary.totalRevenue)}</TableCell></TableRow>
+                      <TableRow><TableCell>Total Revenue</TableCell><TableCell className="text-right font-semibold text-green-600">{formatCurrencyForPDF(data.summary.totalRevenue)}</TableCell></TableRow>
                       <TableRow><TableCell>Total Orders</TableCell><TableCell className="text-right">{data.summary.totalOrders}</TableCell></TableRow>
-                      <TableRow><TableCell>Avg. Order Value</TableCell><TableCell className="text-right">{formatPrice(data.summary.averageOrderValue)}</TableCell></TableRow>
+                      <TableRow><TableCell>Avg. Order Value</TableCell><TableCell className="text-right">{formatCurrencyForPDF(data.summary.averageOrderValue)}</TableCell></TableRow>
                       <TableRow><TableCell>Conversion Rate</TableCell><TableCell className="text-right text-blue-600">{data?.summary?.conversionRate?.toFixed(2)}%</TableCell></TableRow>
                     </>)}
                     {reportType === 'inventory' && (<>
@@ -458,8 +387,8 @@ export function ExportReportModal({ isOpen, onClose, reportType, data }: ExportR
                     {reportType === 'customers' && (<>
                       <TableRow><TableCell>Total Customers</TableCell><TableCell className="text-right font-semibold">{data.summary.totalCustomers}</TableCell></TableRow>
                       <TableRow><TableCell>Active Customers</TableCell><TableCell className="text-right text-blue-600">{data.summary.activeCustomers}</TableCell></TableRow>
-                      <TableRow><TableCell>Avg. Order Value</TableCell><TableCell className="text-right">{formatPrice(data.summary.avgOrderValue)}</TableCell></TableRow>
-                      <TableRow><TableCell>Customer Lifetime Value</TableCell><TableCell className="text-right text-green-600">{formatPrice(data.summary.customerLifetimeValue)}</TableCell></TableRow>
+                      <TableRow><TableCell>Avg. Order Value</TableCell><TableCell className="text-right">{formatCurrencyForPDF(data.summary.avgOrderValue)}</TableCell></TableRow>
+                      <TableRow><TableCell>Customer Lifetime Value</TableCell><TableCell className="text-right text-green-600">{formatCurrencyForPDF(data.summary.customerLifetimeValue)}</TableCell></TableRow>
                     </>)}
                   </TableBody>
                 </Table>
@@ -482,7 +411,11 @@ export function ExportReportModal({ isOpen, onClose, reportType, data }: ExportR
                   </TableHeader>
                   <TableBody>
                     {reportType === 'sales' && data.topProducts.map((p: any, i: number) => (
-                      <TableRow key={i}><TableCell className="font-medium">{p.name}</TableCell><TableCell className="text-right">{p.sold}</TableCell><TableCell className="text-right text-green-600 font-medium">{formatPrice(p.revenue)}</TableCell></TableRow>
+                      <TableRow key={i}>
+                        <TableCell className="font-medium">{p.name}</TableCell>
+                        <TableCell className="text-right">{p.sold}</TableCell>
+                        <TableCell className="text-right text-green-600 font-medium">{formatCurrencyForPDF(p.revenue)}</TableCell>
+                      </TableRow>
                     ))}
                     {reportType === 'inventory' && data.lowStockItems.map((p: any, i: number) => (
                       <TableRow key={i}>
@@ -493,7 +426,12 @@ export function ExportReportModal({ isOpen, onClose, reportType, data }: ExportR
                       </TableRow>
                     ))}
                     {reportType === 'customers' && data.topCustomers.map((p: any, i: number) => (
-                      <TableRow key={i}><TableCell className="font-medium">{p.name}</TableCell><TableCell className="text-muted-foreground">{p.email}</TableCell><TableCell className="text-right">{p.orders}</TableCell><TableCell className="text-right text-green-600 font-medium">{p.totalSpent}</TableCell></TableRow>
+                      <TableRow key={i}>
+                        <TableCell className="font-medium">{p.name}</TableCell>
+                        <TableCell className="text-muted-foreground">{p.email}</TableCell>
+                        <TableCell className="text-right">{p.orders}</TableCell>
+                        <TableCell className="text-right text-green-600 font-medium">{formatCurrencyForPDF(p.totalSpent)}</TableCell>
+                      </TableRow>
                     ))}
                   </TableBody>
                 </Table>

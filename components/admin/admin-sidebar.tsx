@@ -32,7 +32,6 @@ const menuItems: MenuItem[] = [
     icon: Package,
     submenu: [
       { label: 'All Products', href: '/admin/products', icon: Package },
-      { label: 'Categories', href: '/admin/categories', icon: FileText },
       { label: 'Inventory', href: '/admin/inventory', icon: Zap },
     ],
   },
