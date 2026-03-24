@@ -25,18 +25,14 @@ import {
   validateFullName,
   validateZipCodeForLocation
 } from "@/lib/utils/validation";
+import { usePhilippineAddress } from "@/lib/hooks/use-philippine-address";
 import {
-  getProvinces,
-  getCitiesByProvince,
-  getBarangaysByCity,
   findProvinceByName,
   findCityByName,
   findBarangayByName,
-  PSGCProvince,
-  PSGCCityMunicipality,
-  PSGCBarangay
 } from "@/lib/services/address.service";
-import { getZipCodesForCity } from "@/lib/data/philippines-zip-codes";
+// Remove unused zip code mapping import if not needed elsewhere
+// import { getZipCodesForCity } from "@/lib/data/philippines-zip-codes";
 import { ChevronLeft } from 'lucide-react';
 import { formatPrice } from '@/lib/utils/formatting';
 import { SearchableSelect } from "@/components/ui/searchable-select";
@@ -158,15 +154,16 @@ function CheckoutPageContent() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   
-  // PSGC Data States
-  const [geoProvinces, setGeoProvinces] = useState<PSGCProvince[]>([]);
-  const [geoCities, setGeoCities] = useState<PSGCCityMunicipality[]>([]);
-  const [geoBarangays, setGeoBarangays] = useState<PSGCBarangay[]>([]);
-  
-  // Loading States
-  const [isLoadingProvinces, setIsLoadingProvinces] = useState(false);
-  const [isLoadingCities, setIsLoadingCities] = useState(false);
-  const [isLoadingBarangays, setIsLoadingBarangays] = useState(false);
+  const {
+    provinces, loadingProvinces,
+    cities, loadingCities,
+    barangays, loadingBarangays,
+    selectedProvince, setSelectedProvince,
+    selectedCity, setSelectedCity,
+    selectedBarangay, setSelectedBarangay,
+    provinceName, cityName, barangayName,
+    zipCode: autoZipCode
+  } = usePhilippineAddress();
 
   const [addresses, setAddresses] = useState<any[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
@@ -178,64 +175,19 @@ function CheckoutPageContent() {
 
   const steps = ["Shipping", "Payment", "Review"];
   
-  // 1. Fetch Provinces on mount
+  // Sync hook state with formData
   useEffect(() => {
-    const fetchProvinces = async () => {
-      setIsLoadingProvinces(true);
-      try {
-        const data = await getProvinces();
-        // Sort alphabetically
-        setGeoProvinces(data.sort((a, b) => a.name.localeCompare(b.name)));
-      } catch (err) {
-        console.error("Failed to fetch provinces:", err);
-      } finally {
-        setIsLoadingProvinces(false);
-      }
-    };
-    fetchProvinces();
-  }, []);
-
-  // 2. Fetch Cities when Province changes
-  useEffect(() => {
-    if (!formData.provinceCode) {
-      setGeoCities([]);
-      return;
-    }
-
-    const fetchCities = async () => {
-      setIsLoadingCities(true);
-      try {
-        const data = await getCitiesByProvince(formData.provinceCode);
-        setGeoCities(data.sort((a, b) => a.name.localeCompare(b.name)));
-      } catch (err) {
-        console.error("Failed to fetch cities:", err);
-      } finally {
-        setIsLoadingCities(false);
-      }
-    };
-    fetchCities();
-  }, [formData.provinceCode]);
-
-  // 3. Fetch Barangays when City changes
-  useEffect(() => {
-    if (!formData.cityCode) {
-      setGeoBarangays([]);
-      return;
-    }
-
-    const fetchBarangays = async () => {
-      setIsLoadingBarangays(true);
-      try {
-        const data = await getBarangaysByCity(formData.cityCode);
-        setGeoBarangays(data.sort((a, b) => a.name.localeCompare(b.name)));
-      } catch (err) {
-        console.error("Failed to fetch barangays:", err);
-      } finally {
-        setIsLoadingBarangays(false);
-      }
-    };
-    fetchBarangays();
-  }, [formData.cityCode]);
+    setFormData(prev => ({
+      ...prev,
+      province: provinceName,
+      provinceCode: selectedProvince,
+      city: cityName,
+      cityCode: selectedCity,
+      barangay: barangayName,
+      barangayCode: selectedBarangay,
+      zip: autoZipCode || prev.zip
+    }));
+  }, [selectedProvince, selectedCity, selectedBarangay, provinceName, cityName, barangayName, autoZipCode]);
 
   // TODO: Replace with actual API call to fetch products from Supabase
   // const { data: products } = await supabase.from('products').select('*').in('id', checkoutCart.map(i => i.productId));
@@ -404,6 +356,9 @@ function CheckoutPageContent() {
             }
           };
 
+          setSelectedProvince(pCode);
+          setSelectedCity(cCode);
+          setSelectedBarangay(bCode);
           setFormData((prev) => ({
             ...prev,
             fullName: def.full_name,
@@ -411,11 +366,8 @@ function CheckoutPageContent() {
             phone: def.phone,
             street: def.street_address,
             city: def.city,
-            cityCode: cCode,
             province: def.province,
-            provinceCode: pCode, 
             barangay: def.barangay || "",
-            barangayCode: bCode,
             zip: def.zip_code,
           }));
 
@@ -431,7 +383,7 @@ function CheckoutPageContent() {
 
     fetchAddresses();
     return () => { mounted = false; };
-  }, [user]);
+  }, [user, setSelectedProvince, setSelectedCity, setSelectedBarangay]);
 
   // 5. Pre-fill name, email, phone from user profile if empty
   useEffect(() => {
@@ -753,58 +705,22 @@ function CheckoutPageContent() {
     }
   };
 
-  const handleProvinceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const code = e.target.value;
-    const province = geoProvinces.find(p => p.code === code)?.name || "";
-    
-    setFormData(prev => ({
-      ...prev,
-      province,
-      provinceCode: code,
-      city: "",
-      cityCode: "",
-      barangay: "",
-      barangayCode: "",
-      zip: ""
-    }));
-    
+  const handleProvinceChange = (code: string) => {
+    setSelectedProvince(code);
     // Clear errors
     setErrors(prev => ({ ...prev, province: "", city: "", barangay: "", zip: "" }));
     setTouched(prev => ({ ...prev, province: true }));
   };
 
-  const handleCityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const code = e.target.value;
-    const city = geoCities.find(c => c.code === code)?.name || "";
-    
-    // Auto-fill zip code if available
-    const suggestedZipCodes = getZipCodesForCity(city);
-    const zip = suggestedZipCodes.length > 0 ? suggestedZipCodes[0] : "";
-
-    setFormData(prev => ({
-      ...prev,
-      city,
-      cityCode: code,
-      barangay: "",
-      barangayCode: "",
-      zip
-    }));
-    
+  const handleCityChange = (code: string) => {
+    setSelectedCity(code);
     // Clear errors
     setErrors(prev => ({ ...prev, city: "", barangay: "", zip: "" }));
     setTouched(prev => ({ ...prev, city: true }));
   };
 
-  const handleBarangayChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const code = e.target.value;
-    const barangay = geoBarangays.find(b => b.code === code)?.name || "";
-    
-    setFormData(prev => ({
-      ...prev,
-      barangay,
-      barangayCode: code
-    }));
-    
+  const handleBarangayChange = (code: string) => {
+    setSelectedBarangay(code);
     setErrors(prev => ({ ...prev, barangay: "" }));
     setTouched(prev => ({ ...prev, barangay: true }));
   };
@@ -1085,13 +1001,11 @@ function CheckoutPageContent() {
                             Province <span className="text-destructive">*</span>
                           </label>
                           <SearchableSelect
-                            options={geoProvinces.map(p => ({ value: p.code, label: p.name }))}
+                            options={provinces.map(p => ({ value: p.code, label: p.name }))}
                             value={formData.provinceCode}
-                            onValueChange={(val) => {
-                              handleProvinceChange({ target: { value: val } } as any);
-                            }}
-                            disabled={isLoadingProvinces}
-                            placeholder={isLoadingProvinces ? "Loading..." : "Select Province"}
+                            onValueChange={handleProvinceChange}
+                            disabled={loadingProvinces}
+                            placeholder={loadingProvinces ? "Loading..." : "Select Province"}
                             searchPlaceholder="Search province..."
                             triggerClassName={(errors.province && (touched.province || formSubmitted)) ? "border-destructive border-2" : "border-border"}
                           />
@@ -1105,13 +1019,11 @@ function CheckoutPageContent() {
                             City / Municipality <span className="text-destructive">*</span>
                           </label>
                           <SearchableSelect
-                            options={geoCities.map(c => ({ value: c.code, label: c.name }))}
+                            options={cities.map(c => ({ value: c.code, label: c.name }))}
                             value={formData.cityCode}
-                            onValueChange={(val) => {
-                              handleCityChange({ target: { value: val } } as any);
-                            }}
-                            disabled={!formData.provinceCode || isLoadingCities}
-                            placeholder={!formData.provinceCode ? "Select province first" : isLoadingCities ? "Loading..." : "Select City"}
+                            onValueChange={handleCityChange}
+                            disabled={!formData.provinceCode || loadingCities}
+                            placeholder={!formData.provinceCode ? "Select province first" : loadingCities ? "Loading..." : "Select City"}
                             searchPlaceholder="Search city/municipality..."
                             triggerClassName={(errors.city && (touched.city || formSubmitted)) ? "border-destructive border-2" : "border-border"}
                           />
@@ -1127,13 +1039,11 @@ function CheckoutPageContent() {
                             Barangay <span className="text-destructive">*</span>
                           </label>
                           <SearchableSelect
-                            options={geoBarangays.map(b => ({ value: b.code, label: b.name }))}
+                            options={barangays.map(b => ({ value: b.code, label: b.name }))}
                             value={formData.barangayCode}
-                            onValueChange={(val) => {
-                              handleBarangayChange({ target: { value: val } } as any);
-                            }}
-                            disabled={!formData.cityCode || isLoadingBarangays}
-                            placeholder={!formData.cityCode ? "Select city first" : isLoadingBarangays ? "Loading..." : "Select Barangay"}
+                            onValueChange={handleBarangayChange}
+                            disabled={!formData.cityCode || loadingBarangays}
+                            placeholder={!formData.cityCode ? "Select city first" : loadingBarangays ? "Loading..." : "Select Barangay"}
                             searchPlaceholder="Search barangay..."
                             triggerClassName={(errors.barangay && (touched.barangay || formSubmitted)) ? "border-destructive border-2" : "border-border"}
                           />
@@ -1150,10 +1060,9 @@ function CheckoutPageContent() {
                             type="text"
                             name="zip"
                             value={formData.zip}
-                            onChange={handleInputChange}
-                            onBlur={handleBlur}
+                            readOnly
                             placeholder="e.g., 1630"
-                            className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${(errors.zip && (touched.zip || formSubmitted)) ? "border-destructive" : "border-border"
+                            className={`w-full px-4 py-2 bg-muted border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${(errors.zip && (touched.zip || formSubmitted)) ? "border-destructive" : "border-border"
                               }`}
                           />
                           {errors.zip && (touched.zip || formSubmitted) && (

@@ -36,12 +36,6 @@ export default function SettingsPage() {
   const [emailError, setEmailError] = useState("");
 
   const [reauthAction, setReauthAction] = useState<"password" | "delete" | null>(null);
-  
-  const [isChangingPassword, setIsChangingPassword] = useState(false);
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmNewPassword, setConfirmNewPassword] = useState("");
-  const [passwordError, setPasswordError] = useState("");
-  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -141,38 +135,13 @@ export default function SettingsPage() {
 
   const handleReauthVerified = () => {
     if (reauthAction === "password") {
-      setIsChangingPassword(true);
       setReauthAction(null);
+      router.push("/profile/change-password");
     } else if (reauthAction === "delete") {
       handleDeleteAccount();
     }
   };
 
-  const handleSaveNewPassword = async () => {
-    setPasswordError("");
-    if (!validatePassword(newPassword)) {
-      setPasswordError("Password must be at least 6 characters.");
-      return;
-    }
-    if (newPassword !== confirmNewPassword) {
-      setPasswordError("Passwords do not match.");
-      return;
-    }
-
-    setIsUpdatingPassword(true);
-    try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
-      if (error) throw error;
-      toast({ title: "Success", description: "Password updated successfully.", variant: "success" });
-      setIsChangingPassword(false);
-      setNewPassword("");
-      setConfirmNewPassword("");
-    } catch (err: any) {
-      setPasswordError(err?.message || "Failed to update password.");
-    } finally {
-      setIsUpdatingPassword(false);
-    }
-  };
 
   const handleDeleteAccount = async () => {
     setReauthAction(null);
@@ -382,52 +351,15 @@ export default function SettingsPage() {
                   </Button>
                 </div>
 
-                {!isChangingPassword ? (
-                  <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-lg">
-                    <div>
-                      <p className="font-medium">Change Password</p>
-                      <p className="text-sm text-muted-foreground">Update your account password</p>
-                    </div>
-                    <Button variant="outline" size="sm" onClick={() => setReauthAction("password")}>
-                      Change Password
-                    </Button>
+                <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-lg">
+                  <div>
+                    <p className="font-medium">Change Password</p>
+                    <p className="text-sm text-muted-foreground">Update your account password</p>
                   </div>
-                ) : (
-                  <div className="p-4 bg-secondary/10 rounded-lg space-y-4 border border-border">
-                    <h3 className="font-medium">Update Password</h3>
-                    <div>
-                      <label className="block text-sm font-medium mb-1">New Password</label>
-                      <input
-                        type="password"
-                        value={newPassword}
-                        onChange={(e) => {
-                          setNewPassword(e.target.value);
-                          if (passwordError) setPasswordError("");
-                        }}
-                        className="w-full px-4 py-2 bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Confirm New Password</label>
-                      <input
-                        type="password"
-                        value={confirmNewPassword}
-                        onChange={(e) => {
-                          setConfirmNewPassword(e.target.value);
-                          if (passwordError) setPasswordError("");
-                        }}
-                        className="w-full px-4 py-2 bg-input border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
-                      {passwordError && <p className="text-xs text-destructive mt-1">{passwordError}</p>}
-                    </div>
-                    <div className="flex gap-2">
-                       <Button size="sm" variant="outline" onClick={() => { setIsChangingPassword(false); setNewPassword(""); setConfirmNewPassword(""); setPasswordError(""); }}>Cancel</Button>
-                       <Button size="sm" onClick={handleSaveNewPassword} disabled={isUpdatingPassword || !newPassword}>
-                         {isUpdatingPassword ? "Saving..." : "Save Password"}
-                       </Button>
-                    </div>
-                  </div>
-                )}
+                  <Button variant="outline" size="sm" onClick={() => setReauthAction("password")}>
+                    Change Password
+                  </Button>
+                </div>
 
                 <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-lg border-l-2 border-destructive">
                   <div>

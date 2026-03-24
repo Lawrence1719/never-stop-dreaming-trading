@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, X } from "lucide-react";
@@ -19,11 +19,16 @@ export function ReauthModal({ isOpen, onClose, onVerified, email }: ReauthModalP
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState("");
 
+  const sentRef = useRef(false);
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !sentRef.current) {
       setOtp("");
       setError("");
+      sentRef.current = true;
       sendOtp();
+    }
+    if (!isOpen) {
+      sentRef.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
@@ -38,7 +43,7 @@ export function ReauthModal({ isOpen, onClose, onVerified, email }: ReauthModalP
       }
       toast({
         title: "Code Sent",
-        description: "A 6-digit code has been sent to your email.",
+        description: "A verification code has been sent to your email.",
         variant: "success",
       });
     } catch (err) {
@@ -56,19 +61,20 @@ export function ReauthModal({ isOpen, onClose, onVerified, email }: ReauthModalP
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (otp.length !== 6) {
-      setError("Please enter a valid 6-digit code");
+    if (otp.length < 6 || otp.length > 8) {
+      setError("Please enter a valid verification code");
       return;
     }
 
     setIsVerifying(true);
     setError("");
 
+    console.log('Verifying OTP...', { email: email.toLowerCase(), token: otp });
     try {
       const { error } = await supabase.auth.verifyOtp({
-        email,
+        email: email.toLowerCase(),
         token: otp,
-        type: 'reauthentication' as EmailOtpType, // Cast to avoid TS complaining if type is not strictly in standard types
+        type: 'reauthentication' as EmailOtpType, 
       });
 
       if (error) {
@@ -81,10 +87,11 @@ export function ReauthModal({ isOpen, onClose, onVerified, email }: ReauthModalP
         variant: "success",
       });
       onVerified();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Invalid or expired code";
-      // We explicitly override the message as per instructions
-      setError("Invalid or expired code");
+    } catch (err: any) {
+      console.error('Reauth Full Error:', err);
+      const msg = err?.message || "Invalid or expired code";
+      const details = err?.status === 403 ? "Supabase security might be blocking multiple attempts (403). Please wait 15-30 minutes and try again." : msg;
+      setError(details);
     } finally {
       setIsVerifying(false);
     }
@@ -105,15 +112,15 @@ export function ReauthModal({ isOpen, onClose, onVerified, email }: ReauthModalP
 
         <h2 className="text-xl font-bold mb-2">Security Verification</h2>
         <p className="text-sm text-muted-foreground mb-6">
-          To continue this secure action, please enter the 6-digit code we just sent to your email.
+          To continue this secure action, please enter the verification code we just sent to your email.
         </p>
 
         <form onSubmit={handleVerify} className="space-y-4">
           <div>
             <input
               type="text"
-              maxLength={6}
-              placeholder="000000"
+              maxLength={8}
+              placeholder="00000000"
               value={otp}
               onChange={(e) => {
                 setOtp(e.target.value.replace(/\D/g, ""));
@@ -127,7 +134,7 @@ export function ReauthModal({ isOpen, onClose, onVerified, email }: ReauthModalP
           <div className="flex flex-col gap-3 pt-2">
             <Button
               type="submit"
-              disabled={isVerifying || otp.length !== 6 || isSending}
+              disabled={isVerifying || otp.length < 6 || isSending}
               className="w-full font-semibold"
             >
               {isVerifying ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}

@@ -177,12 +177,15 @@ export default function RegisterPage() {
         let errorMessage = "Registration failed. Please try again.";
 
         if (error.message) {
-          if (error.message.includes("already registered") || error.message.includes("already exists")) {
+          const lowerMsg = error.message.toLowerCase();
+          if (lowerMsg.includes("already registered") || lowerMsg.includes("already exists")) {
             errorMessage = "This email is already registered. Please use a different email or try logging in.";
-          } else if (error.message.includes("password")) {
+          } else if (lowerMsg.includes("password")) {
             errorMessage = "Password is too weak. Please use a stronger password.";
-          } else if (error.message.includes("email")) {
-            errorMessage = "Invalid email address. Please check and try again.";
+          } else if (lowerMsg.includes("email")) {
+            errorMessage = "Invalid email address or provider error. If you are using Resend, please check your SMTP settings and ensure your domain is verified.";
+          } else if (lowerMsg.includes("smtp") || lowerMsg.includes("configuration") || lowerMsg.includes("mail")) {
+            errorMessage = "Email delivery failed. This is usually due to misconfigured SMTP settings (Resend). Please check your Supabase Dashboard.";
           } else {
             errorMessage = error.message;
           }

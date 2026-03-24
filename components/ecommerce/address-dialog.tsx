@@ -14,15 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  getProvinces,
-  getCitiesByProvince,
-  getBarangaysByCity,
-  PSGCProvince,
-  PSGCCityMunicipality,
-  PSGCBarangay
-} from "@/lib/services/address.service";
-import { getZipCodesForCity } from "@/lib/data/philippines-zip-codes";
+import { usePhilippineAddress } from "@/lib/hooks/use-philippine-address";
 import { Address } from "@/lib/types";
 
 interface AddressDialogProps {
@@ -52,102 +44,67 @@ export function AddressDialog({
   address,
   isLoading = false,
 }: AddressDialogProps) {
-  const [formData, setFormData] = useState<AddressFormData>({
-    street: "",
-    barangay: "",
-    barangayCode: "",
-    city: "",
-    cityCode: "",
-    province: "",
-    provinceCode: "",
-    zip: "",
-    isDefault: false,
+  const {
+    provinces, loadingProvinces,
+    cities, loadingCities,
+    barangays, loadingBarangays,
+    selectedProvince, setSelectedProvince,
+    selectedCity, setSelectedCity,
+    selectedBarangay, setSelectedBarangay,
+    provinceName, cityName, barangayName,
+    zipCode: autoZipCode
+  } = usePhilippineAddress({
+    provinceCode: address?.provinceCode,
+    cityCode: address?.cityCode,
+    barangayCode: address?.barangayCode,
+    zipCode: address?.zip
   });
 
-  const [geoProvinces, setGeoProvinces] = useState<PSGCProvince[]>([]);
-  const [geoCities, setGeoCities] = useState<PSGCCityMunicipality[]>([]);
-  const [geoBarangays, setGeoBarangays] = useState<PSGCBarangay[]>([]);
-  
-  const [isLoadingProvinces, setIsLoadingProvinces] = useState(false);
-  const [isLoadingCities, setIsLoadingCities] = useState(false);
-  const [isLoadingBarangays, setIsLoadingBarangays] = useState(false);
-  
+  const [formData, setFormData] = useState<AddressFormData>({
+    street: address?.street || "",
+    barangay: address?.barangay || "",
+    barangayCode: address?.barangayCode || "",
+    city: address?.city || "",
+    cityCode: address?.cityCode || "",
+    province: address?.province || "",
+    provinceCode: address?.provinceCode || "",
+    zip: address?.zip || "",
+    isDefault: address?.default || false,
+  });
+
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // 1. Fetch Provinces on mount
+  // Sync hook state with formData
   useEffect(() => {
-    const fetchProcs = async () => {
-      setIsLoadingProvinces(true);
-      try {
-        const data = await getProvinces();
-        setGeoProvinces(data.sort((a, b) => a.name.localeCompare(b.name)));
-      } catch (err) {
-        console.error("Failed to fetch provinces:", err);
-      } finally {
-        setIsLoadingProvinces(false);
-      }
-    };
-    fetchProcs();
-  }, []);
+    setFormData(prev => ({
+      ...prev,
+      province: provinceName,
+      provinceCode: selectedProvince,
+      city: cityName,
+      cityCode: selectedCity,
+      barangay: barangayName,
+      barangayCode: selectedBarangay,
+      zip: autoZipCode || prev.zip
+    }));
+  }, [selectedProvince, selectedCity, selectedBarangay, provinceName, cityName, barangayName, autoZipCode]);
 
-  // 2. Fetch Cities when Province changes
+  // Populate form when editing existing address (only when it changes from outside)
   useEffect(() => {
-    if (!formData.provinceCode) {
-      setGeoCities([]);
-      return;
-    }
-
-    const fetchCitiesArr = async () => {
-      setIsLoadingCities(true);
-      try {
-        const data = await getCitiesByProvince(formData.provinceCode);
-        setGeoCities(data.sort((a, b) => a.name.localeCompare(b.name)));
-      } catch (err) {
-        console.error("Failed to fetch cities:", err);
-      } finally {
-        setIsLoadingCities(false);
-      }
-    };
-    fetchCitiesArr();
-  }, [formData.provinceCode]);
-
-  // 3. Fetch Barangays when City changes
-  useEffect(() => {
-    if (!formData.cityCode) {
-      setGeoBarangays([]);
-      return;
-    }
-
-    const fetchBrgys = async () => {
-      setIsLoadingBarangays(true);
-      try {
-        const data = await getBarangaysByCity(formData.cityCode);
-        setGeoBarangays(data.sort((a, b) => a.name.localeCompare(b.name)));
-      } catch (err) {
-        console.error("Failed to fetch barangays:", err);
-      } finally {
-        setIsLoadingBarangays(false);
-      }
-    };
-    fetchBrgys();
-  }, [formData.cityCode]);
-
-  // Populate form when editing existing address
-  useEffect(() => {
-    if (address) {
-      setFormData({
+    if (address && open) {
+      setSelectedProvince(address.provinceCode || "");
+      setSelectedCity(address.cityCode || "");
+      setSelectedBarangay(address.barangayCode || "");
+      setFormData(prev => ({
+        ...prev,
         street: address.street,
-        barangay: address.barangay || "",
-        barangayCode: address.barangayCode || "",
-        city: address.city,
-        cityCode: address.cityCode || "",
-        province: address.province,
-        provinceCode: address.provinceCode || "",
-        zip: address.zip,
         isDefault: address.default,
-      });
-    } else {
-      // Reset form for new address
+        zip: address.zip
+      }));
+    } else if (!address && open) {
+      // Reset for new address
+      setSelectedProvince("");
+      setSelectedCity("");
+      setSelectedBarangay("");
       setFormData({
         street: "",
         barangay: "",
@@ -161,44 +118,20 @@ export function AddressDialog({
       });
     }
     setErrors({});
-  }, [address, open]);
+  }, [address, open, setSelectedProvince, setSelectedCity, setSelectedBarangay]);
 
   const handleProvinceChange = (code: string) => {
-    const province = geoProvinces.find(p => p.code === code)?.name || "";
-    setFormData((prev) => ({ 
-      ...prev, 
-      province, 
-      provinceCode: code, 
-      city: "", 
-      cityCode: "", 
-      barangay: "", 
-      barangayCode: "", 
-      zip: "" 
-    }));
-    setGeoCities([]);
-    setGeoBarangays([]);
+    setSelectedProvince(code);
   };
 
   const handleCityChange = (code: string) => {
-    const city = geoCities.find(c => c.code === code)?.name || "";
-    const suggestedZips = getZipCodesForCity(city);
-    const zip = suggestedZips.length > 0 ? suggestedZips[0] : "";
-    
-    setFormData((prev) => ({ 
-      ...prev, 
-      city, 
-      cityCode: code, 
-      barangay: "", 
-      barangayCode: "", 
-      zip 
-    }));
-    setGeoBarangays([]);
+    setSelectedCity(code);
   };
 
   const handleBarangayChange = (code: string) => {
-    const barangay = geoBarangays.find(b => b.code === code)?.name || "";
-    setFormData((prev) => ({ ...prev, barangay, barangayCode: code }));
+    setSelectedBarangay(code);
   };
+
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -221,8 +154,6 @@ export function AddressDialog({
 
     if (!formData.zip.trim()) {
       newErrors.zip = "ZIP code is required";
-    } else if (!/^\d{4}$/.test(formData.zip)) {
-      newErrors.zip = "ZIP code must be 4 digits";
     }
 
     setErrors(newErrors);
@@ -276,11 +207,11 @@ export function AddressDialog({
                 Province <span className="text-destructive">*</span>
               </Label>
               <SearchableSelect
-                options={geoProvinces.map(p => ({ value: p.code, label: p.name }))}
+                options={provinces.map(p => ({ value: p.code, label: p.name }))}
                 value={formData.provinceCode}
                 onValueChange={handleProvinceChange}
-                disabled={isLoadingProvinces}
-                placeholder={isLoadingProvinces ? "Loading..." : "Select province"}
+                disabled={loadingProvinces}
+                placeholder={loadingProvinces ? "Loading..." : "Select province"}
                 searchPlaceholder="Search province..."
                 triggerClassName={errors.province ? "border-destructive h-auto py-2" : "h-auto py-2"}
               />
@@ -294,11 +225,11 @@ export function AddressDialog({
                 City / Municipality <span className="text-destructive">*</span>
               </Label>
               <SearchableSelect
-                options={geoCities.map(c => ({ value: c.code, label: c.name }))}
+                options={cities.map(c => ({ value: c.code, label: c.name }))}
                 value={formData.cityCode}
                 onValueChange={handleCityChange}
-                disabled={!formData.provinceCode || isLoadingCities}
-                placeholder={!formData.provinceCode ? "Select province first" : isLoadingCities ? "Loading..." : "Select city"}
+                disabled={!formData.provinceCode || loadingCities}
+                placeholder={!formData.provinceCode ? "Select province first" : loadingCities ? "Loading..." : "Select city"}
                 searchPlaceholder="Search city/municipality..."
                 triggerClassName={errors.city ? "border-destructive h-auto py-2" : "h-auto py-2"}
               />
@@ -314,11 +245,11 @@ export function AddressDialog({
                 Barangay <span className="text-destructive">*</span>
               </Label>
               <SearchableSelect
-                options={geoBarangays.map(b => ({ value: b.code, label: b.name }))}
+                options={barangays.map(b => ({ value: b.code, label: b.name }))}
                 value={formData.barangayCode}
                 onValueChange={handleBarangayChange}
-                disabled={!formData.cityCode || isLoadingBarangays}
-                placeholder={!formData.cityCode ? "Select city first" : isLoadingBarangays ? "Loading..." : "Select barangay"}
+                disabled={!formData.cityCode || loadingBarangays}
+                placeholder={!formData.cityCode ? "Select city first" : loadingBarangays ? "Loading..." : "Select barangay"}
                 searchPlaceholder="Search barangay..."
                 triggerClassName={errors.barangay ? "border-destructive h-auto py-2" : "h-auto py-2"}
               />
@@ -334,14 +265,9 @@ export function AddressDialog({
               <Input
                 id="zip"
                 placeholder="1630"
-                maxLength={4}
                 value={formData.zip}
-                onChange={(e) => {
-                  const value = e.target.value.replace(/\D/g, '');
-                  setFormData((prev) => ({ ...prev, zip: value }));
-                }}
-                className={errors.zip ? "border-destructive" : ""}
-                disabled={!formData.city}
+                readOnly
+                className={errors.zip ? "border-destructive bg-muted" : "bg-muted"}
               />
               {errors.zip && (
                 <p className="text-sm text-destructive">{errors.zip}</p>

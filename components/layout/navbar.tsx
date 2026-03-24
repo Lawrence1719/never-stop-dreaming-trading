@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { Search, Heart, ShoppingCart } from 'lucide-react';
 import { useCart } from "@/lib/context/cart-context";
 import { useWishlist } from "@/lib/context/wishlist-context";
@@ -12,10 +11,14 @@ import { SearchModal } from "./search-modal";
 import { UserMenu } from "./user-menu";
 import { ThemeToggle } from "./theme-toggle";
 import { MobileDrawer } from "@/components/layout/mobile-drawer";
-import { useTheme } from "@/lib/context/theme-context";
 import { NotificationBell } from "./notification-bell";
 import { Logo } from "@/components/ui/logo";
-export function Navbar() {
+
+interface NavbarProps {
+  minimal?: boolean;
+}
+
+export function Navbar({ minimal = false }: NavbarProps) {
   const [searchOpen, setSearchOpen] = useState(false);
   const { cart } = useCart();
   const { wishlist } = useWishlist();
@@ -31,7 +34,7 @@ export function Navbar() {
       <nav className="sticky top-0 z-40 bg-card border-b border-border">
         <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            {/* Logo */}
+            {/* Left Side: Logo + Navigation */}
             <div className="flex items-center gap-8">
               <Link href="/" className="flex items-center gap-1.5">
                 <Logo variant="square" priority />
@@ -39,77 +42,85 @@ export function Navbar() {
               </Link>
 
               {/* Desktop Navigation */}
-              <nav className="hidden lg:flex items-center gap-6">
-                <Link href="/" className="text-sm font-medium hover:text-primary transition-colors">
-                  Home
-                </Link>
-                <Link
-                  href="/products"
-                  className="text-sm font-medium hover:text-primary transition-colors"
-                >
-                  Products
-                </Link>
-                <Link
-                  href="/about"
-                  className="text-sm font-medium hover:text-primary transition-colors"
-                >
-                  About
-                </Link>
-              </nav>
+              {!minimal && (
+                <nav className="hidden lg:flex items-center gap-6">
+                  <Link href="/" className="text-sm font-medium hover:text-primary transition-colors">
+                    Home
+                  </Link>
+                  <Link
+                    href="/products"
+                    className="text-sm font-medium hover:text-primary transition-colors"
+                  >
+                    Products
+                  </Link>
+                  <Link
+                    href="/about"
+                    className="text-sm font-medium hover:text-primary transition-colors"
+                  >
+                    About
+                  </Link>
+                </nav>
+              )}
             </div>
 
-            {/* Right Side */}
+            {/* Right Side: Action Icons */}
             <div className="flex items-center gap-4">
-              {/* Search */}
-              <button
-                onClick={() => setSearchOpen(true)}
-                className="p-2 rounded-md hover:bg-secondary/10 transition-colors hidden sm:flex items-center justify-center"
-                aria-label="Search"
-              >
-                <Search className="w-5 h-5" />
-              </button>
+              {!minimal ? (
+                <>
+                  {/* Search */}
+                  <button
+                    onClick={() => setSearchOpen(true)}
+                    className="p-2 rounded-md hover:bg-secondary/10 transition-colors hidden sm:flex items-center justify-center"
+                    aria-label="Search"
+                  >
+                    <Search className="w-5 h-5" />
+                  </button>
 
-              {/* Wishlist */}
-              <Link
-                href="/wishlist"
-                className="p-2 rounded-md hover:bg-secondary/10 transition-colors relative"
-                aria-label="Wishlist"
-              >
-                <Heart className="w-5 h-5" />
-                {wishlistCount > 0 && (
-                  <span className="absolute top-0 right-0 bg-accent text-accent-foreground text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
-                    {wishlistCount}
-                  </span>
-                )}
-              </Link>
+                  {/* Wishlist */}
+                  <Link
+                    href="/wishlist"
+                    className="p-2 rounded-md hover:bg-secondary/10 transition-colors relative"
+                    aria-label="Wishlist"
+                  >
+                    <Heart className="w-5 h-5" />
+                    {wishlistCount > 0 && (
+                      <span className="absolute top-0 right-0 bg-accent text-accent-foreground text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                        {wishlistCount}
+                      </span>
+                    )}
+                  </Link>
 
-              {/* Cart */}
-              <Link
-                href="/cart"
-                className="p-2 rounded-md hover:bg-secondary/10 transition-colors relative"
-                aria-label="Shopping cart"
-              >
-                <ShoppingCart className="w-5 h-5" />
-                {cartCount > 0 && (
-                  <span className="absolute top-0 right-0 bg-accent text-accent-foreground text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
-                    {cartCount}
-                  </span>
-                )}
-              </Link>
+                  {/* Cart */}
+                  <Link
+                    href="/cart"
+                    className="p-2 rounded-md hover:bg-secondary/10 transition-colors relative"
+                    aria-label="Shopping cart"
+                  >
+                    <ShoppingCart className="w-5 h-5" />
+                    {cartCount > 0 && (
+                      <span className="absolute top-0 right-0 bg-accent text-accent-foreground text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                        {cartCount}
+                      </span>
+                    )}
+                  </Link>
 
-              {/* Notifications */}
-              <NotificationBell />
+                  {/* Notifications */}
+                  <NotificationBell />
 
-              {/* Theme Toggle */}
-              <ThemeToggle />
+                  {/* Theme Toggle */}
+                  <ThemeToggle />
 
-              {/* User Menu */}
-              <div className="hidden sm:block">
-                <UserMenu />
-              </div>
+                  {/* User Menu */}
+                  <div className="hidden sm:block">
+                    <UserMenu />
+                  </div>
 
-              {/* Mobile Menu */}
-              <MobileDrawer />
+                  {/* Mobile Menu */}
+                  <MobileDrawer />
+                </>
+              ) : (
+                <ThemeToggle />
+              )}
             </div>
           </div>
         </div>

@@ -1,24 +1,9 @@
-import { Resend } from 'resend';
 import { getClient } from '@/lib/supabase/admin';
+import { transporter, defaultFrom } from './mailer';
 
 // Safely format price directly here since importing formatting might have issues if not in a server context, 
 // though it should be fine. Let's import it safely.
 import { formatPrice } from '@/lib/utils/formatting';
-
-let resendInstance: Resend | null = null;
-
-function getResend() {
-  if (resendInstance) return resendInstance;
-  
-  const apiKey = process.env.RESEND_API_KEY || process.env.RESEND_NSD_API_KEY;
-  if (!apiKey) {
-    throw new Error('Resend API key is missing. Pass it to the constructor `new Resend("re_123")`');
-  }
-  
-  resendInstance = new Resend(apiKey);
-  return resendInstance;
-}
-
 
 const getAppUrl = () => {
   return process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
@@ -53,11 +38,11 @@ export async function sendOrderConfirmationEmail(orderId: string) {
       return;
     }
 
-    const { data: { user } } = await supabaseAdmin.auth.admin.getUserById(order.user_id);
-    const userEmail = user?.email;
+    // Try to get the email from the shipping address first, then fallback to user profile
+    const userEmail = order.shipping_address?.email || (await supabaseAdmin.auth.admin.getUserById(order.user_id)).data.user?.email;
 
     if (!userEmail) {
-      console.error('No email found for user ID:', order.user_id);
+      console.error('No email found for order:', order.id);
       return;
     }
 
@@ -71,6 +56,9 @@ export async function sendOrderConfirmationEmail(orderId: string) {
 
     const html = `
       <div style="${styles.container}">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <img src="${getAppUrl()}/nsd_dark_long_logo.png" alt="Never Stop Dreaming Trading" style="height: 60px; width: auto;">
+        </div>
         <h1 style="${styles.header}">Order Confirmed - Never Stop Dreaming Trading</h1>
         <div style="${styles.content}">
           <p style="color: #f8fafc;">Thank you for your order! Your order <strong>#${order.id.slice(0, 8).toUpperCase()}</strong> has been successfully placed.</p>
@@ -110,8 +98,8 @@ export async function sendOrderConfirmationEmail(orderId: string) {
       </div>
     `;
 
-    await getResend().emails.send({
-      from: 'onboarding@resend.dev',
+    await transporter.sendMail({
+      from: defaultFrom,
       to: userEmail,
       subject: 'Order Confirmed - Never Stop Dreaming Trading',
       html
@@ -128,14 +116,17 @@ export async function sendOrderStatusEmail(orderId: string) {
     const supabaseAdmin = getClient();
     const { data: order, error: orderError } = await supabaseAdmin
       .from('orders')
-      .select('*')
+      .select(`
+        *,
+        shipping_address:addresses!shipping_address_id(*)
+      `)
       .eq('id', orderId)
       .single();
 
     if (orderError || !order) return;
 
-    const { data: { user } } = await supabaseAdmin.auth.admin.getUserById(order.user_id);
-    const userEmail = user?.email;
+    // Try to get the email from the shipping address first, then fallback to user profile
+    const userEmail = order.shipping_address?.email || (await supabaseAdmin.auth.admin.getUserById(order.user_id)).data.user?.email;
 
     if (!userEmail) return;
 
@@ -155,6 +146,9 @@ export async function sendOrderStatusEmail(orderId: string) {
 
     const html = `
       <div style="${styles.container}">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <img src="${getAppUrl()}/nsd_dark_long_logo.png" alt="Never Stop Dreaming Trading" style="height: 60px; width: auto;">
+        </div>
         <h1 style="${styles.header}">${statusTitle}</h1>
         <div style="${styles.content}">
           <p style="color: #f8fafc;">${statusMessage}</p>
@@ -174,8 +168,8 @@ export async function sendOrderStatusEmail(orderId: string) {
       </div>
     `;
 
-    await getResend().emails.send({
-      from: 'onboarding@resend.dev',
+    await transporter.sendMail({
+      from: defaultFrom,
       to: userEmail,
       subject: `${statusTitle} - Never Stop Dreaming Trading`,
       html

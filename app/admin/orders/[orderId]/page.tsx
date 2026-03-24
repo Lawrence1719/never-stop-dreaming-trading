@@ -22,6 +22,7 @@ import { useAuth } from '@/lib/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase/client';
 import { formatPrice, formatDate } from '@/lib/utils/formatting';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface OrderItem {
   product_id: string;
@@ -442,13 +443,7 @@ export default function OrderDetailPage() {
   };
 
   if (isLoading) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-center min-h-[400px]">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        </div>
-      </div>
-    );
+    return <OrderDetailsSkeleton />;
   }
 
   if (error || !order) {
@@ -968,6 +963,133 @@ export default function OrderDetailPage() {
           </Card>
         </div>
       )}
+    </div>
+  );
+}
+
+function OrderDetailsSkeleton() {
+  return (
+    <div className="container mx-auto px-4 py-8">
+      {/* Header Skeleton */}
+      <div className="flex items-center gap-4 mb-6">
+        <Skeleton className="w-10 h-10 rounded-md" />
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-64 md:w-96" />
+          <Skeleton className="h-4 w-40 md:w-60" />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Main Content Skeleton */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Order Items Card Skeleton */}
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-6 w-32" />
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {[1, 2].map((i) => (
+                <div key={i} className="flex gap-4 pb-4 border-b last:border-0 last:pb-0">
+                  <Skeleton className="w-16 h-16 rounded-lg shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-5 w-48 max-w-full" />
+                    <Skeleton className="h-4 w-24" />
+                  </div>
+                  <div className="text-right space-y-2">
+                    <Skeleton className="h-5 w-20 ml-auto" />
+                    <Skeleton className="h-4 w-16 ml-auto" />
+                  </div>
+                </div>
+              ))}
+              <div className="pt-4 border-t flex justify-between items-center">
+                <Skeleton className="h-6 w-20" />
+                <Skeleton className="h-8 w-32" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Shipping Address Card Skeleton */}
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-6 w-40" />
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <Skeleton className="h-5 w-48" />
+              <Skeleton className="h-4 w-64 max-w-full" />
+              <Skeleton className="h-4 w-56 max-w-full" />
+              <Skeleton className="h-4 w-32" />
+            </CardContent>
+          </Card>
+
+          {/* Order Timeline Card Skeleton */}
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-6 w-36" />
+              <Skeleton className="h-4 w-60 max-w-full mt-1" />
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex gap-4">
+                  <Skeleton className="w-10 h-10 rounded-full shrink-0" />
+                  <div className="flex-1 space-y-2 pb-2">
+                    <div className="flex items-center gap-2">
+                      <Skeleton className="h-5 w-24" />
+                      <Skeleton className="h-4 w-16" />
+                      <Skeleton className="h-5 w-20 rounded-full" />
+                    </div>
+                    <Skeleton className="h-3 w-32" />
+                    <Skeleton className="h-4 w-full" />
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Sidebar Skeleton */}
+        <div className="space-y-6">
+          {/* Order Summary Card Skeleton */}
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-6 w-36" />
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="space-y-2">
+                  <Skeleton className="h-3 w-20" />
+                  <Skeleton className="h-5 w-full" />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          {/* Status Update Card Skeleton */}
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-6 w-40" />
+              <Skeleton className="h-4 w-full mt-1" />
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-12 w-full rounded-lg" />
+              </div>
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-24" />
+                <div className="grid grid-cols-1 gap-2">
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-14 w-full rounded-lg" />
+                  ))}
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Skeleton className="h-10 flex-1" />
+                <Skeleton className="h-10 flex-1" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }

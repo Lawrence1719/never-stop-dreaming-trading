@@ -186,16 +186,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     })();
 
-    // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
+      console.debug(`[auth] onAuthStateChange event: ${event}`, { userId: session?.user?.id });
+      
       if (event === 'SIGNED_OUT') {
         // Immediately clear user state on sign out
         setUser(null);
         cachedUserIdRef.current = null;
         profileFetchInProgressRef.current = false;
         setIsLoading(false);
+      } else if (event === 'PASSWORD_RECOVERY') {
+        // Force a session refresh and profile fetch when recovering password
+        if (session) {
+          setUser(buildUserFromSession(session));
+          fetchUserProfile(session).catch((err) => console.error('Error fetching profile on recovery', err));
+        }
       } else if (session) {
         // Only fetch profile if user ID changed (not on every tab focus)
         if (cachedUserIdRef.current !== session.user.id) {

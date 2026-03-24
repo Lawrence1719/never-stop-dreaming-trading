@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { validateEmail } from "@/lib/utils/validation";
 import { Mail } from 'lucide-react';
 import { supabase } from "@/lib/supabase/client";
+import { Logo } from "@/components/ui/logo";
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
@@ -58,11 +59,19 @@ export default function ForgotPasswordPage() {
     }
   };
 
+  const AuthHeader = () => (
+    <header className="p-6">
+      <Link href="/" className="inline-block">
+        <Logo variant="square" priority />
+      </Link>
+    </header>
+  );
+
   if (submitted) {
     return (
-      <div className="flex flex-col min-h-screen">
-        <Navbar />
-        <main className="flex-1 flex items-center justify-center px-4 py-16">
+      <div className="flex flex-col min-h-screen bg-background">
+        <AuthHeader />
+        <main className="flex-1 flex items-center justify-center px-4 py-8">
           <div className="w-full max-w-md text-center">
             <div className="mb-6">
               <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -88,16 +97,15 @@ export default function ForgotPasswordPage() {
             </Link>
           </div>
         </main>
-        <Footer />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col min-h-screen">
-      <Navbar />
+    <div className="flex flex-col min-h-screen bg-background">
+      <AuthHeader />
 
-      <main className="flex-1 flex items-center justify-center px-4 py-16">
+      <main className="flex-1 flex items-center justify-center px-4 py-8">
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold mb-2">Reset Password</h1>
@@ -142,8 +150,6 @@ export default function ForgotPasswordPage() {
           </p>
         </div>
       </main>
-
-      <Footer />
     </div>
   );
 }

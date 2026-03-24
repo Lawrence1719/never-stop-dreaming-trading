@@ -82,6 +82,12 @@ function LoginPageContent() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // If session is already recovered, just redirect
+    if (user) {
+      router.push('/');
+      return;
+    }
+
     if (!validateForm()) {
       toast({
         title: "Validation Error",
@@ -121,17 +127,20 @@ function LoginPageContent() {
         } else if (errorMessage.toLowerCase().includes("invalid") ||
           errorMessage.toLowerCase().includes("credentials") ||
           errorMessage.toLowerCase().includes("password")) {
+          // Fix: Do not show resend confirmation for generic invalid credentials
           toast({
             title: "Invalid Credentials",
-            description: "The email or password you entered is incorrect. Please try again.",
+            description: "The email or password you entered is incorrect. Please try again or click Forgot Password if you need to reset it.",
             variant: "destructive",
           });
+          setShowResendConfirmation(false); 
         } else {
           toast({
             title: "Login Failed",
             description: errorMessage,
             variant: "destructive",
           });
+          setShowResendConfirmation(false);
         }
         return;
       }

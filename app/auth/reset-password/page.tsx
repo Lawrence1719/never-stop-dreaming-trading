@@ -1,26 +1,69 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter } from 'next/navigation';
-import { Footer } from "@/components/layout/footer";
-import { Navbar } from "@/components/layout/navbar";
+import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
 import { validatePassword } from "@/lib/utils/validation";
-import { Lock, Eye, EyeOff } from 'lucide-react';
+import { Lock, Eye, EyeOff, UserCircle } from 'lucide-react';
 import { supabase } from "@/lib/supabase/client";
+import { useAuth } from "@/lib/context/auth-context";
+import { Logo } from "@/components/ui/logo";
 
 function ResetPasswordContent() {
   const router = useRouter();
   const { toast } = useToast();
+  const { user, isLoading: authLoading } = useAuth();
 
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [resetEmail, setResetEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState<"weak" | "medium" | "strong" | "">("");
-  
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Fix: Use status-driven loading to wait for the auth session
+  useEffect(() => {
+    // 1. Listen for the PASSWORD_RECOVERY event
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log(`[reset-password] Auth event: ${event}`, { hasSession: !!session });
+      if (event === 'PASSWORD_RECOVERY' && session) {
+        setStatus('ready');
+        if (session.user.email) setResetEmail(session.user.email);
+      } else if (session) {
+        // Fallback for cases where it's SIGNED_IN but we're on the reset page
+        setStatus('ready');
+        if (session.user.email) setResetEmail(session.user.email);
+      }
+    });
+
+    // 2. Also check if session already exists (e.g. on page refresh)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setStatus('ready');
+        if (session.user.email) setResetEmail(session.user.email);
+      }
+    });
+
+    // 3. Timeout fallback — after 6s show error if still loading
+    const timeout = setTimeout(() => {
+      setStatus(prev => {
+        if (prev === 'loading') {
+          console.error('[reset-password] Auth session timeout (6s)');
+          return 'error';
+        }
+        return prev;
+      });
+    }, 6000);
+
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeout);
+    };
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -83,9 +126,13 @@ function ResetPasswordContent() {
           description: "Password updated successfully!",
           variant: "success",
         });
+        
+        // Force sign out and redirect to login
+        await supabase.auth.signOut();
+        
         // Short delay before redirecting to login
         setTimeout(() => {
-          router.replace('/login');
+          router.replace('/login?reset=success');
         }, 1500);
       }
     } catch (err) {
@@ -101,110 +148,149 @@ function ResetPasswordContent() {
     }
   };
 
+  const AuthHeader = () => (
+    <header className="p-6">
+      <Link href="/" className="inline-block">
+        <Logo variant="square" priority />
+      </Link>
+    </header>
+  );
+
   return (
-    <div className="flex flex-col min-h-screen">
-      <Navbar />
+    <div className="flex flex-col min-h-screen bg-background text-foreground">
+      <AuthHeader />
 
-      <main className="flex-1 flex items-center justify-center px-4 py-16">
+      <main className="flex-1 flex items-center justify-center px-4 py-8">
         <div className="w-full max-w-md">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold mb-2">Reset Password</h1>
-            <p className="text-muted-foreground">Please enter your new password below.</p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
-            {errors.form && (
-              <div className="p-4 bg-destructive/10 border border-destructive rounded-lg">
-                <p className="text-sm text-destructive font-medium">{errors.form}</p>
+          {status === 'loading' ? (
+            <div className="text-center space-y-4">
+              <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+              <p className="text-muted-foreground animate-pulse">Establishing secure connection...</p>
+            </div>
+          ) : status === 'error' ? (
+            <div className="text-center space-y-6">
+              <div className="w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mx-auto">
+                <Lock className="w-8 h-8 text-destructive" />
               </div>
-            )}
-
-            {/* Password */}
-            <div>
-              <label className="block text-sm font-medium mb-2">New Password</label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
-                <input
-                  type={showPassword ? "text" : "password"}
-                  name="password"
-                  value={password}
-                  onChange={handleChange}
-                  placeholder="••••••••"
-                  autoComplete="new-password"
-                  className={`w-full pl-10 pr-10 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
-                    errors.password ? "border-destructive" : "border-border"
-                  }`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((prev) => !prev)}
-                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
+              <div>
+                <h1 className="text-2xl font-bold mb-2">Link Expired or Invalid</h1>
+                <p className="text-muted-foreground">
+                  This password reset link is no longer valid or has already been used.
+                </p>
               </div>
-              {errors.password && <p className="text-xs text-destructive mt-1">{errors.password}</p>}
-              {passwordStrength && (
-                <div className="mt-2">
-                  <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
-                    <div
-                      className={`h-full transition-all ${
-                        passwordStrength === "weak"
-                          ? "w-1/3 bg-destructive"
-                          : passwordStrength === "medium"
-                          ? "w-2/3 bg-amber-500"
-                          : "w-full bg-emerald-500"
+              <Link
+                href="/forgot-password"
+                className="inline-block px-8 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-semibold"
+              >
+                Request New Link
+              </Link>
+            </div>
+          ) : (
+            <>
+              <div className="text-center mb-8">
+                <h1 className="text-3xl font-bold mb-2">Reset Password</h1>
+                {resetEmail && (
+                  <div className="flex items-center justify-center gap-2 text-primary bg-primary/5 py-2 px-4 rounded-full w-fit mx-auto mb-4 border border-primary/10">
+                    <UserCircle className="w-4 h-4" />
+                    <span className="text-sm font-medium">Resetting for: {resetEmail}</span>
+                  </div>
+                )}
+                <p className="text-muted-foreground">Please enter your new password below.</p>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
+                {errors.form && (
+                  <div className="p-4 bg-destructive/10 border border-destructive rounded-lg">
+                    <p className="text-sm text-destructive font-medium">{errors.form}</p>
+                  </div>
+                )}
+
+                {/* Password */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium">New Password</label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      name="password"
+                      value={password}
+                      onChange={handleChange}
+                      placeholder="••••••••"
+                      autoComplete="new-password"
+                      className={`w-full pl-10 pr-10 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
+                        errors.password ? "border-destructive" : "border-border"
                       }`}
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1 capitalize">
-                    Password strength: {passwordStrength}
-                  </p>
+                  {errors.password && <p className="text-xs text-destructive mt-1">{errors.password}</p>}
+                  {passwordStrength && (
+                    <div className="mt-2">
+                      <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
+                        <div
+                          className={`h-full transition-all ${
+                            passwordStrength === "weak"
+                              ? "w-1/3 bg-destructive"
+                              : passwordStrength === "medium"
+                              ? "w-2/3 bg-amber-500"
+                              : "w-full bg-emerald-500"
+                          }`}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1 capitalize">
+                        Password strength: {passwordStrength}
+                      </p>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
 
-            {/* Confirm Password */}
-            <div>
-              <label className="block text-sm font-medium mb-2">Confirm New Password</label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
-                <input
-                  type={showConfirmPassword ? "text" : "password"}
-                  name="confirmPassword"
-                  value={confirmPassword}
-                  onChange={handleChange}
-                  placeholder="••••••••"
-                  autoComplete="new-password"
-                  className={`w-full pl-10 pr-10 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
-                    errors.confirmPassword ? "border-destructive" : "border-border"
-                  }`}
-                />
+                {/* Confirm Password */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium">Confirm New Password</label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
+                    <input
+                      type={showConfirmPassword ? "text" : "password"}
+                      name="confirmPassword"
+                      value={confirmPassword}
+                      onChange={handleChange}
+                      placeholder="••••••••"
+                      autoComplete="new-password"
+                      className={`w-full pl-10 pr-10 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
+                        errors.confirmPassword ? "border-destructive" : "border-border"
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword((prev) => !prev)}
+                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground"
+                      aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                  {errors.confirmPassword && <p className="text-xs text-destructive mt-1">{errors.confirmPassword}</p>}
+                </div>
+
                 <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword((prev) => !prev)}
-                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground"
-                  aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed mt-6"
                 >
-                  {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  {isLoading ? "Updating Password..." : "Reset Password"}
                 </button>
-              </div>
-              {errors.confirmPassword && <p className="text-xs text-destructive mt-1">{errors.confirmPassword}</p>}
-            </div>
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed mt-6"
-            >
-              {isLoading ? "Updating Password..." : "Reset Password"}
-            </button>
-          </form>
+              </form>
+            </>
+          )}
         </div>
       </main>
-
-      <Footer />
     </div>
   );
 }
