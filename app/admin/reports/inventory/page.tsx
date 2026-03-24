@@ -9,6 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { supabase } from '@/lib/supabase/client';
 import { exportToCSV } from '@/lib/utils/export';
 
+import { ExportReportModal } from '@/components/admin/reports/ExportReportModal';
+
 interface InventoryReport {
   summary: {
     totalProducts: number;
@@ -37,6 +39,7 @@ export default function InventoryReportPage() {
   const [data, setData] = useState<InventoryReport | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   useEffect(() => {
     async function fetchReport() {
@@ -64,40 +67,11 @@ export default function InventoryReportPage() {
         setIsLoading(false);
       }
     }
-
     fetchReport();
   }, []);
 
   const handleExport = () => {
-    if (!data) return;
-    
-    // Export summary
-    const summaryData = [{
-      Metric: 'Total Products',
-      Value: data.summary.totalProducts,
-    }, {
-      Metric: 'In Stock',
-      Value: data.summary.inStock,
-      Percentage: `${data.summary.inStockPercentage}%`,
-    }, {
-      Metric: 'Low Stock',
-      Value: data.summary.lowStock,
-    }, {
-      Metric: 'Out of Stock',
-      Value: data.summary.outOfStock,
-    }];
-
-    exportToCSV(summaryData, 'inventory_summary');
-    
-    // Export low stock items
-    setTimeout(() => {
-      exportToCSV(data.lowStockItems, 'low_stock_items');
-    }, 500);
-    
-    // Export by category
-    setTimeout(() => {
-      exportToCSV(data.inventoryByCategory, 'inventory_by_category');
-    }, 1000);
+    setIsExportModalOpen(true);
   };
 
   return (
@@ -292,6 +266,15 @@ export default function InventoryReportPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {data && (
+        <ExportReportModal 
+          isOpen={isExportModalOpen}
+          onClose={() => setIsExportModalOpen(false)}
+          reportType="inventory"
+          data={data}
+        />
+      )}
     </div>
   );
 }

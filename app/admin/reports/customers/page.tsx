@@ -10,6 +10,8 @@ import { supabase } from '@/lib/supabase/client';
 import { exportToCSV } from '@/lib/utils/export';
 import { formatPrice } from '@/lib/utils/formatting';
 
+import { ExportReportModal } from '@/components/admin/reports/ExportReportModal';
+
 interface CustomerReport {
   summary: {
     totalCustomers: number;
@@ -36,6 +38,7 @@ export default function CustomersReportPage() {
   const [data, setData] = useState<CustomerReport | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   useEffect(() => {
     async function fetchReport() {
@@ -68,35 +71,7 @@ export default function CustomersReportPage() {
   }, []);
 
   const handleExport = () => {
-    if (!data) return;
-    
-    // Export summary
-    const summaryData = [{
-      Metric: 'Total Customers',
-      Value: data.summary.totalCustomers,
-    }, {
-      Metric: 'Active Customers',
-      Value: data.summary.activeCustomers,
-      Percentage: `${((data.summary.activeCustomers / data.summary.totalCustomers) * 100).toFixed(1)}%`,
-    }, {
-      Metric: 'Average Order Value',
-      Value: `₱${data.summary.avgOrderValue.toFixed(2)}`,
-    }, {
-      Metric: 'Customer Lifetime Value',
-      Value: `₱${data.summary.customerLifetimeValue.toFixed(2)}`,
-    }];
-
-    exportToCSV(summaryData, 'customer_summary');
-    
-    // Export top customers
-    setTimeout(() => {
-      exportToCSV(data.topCustomers, 'top_customers');
-    }, 500);
-    
-    // Export segments
-    setTimeout(() => {
-      exportToCSV(data.customerSegments, 'customer_segments');
-    }, 1000);
+    setIsExportModalOpen(true);
   };
 
   const formatAmount = (value: number | string) =>
@@ -296,6 +271,14 @@ export default function CustomersReportPage() {
           </Table>
         </CardContent>
       </Card>
+      {data && (
+        <ExportReportModal 
+          isOpen={isExportModalOpen}
+          onClose={() => setIsExportModalOpen(false)}
+          reportType="customers"
+          data={data}
+        />
+      )}
     </div>
   );
 }

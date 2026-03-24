@@ -1,15 +1,18 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Download, Calendar } from 'lucide-react';
+import { Download } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { supabase } from '@/lib/supabase/client';
 import { exportToCSV } from '@/lib/utils/export';
 import { formatPrice } from '@/lib/utils/formatting';
+import { startOfMonth, subMonths, endOfMonth } from 'date-fns';
+import { Skeleton } from '@/components/ui/skeleton';
+
+import { ExportReportModal } from '@/components/admin/reports/ExportReportModal';
 
 interface SalesReport {
   summary: {
@@ -22,13 +25,14 @@ interface SalesReport {
     aovGrowth: number;
   };
   salesByCategory: Array<{ category: string; sales: number; revenue: number }>;
-  topProducts: Array<{ name: string; sold: number; revenue: string }>;
+  topProducts: Array<{ name: string; sold: number; revenue: number }>;
 }
 
 export default function SalesReportPage() {
   const [data, setData] = useState<SalesReport | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   useEffect(() => {
     async function fetchReport() {
@@ -36,19 +40,97 @@ export default function SalesReportPage() {
       setError(null);
       
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const res = await fetch('/api/admin/reports/sales?range=month', {
-          headers: session?.access_token
-            ? { Authorization: `Bearer ${session.access_token}` }
-            : undefined,
+        const now = new Date();
+        const startOfCurrentMonth = startOfMonth(now);
+        const startOfLastMonth = startOfMonth(subMonths(now, 1));
+        const endOfLastMonth = endOfMonth(subMonths(now, 1));
+
+        // 1. Fetch orders for current and last month to calculate growth
+        const { data: orders, error: ordersError } = await supabase
+          .from('orders')
+          .select('id, status, total, created_at')
+          .gte('created_at', startOfLastMonth.toISOString());
+
+        if (ordersError) throw ordersError;
+
+        // 2. Fetch conversion rate data
+        const { count: completedOrdersCount, error: completedErr } = await supabase
+          .from('orders')
+          .select('*', { count: 'exact', head: true })
+          .in('status', ['paid', 'completed', 'delivered']);
+
+        const { count: customerCount, error: customerErr } = await supabase
+          .from('profiles')
+          .select('*', { count: 'exact', head: true })
+          .eq('role', 'customer');
+
+        if (completedErr) throw completedErr;
+        if (customerErr) throw customerErr;
+
+        // 3. Use RPCs for complex aggregations (prevent NaN and memory issues)
+        const { data: rpcTopProducts, error: topErr } = await supabase.rpc('get_top_products_rpc', {
+          p_start_date: startOfCurrentMonth.toISOString(),
+          p_end_date: now.toISOString(),
+          p_limit: 10
         });
 
-        if (!res.ok) {
-          throw new Error('Failed to load sales report');
-        }
+        const { data: rpcSalesByCategory, error: catErr } = await supabase.rpc('get_sales_by_category_rpc', {
+          p_start_date: startOfCurrentMonth.toISOString(),
+          p_end_date: now.toISOString()
+        });
 
-        const reportData = await res.json();
-        setData(reportData);
+        if (topErr) throw topErr;
+        if (catErr) throw catErr;
+
+        // --- Data Transformation ---
+
+        // Stat Card Logic
+        const validStatuses = ['paid', 'completed', 'delivered'];
+        const currentMonthOrders = orders.filter(o => 
+          new Date(o.created_at) >= startOfCurrentMonth && 
+          validStatuses.includes(o.status)
+        );
+        const lastMonthOrders = orders.filter(o => {
+          const date = new Date(o.created_at);
+          return date >= startOfLastMonth && date <= endOfLastMonth && validStatuses.includes(o.status);
+        });
+
+        const currentRevenue = currentMonthOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
+        const lastRevenue = lastMonthOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
+        
+        const currentOrdersCount = currentMonthOrders.length;
+        const lastOrdersCount = lastMonthOrders.length;
+
+        const currentAOV = currentOrdersCount > 0 ? currentRevenue / currentOrdersCount : 0;
+        const lastAOV = lastOrdersCount > 0 ? lastRevenue / lastOrdersCount : 0;
+
+        const calculateGrowth = (current: number, previous: number) => {
+          if (previous === 0) return current > 0 ? 100 : 0;
+          return ((current - previous) / previous) * 100;
+        };
+
+        // Conversion Rate
+        const conversionRate = customerCount && customerCount > 0 
+          ? ((completedOrdersCount || 0) / customerCount) * 100 
+          : 0;
+
+        setData({
+          summary: {
+            totalRevenue: currentRevenue,
+            totalOrders: currentOrdersCount,
+            averageOrderValue: currentAOV,
+            conversionRate,
+            revenueGrowth: calculateGrowth(currentRevenue, lastRevenue),
+            ordersGrowth: calculateGrowth(currentOrdersCount, lastOrdersCount),
+            aovGrowth: calculateGrowth(currentAOV, lastAOV),
+          },
+          salesByCategory: rpcSalesByCategory || [],
+          topProducts: (rpcTopProducts || []).map((p: any) => ({
+            name: p.name,
+            sold: Number(p.sold) || 0,
+            revenue: Number(p.revenue) || 0
+          }))
+        });
       } catch (err) {
         console.error('Failed to load sales report', err);
         setError(err instanceof Error ? err.message : 'Failed to load sales report');
@@ -56,47 +138,12 @@ export default function SalesReportPage() {
         setIsLoading(false);
       }
     }
-
     fetchReport();
   }, []);
 
   const handleExport = () => {
-    if (!data) return;
-    
-    // Export summary
-    const summaryData = [{
-      Metric: 'Total Revenue',
-      Value: `₱${data.summary.totalRevenue.toFixed(2)}`,
-      'Growth %': `${data.summary.revenueGrowth.toFixed(2)}%`,
-    }, {
-      Metric: 'Total Orders',
-      Value: data.summary.totalOrders,
-      'Growth %': `${data.summary.ordersGrowth.toFixed(2)}%`,
-    }, {
-      Metric: 'Average Order Value',
-      Value: `₱${data.summary.averageOrderValue.toFixed(2)}`,
-      'Growth %': `${data.summary.aovGrowth.toFixed(2)}%`,
-    }, {
-      Metric: 'Conversion Rate',
-      Value: `${data.summary.conversionRate}%`,
-      'Growth %': 'N/A',
-    }];
-
-    exportToCSV(summaryData, 'sales_summary');
-    
-    // Export top products
-    setTimeout(() => {
-      const productsData = data.topProducts.map(p => ({
-        'Product Name': p.name,
-        'Units Sold': p.sold,
-        'Revenue': p.revenue,
-      }));
-      exportToCSV(productsData, 'top_products');
-    }, 500);
+    setIsExportModalOpen(true);
   };
-
-  const formatAmount = (value: number | string) =>
-    formatPrice(typeof value === 'string' ? parseFloat(value.replace(/[^0-9.-]/g, '')) || 0 : value);
 
   return (
     <div className="space-y-6">
@@ -119,83 +166,38 @@ export default function SalesReportPage() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="h-8 w-32 bg-muted rounded animate-pulse" />
-            ) : (
-              <>
-                <div className="text-2xl font-bold">
-                  {data ? formatPrice(data.summary.totalRevenue) : formatPrice(0)}
-                </div>
-                <p className={`text-xs mt-1 ${data && data.summary.revenueGrowth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {data ? `${data.summary.revenueGrowth >= 0 ? '+' : ''}${data.summary.revenueGrowth.toFixed(2)}% from last month` : 'N/A'}
-                </p>
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="h-8 w-32 bg-muted rounded animate-pulse" />
-            ) : (
-              <>
-                <div className="text-2xl font-bold">
-                  {data ? data.summary.totalOrders.toLocaleString() : '0'}
-                </div>
-                <p className={`text-xs mt-1 ${data && data.summary.ordersGrowth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {data ? `${data.summary.ordersGrowth >= 0 ? '+' : ''}${data.summary.ordersGrowth.toFixed(2)}% from last month` : 'N/A'}
-                </p>
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Avg. Order Value</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="h-8 w-32 bg-muted rounded animate-pulse" />
-            ) : (
-              <>
-                <div className="text-2xl font-bold">
-                  {data ? formatPrice(data.summary.averageOrderValue) : formatPrice(0)}
-                </div>
-                <p className={`text-xs mt-1 ${data && data.summary.aovGrowth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {data ? `${data.summary.aovGrowth >= 0 ? '+' : ''}${data.summary.aovGrowth.toFixed(2)}% from last month` : 'N/A'}
-                </p>
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Conversion Rate</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="h-8 w-32 bg-muted rounded animate-pulse" />
-            ) : (
-              <>
-                <div className="text-2xl font-bold">
-                  {data ? `${data.summary.conversionRate.toFixed(2)}%` : '0%'}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">Estimated</p>
-              </>
-            )}
-          </CardContent>
-        </Card>
+        {[
+          { title: 'Total Revenue', value: data?.summary.totalRevenue, growth: data?.summary.revenueGrowth, isPrice: true },
+          { title: 'Total Orders', value: data?.summary.totalOrders, growth: data?.summary.ordersGrowth },
+          { title: 'Avg. Order Value', value: data?.summary.averageOrderValue, growth: data?.summary.aovGrowth, isPrice: true },
+          { title: 'Conversion Rate', value: data?.summary.conversionRate, isPercent: true, subtitle: 'Estimated' }
+        ].map((stat, i) => (
+          <Card key={i}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <Skeleton className="h-8 w-32" />
+              ) : (
+                <>
+                  <div className="text-2xl font-bold">
+                    {stat.isPrice ? formatPrice(stat.value ?? 0) : 
+                     stat.isPercent ? `${(stat.value ?? 0).toFixed(2)}%` : 
+                     (stat.value ?? 0).toLocaleString()}
+                  </div>
+                  {stat.growth !== undefined ? (
+                    <p className={`text-xs mt-1 ${stat.growth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {stat.growth >= 0 ? '+' : ''}{stat.growth.toFixed(2)}% from last month
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground mt-1">{stat.subtitle}</p>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       {/* Sales by Category Chart */}
@@ -207,20 +209,43 @@ export default function SalesReportPage() {
         <CardContent>
           {isLoading ? (
             <div className="h-[300px] flex items-center justify-center">
-              <div className="text-muted-foreground">Loading chart data...</div>
+              <Skeleton className="h-full w-full" />
             </div>
           ) : data && data.salesByCategory.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={data.salesByCategory}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-border))" />
-                <XAxis dataKey="category" stroke="rgb(var(--color-muted-foreground))" />
-                <YAxis stroke="rgb(var(--color-muted-foreground))" />
-                <Tooltip contentStyle={{ backgroundColor: 'rgb(var(--color-card))', border: '1px solid rgb(var(--color-border))' }} />
-                <Legend />
-                <Bar dataKey="sales" fill="#3b82f6" name="Sales" />
-                <Bar dataKey="revenue" fill="#10b981" name="Revenue" />
-              </BarChart>
-            </ResponsiveContainer>
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data.salesByCategory}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                  <XAxis 
+                    dataKey="category" 
+                    stroke="hsl(var(--muted-foreground))" 
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis 
+                    stroke="hsl(var(--muted-foreground))" 
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(value) => `₱${value}`}
+                  />
+                  <Tooltip 
+                    cursor={{fill: 'var(--muted)', opacity: 0.1}}
+                    contentStyle={{ 
+                      backgroundColor: 'var(--card)', 
+                      borderColor: 'var(--border)',
+                      color: 'var(--foreground)',
+                      borderRadius: '8px',
+                      fontSize: '12px'
+                    }} 
+                  />
+                  <Legend />
+                  <Bar dataKey="sales" fill="hsl(var(--primary))" name="Sales" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="revenue" fill="#10b981" name="Revenue" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           ) : (
             <div className="h-[300px] flex items-center justify-center text-muted-foreground">
               No sales data available
@@ -236,42 +261,55 @@ export default function SalesReportPage() {
           <CardDescription>Best selling products by revenue</CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Product</TableHead>
-                <TableHead>Units Sold</TableHead>
-                <TableHead>Revenue</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                Array.from({ length: 4 }).map((_, idx) => (
-                  <TableRow key={`loading-${idx}`} className="animate-pulse">
-                    <TableCell><div className="h-4 bg-muted rounded w-32" /></TableCell>
-                    <TableCell><div className="h-4 bg-muted rounded w-16" /></TableCell>
-                    <TableCell><div className="h-4 bg-muted rounded w-20" /></TableCell>
-                  </TableRow>
-                ))
-              ) : data && data.topProducts.length > 0 ? (
-                data.topProducts.map((product, idx) => (
-                  <TableRow key={idx}>
-                    <TableCell className="font-medium">{product.name}</TableCell>
-                    <TableCell>{product.sold}</TableCell>
-                    <TableCell className="text-green-600 font-medium">{formatAmount(product.revenue)}</TableCell>
-                  </TableRow>
-                ))
-              ) : (
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
-                    No product data available
-                  </TableCell>
+                  <TableHead>Product</TableHead>
+                  <TableHead className="text-right">Units Sold</TableHead>
+                  <TableHead className="text-right">Revenue</TableHead>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  Array.from({ length: 5 }).map((_, idx) => (
+                    <TableRow key={`loading-${idx}`}>
+                      <TableCell><Skeleton className="h-4 w-[200px]" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-[60px] ml-auto" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-[80px] ml-auto" /></TableCell>
+                    </TableRow>
+                  ))
+                ) : data && data.topProducts.length > 0 ? (
+                  data.topProducts.map((product, idx) => (
+                    <TableRow key={idx}>
+                      <TableCell className="font-medium text-sm">{product.name}</TableCell>
+                      <TableCell className="text-right">{product.sold}</TableCell>
+                      <TableCell className="text-right text-green-600 font-medium">
+                        {formatPrice(product.revenue)}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
+                      No product data available
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
+
+      {data && (
+        <ExportReportModal 
+          isOpen={isExportModalOpen}
+          onClose={() => setIsExportModalOpen(false)}
+          reportType="sales"
+          data={data}
+        />
+      )}
     </div>
   );
 }

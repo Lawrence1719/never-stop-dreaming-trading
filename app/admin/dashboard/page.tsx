@@ -291,10 +291,11 @@ export default function AdminDashboard() {
               <div className="text-center text-sm text-muted-foreground">{isLoading ? 'Loading chart...' : 'No sales data for the selected range.'}</div>
             ) : (
               <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={salesData}>
+                <LineChart data={salesData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-border))" />
                   <XAxis dataKey="period" stroke="rgb(var(--color-muted-foreground))" />
-                  <YAxis stroke="rgb(var(--color-muted-foreground))" />
+                  <YAxis yAxisId={0} orientation="left" stroke="rgb(var(--color-muted-foreground))" />
+                  <YAxis yAxisId={1} orientation="right" stroke="rgb(var(--color-muted-foreground))" />
                   <Tooltip
                     contentStyle={{
                       backgroundColor: 'rgb(var(--color-card))',
@@ -302,8 +303,8 @@ export default function AdminDashboard() {
                     }}
                   />
                   <Legend />
-                  <Line type="monotone" dataKey="orders" stroke="#3b82f6" strokeWidth={2} name="Orders" />
-                  <Line type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={2} name="Revenue" />
+                  <Line yAxisId={1} type="monotone" dataKey="orders" stroke="#3b82f6" strokeWidth={2} name="Orders" />
+                  <Line yAxisId={0} type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={2} name="Revenue" />
                 </LineChart>
               </ResponsiveContainer>
             )}
