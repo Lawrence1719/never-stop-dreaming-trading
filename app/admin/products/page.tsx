@@ -38,10 +38,10 @@ import { MAIN_CATEGORIES } from '@/lib/data/categories';
 interface Product {
   id: string;
   name: string;
-  sku: string;
   category: string;
-  price: string;
-  stock: number;
+  variant_count: number;
+  total_stock: number;
+  price_range: string;
   status: 'active' | 'inactive';
 }
 

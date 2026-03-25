@@ -11,8 +11,15 @@ import { exportToCSV } from '@/lib/utils/export';
 import { formatPrice } from '@/lib/utils/formatting';
 import { startOfMonth, subMonths, endOfMonth } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { FileText, FileSpreadsheet } from 'lucide-react';
 
-import { ExportReportModal } from '@/components/admin/reports/ExportReportModal';
+import { SalesExportModal } from '@/components/admin/reports/SalesExportModal';
 
 interface SalesReport {
   summary: {
@@ -33,6 +40,7 @@ export default function SalesReportPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportFormat, setExportFormat] = useState<'pdf' | 'csv' | 'xlsx'>('pdf');
 
   useEffect(() => {
     async function fetchReport() {
@@ -141,7 +149,8 @@ export default function SalesReportPage() {
     fetchReport();
   }, []);
 
-  const handleExport = () => {
+  const handleExport = (format: 'pdf' | 'csv' | 'xlsx') => {
+    setExportFormat(format);
     setIsExportModalOpen(true);
   };
 
@@ -152,10 +161,28 @@ export default function SalesReportPage() {
           <h1 className="text-3xl font-bold tracking-tight">Sales Reports</h1>
           <p className="text-muted-foreground mt-1">Comprehensive sales analytics and insights</p>
         </div>
-        <Button className="gap-2" onClick={handleExport} disabled={isLoading || !data}>
-          <Download className="h-4 w-4" />
-          Export Report
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button className="gap-2" disabled={isLoading || !data}>
+              <Download className="h-4 w-4" />
+              Export
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem onClick={() => handleExport('pdf')} className="cursor-pointer">
+              <FileText className="mr-2 h-4 w-4 text-red-500" />
+              <span>Export as PDF</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleExport('csv')} className="cursor-pointer">
+              <FileText className="mr-2 h-4 w-4 text-blue-500" />
+              <span>Export as CSV</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleExport('xlsx')} className="cursor-pointer">
+              <FileSpreadsheet className="mr-2 h-4 w-4 text-green-500" />
+              <span>Export as Excel</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {error && (
@@ -303,10 +330,10 @@ export default function SalesReportPage() {
       </Card>
 
       {data && (
-        <ExportReportModal 
+        <SalesExportModal 
           isOpen={isExportModalOpen}
           onClose={() => setIsExportModalOpen(false)}
-          reportType="sales"
+          format={exportFormat}
           data={data}
         />
       )}

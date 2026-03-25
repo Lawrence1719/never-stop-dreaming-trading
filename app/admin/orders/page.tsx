@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Search, Filter, Download, Printer, MoreVertical, Eye, Mail, FileText, X } from 'lucide-react';
+import { Search, Filter, Download, Printer, MoreVertical, Eye, Mail, FileText, X, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,6 +34,7 @@ import { StatusBadge } from '@/components/admin/status-badge';
 import { supabase } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { formatPrice } from '@/lib/utils/formatting';
+import { OrdersExportModal, ExportMode } from '@/components/admin/orders/OrdersExportModal';
 
 interface Order {
   id: string;
@@ -57,9 +58,17 @@ export default function OrdersPage() {
   const [error, setError] = useState<string | null>(null);
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
   const [revenue, setRevenue] = useState({ total: 0, pending: 0, avg: 0 });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalOrders, setTotalOrders] = useState(0);
+  const [pageSize] = useState(10);
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [orderToCancel, setOrderToCancel] = useState<Order | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [exportMode, setExportMode] = useState<ExportMode>('pdf-preview');
+  const [exportData, setExportData] = useState<any[]>([]);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Debounce search term
@@ -93,6 +102,7 @@ export default function OrdersPage() {
         // Fetch ALL orders first to calculate counts (without status filter)
         const allOrdersParams = new URLSearchParams();
         if (debouncedSearchTerm) allOrdersParams.append('search', debouncedSearchTerm);
+        allOrdersParams.append('limit', '1000'); // Get more for counts
         // Don't add status filter here - we want all orders for counts
 
         const allOrdersRes = await fetch(`/api/admin/orders?${allOrdersParams.toString()}`, {
@@ -155,6 +165,8 @@ export default function OrdersPage() {
         const params = new URLSearchParams();
         if (debouncedSearchTerm) params.append('search', debouncedSearchTerm);
         if (orderStatus !== 'all') params.append('status', orderStatus);
+        params.append('page', currentPage.toString());
+        params.append('limit', pageSize.toString());
 
         const res = await fetch(`/api/admin/orders?${params.toString()}`, {
           method: 'GET',
@@ -173,8 +185,12 @@ export default function OrdersPage() {
         }
 
         const payload = await res.json();
-        const ordersData = payload.data || [];
-        setOrders(ordersData);
+        setOrders(payload.data || []);
+        
+        if (payload.pagination) {
+          setTotalPages(payload.pagination.totalPages);
+          setTotalOrders(payload.pagination.total);
+        }
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') {
           return;
@@ -192,7 +208,7 @@ export default function OrdersPage() {
     fetchOrders();
 
     return () => controller.abort();
-  }, [debouncedSearchTerm, orderStatus]);
+  }, [debouncedSearchTerm, orderStatus, currentPage]);
 
   const getPaymentStatusColor = (status: string) => {
     if (status === 'paid') {
@@ -234,6 +250,16 @@ export default function OrdersPage() {
     { value: 'cancelled', label: 'Cancelled' },
     { value: 'duplicate', label: 'Duplicate' },
   ];
+
+  const handleStatusChange = (status: string) => {
+    setOrderStatus(status);
+    setCurrentPage(1); // Reset to first page
+  };
+
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    setCurrentPage(1); // Reset to first page
+  };
 
   const handleCancelOrder = async () => {
     if (!orderToCancel) return;
@@ -306,6 +332,135 @@ export default function OrdersPage() {
     }
   };
 
+  const downloadCSV = (rows: string[][], filename: string) => {
+    const content = rows.map(r => r.map(v => `"${v || ''}"`).join(',')).join('\n');
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExport = async (type: 'all' | 'pending' | 'shipped' | 'date-range' | 'accounting' | 'pdf', dateRange?: { from: string, to: string }) => {
+    setIsExporting(true);
+    try {
+      let query = supabase
+        .from('orders')
+        .select(`
+          id,
+          status,
+          total,
+          created_at,
+          payment_status,
+          payment_method,
+          user_id,
+          profiles:user_id (name, email),
+          order_items (quantity)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (type === 'pending') query = query.eq('status', 'pending');
+      if (type === 'shipped') query = query.eq('status', 'shipped');
+      if (dateRange) {
+        query = query.gte('created_at', `${dateRange.from}T00:00:00`)
+                     .lte('created_at', `${dateRange.to}T23:59:59`);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+      if (!data) return;
+
+      const formattedData = data.map(order => {
+        const profile = order.profiles as any;
+        const itemsCount = (order.order_items as any[] || []).reduce((sum, item) => sum + (item.quantity || 1), 0);
+        return {
+          id: `#${order.id.slice(0, 8).toUpperCase()}`,
+          orderId: order.id,
+          customer: profile?.name || 'Guest',
+          email: profile?.email || '',
+          amount: order.total,
+          items: itemsCount,
+          orderStatus: order.status,
+          paymentStatus: order.payment_status,
+          paymentMethod: order.payment_method,
+          date: new Date(order.created_at).toISOString().split('T')[0]
+        };
+      });
+
+      const today = new Date().toISOString().split('T')[0];
+
+      if (type === 'pdf') {
+        setExportData(formattedData);
+        setExportMode('pdf-preview');
+        setExportModalOpen(true);
+        return;
+      }
+
+      if (type === 'date-range' && !dateRange) {
+        setExportMode('date-range');
+        setExportModalOpen(true);
+        return;
+      }
+
+      // Handle CSV Exports
+      let filename = `orders-${type}-${today}.csv`;
+      let headers: string[] = [];
+      let rows: string[][] = [];
+
+      if (type === 'accounting') {
+        filename = `orders-accounting-${today}.csv`;
+        headers = ['Order ID', 'Date', 'Customer', 'Payment Method', 'Subtotal', 'Tax (0)', 'Discount', 'Total', 'Payment Status'];
+        rows = formattedData.map(o => [
+          o.id,
+          o.date,
+          o.customer,
+          o.paymentMethod || 'N/A',
+          o.amount.toString(),
+          '0',
+          '0',
+          o.amount.toString(),
+          o.paymentStatus
+        ]);
+      } else {
+        if (dateRange) filename = `orders-${dateRange.from}-to-${dateRange.to}.csv`;
+        headers = ['Order ID', 'Customer', 'Email', 'Items', 'Amount', 'Order Status', 'Payment Status', 'Payment Method', 'Date'];
+        rows = formattedData.map(o => [
+          o.id,
+          o.customer,
+          o.email,
+          o.items.toString(),
+          `PHP ${Number(o.amount).toFixed(2)}`,
+          o.orderStatus,
+          o.paymentStatus,
+          o.paymentMethod || 'N/A',
+          o.date
+        ]);
+      }
+
+      downloadCSV([headers, ...rows], filename);
+      toast({
+        title: 'Export Successful',
+        description: `Exported ${formattedData.length} orders as CSV.`,
+        variant: 'success',
+      });
+
+    } catch (err) {
+      console.error('Export Error:', err);
+      toast({
+        title: 'Export Failed',
+        description: err instanceof Error ? err.message : 'An error occurred during export.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -360,10 +515,10 @@ export default function OrdersPage() {
                   placeholder="Search by order # or customer..."
                   className="pl-10"
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => handleSearchChange(e.target.value)}
                 />
               </div>
-              <Select value={orderStatus} onValueChange={setOrderStatus}>
+              <Select value={orderStatus} onValueChange={handleStatusChange}>
                 <SelectTrigger className="w-full md:w-40">
                   <SelectValue placeholder="Order Status" />
                 </SelectTrigger>
@@ -377,17 +532,18 @@ export default function OrdersPage() {
               </Select>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="gap-2">
-                    <Download className="h-4 w-4" />
+                  <Button variant="outline" className="gap-2" disabled={isExporting}>
+                    {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                     Export
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem>Export All as CSV</DropdownMenuItem>
-                  <DropdownMenuItem>Export Pending as CSV</DropdownMenuItem>
-                  <DropdownMenuItem>Export Shipped as CSV</DropdownMenuItem>
-                  <DropdownMenuItem>Export by Date Range</DropdownMenuItem>
-                  <DropdownMenuItem>Export for Accounting</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport('all')}>Export All as CSV</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport('pending')}>Export Pending as CSV</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport('shipped')}>Export Shipped as CSV</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport('date-range')}>Export by Date Range</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport('accounting')}>Export for Accounting</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport('pdf')}>Export as PDF</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -402,7 +558,7 @@ export default function OrdersPage() {
                     key={filter.value}
                     variant={isActive ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => setOrderStatus(filter.value)}
+                    onClick={() => handleStatusChange(filter.value)}
                     className="h-8"
                   >
                     {filter.label}
@@ -441,7 +597,7 @@ export default function OrdersPage() {
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  Array.from({ length: 5 }).map((_, idx) => (
+                  Array.from({ length: pageSize }).map((_, idx) => (
                     <TableRow key={`loading-${idx}`} className="animate-pulse">
                       <TableCell><div className="h-4 bg-muted rounded w-20" /></TableCell>
                       <TableCell>
@@ -560,12 +716,29 @@ export default function OrdersPage() {
           {/* Pagination */}
           <div className="flex items-center justify-between mt-6">
             <p className="text-sm text-muted-foreground">
-              Showing {orders.length} order{orders.length !== 1 ? 's' : ''}
+              Showing {orders.length} of {totalOrders} order{totalOrders !== 1 ? 's' : ''}
               {orderStatus !== 'all' && ` (filtered by ${statusFilters.find(f => f.value === orderStatus)?.label})`}
             </p>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" disabled>Previous</Button>
-              <Button variant="outline" size="sm" disabled>Next</Button>
+            <div className="flex items-center gap-4">
+              <p className="text-sm font-medium">Page {currentPage} of {totalPages}</p>
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1 || isLoading}
+                >
+                  Previous
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages || isLoading}
+                >
+                  Next
+                </Button>
+              </div>
             </div>
           </div>
         </CardContent>
@@ -593,6 +766,15 @@ export default function OrdersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Orders Export Modal */}
+      <OrdersExportModal
+        isOpen={exportModalOpen}
+        onClose={() => setExportModalOpen(false)}
+        mode={exportMode}
+        data={exportData}
+        onExportCSV={(start, end) => handleExport('date-range', { from: start, to: end })}
+      />
     </div>
   );
 }

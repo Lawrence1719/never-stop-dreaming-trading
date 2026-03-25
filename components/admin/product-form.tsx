@@ -17,7 +17,6 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 export interface ProductFormData {
   name: string;
   description: string;
-  price: string;
   image_url: string; // Legacy/Main preview
   product_images: {
     id?: string;
@@ -28,9 +27,6 @@ export interface ProductFormData {
     preview?: string; // Temporary for UI
   }[];
   category: string;
-  stock: number;
-  sku: string;
-  reorder_threshold: number;
   is_active: boolean;
 }
 
@@ -67,16 +63,12 @@ export function ProductForm({
   const [formData, setFormData] = useState<ProductFormData>({
     name: initialData?.name || "",
     description: initialData?.description || "",
-    price: initialData?.price?.toString() || "",
     image_url: initialData?.image_url || "",
     product_images: (initialData?.product_images || []).map((img, idx) => ({
       ...img,
       sort_order: img.sort_order ?? idx
     })),
     category: initialData?.category || "",
-    stock: Number(initialData?.stock) || 0,
-    sku: initialData?.sku || "",
-    reorder_threshold: initialData?.reorder_threshold || 5,
     is_active: initialData?.is_active ?? true,
   });
 
@@ -316,22 +308,7 @@ export function ProductForm({
     }
   };
 
-  // Generate random SKU
-  const generateSKU = () => {
-    const prefix = mainCategory
-      ? mainCategory.split(" ")[0].toUpperCase().substring(0, 4)
-      : "PROD";
-    const random = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const newSKU = `${prefix}-${random}`;
-    setFormData((prev) => ({ ...prev, sku: newSKU }));
-    if (errors.sku) {
-      setErrors((prev) => {
-        const newErrors = { ...prev };
-        delete newErrors.sku;
-        return newErrors;
-      });
-    }
-  };
+  // Generate random SKU - Removed as SKU is now at variant level
 
   // Validate form
   const validateForm = (): boolean => {
@@ -340,17 +317,9 @@ export function ProductForm({
     // Required fields
     if (!formData.name.trim()) newErrors.name = "Product name is required";
     if (!formData.description.trim()) newErrors.description = "Description is required";
-    if (!formData.price || parseFloat(formData.price) <= 0) {
-      newErrors.price = "Valid price is required";
-    }
     if (!mainCategory) newErrors.mainCategory = "Main category is required";
     if (!subcategory && availableSubcategories.length > 0) {
       newErrors.subcategory = "Subcategory is required";
-    }
-    if (!formData.sku.trim()) newErrors.sku = "SKU is required";
-    if (formData.stock < 0) newErrors.stock = "Stock cannot be negative";
-    if (formData.reorder_threshold < 0) {
-      newErrors.reorder_threshold = "Reorder threshold cannot be negative";
     }
 
     // URL validation (optional field)
@@ -448,29 +417,7 @@ export function ProductForm({
         )}
       </div>
 
-      {/* Price */}
-      <div className="space-y-2">
-        <Label htmlFor="price" className="text-sm font-medium">
-          Price (₱) <span className="text-destructive">*</span>
-        </Label>
-        <Input
-          id="price"
-          name="price"
-          type="number"
-          step="0.01"
-          min="0"
-          value={formData.price}
-          onChange={handleInputChange}
-          placeholder="0.00"
-          className={errors.price ? "border-destructive" : ""}
-        />
-        {errors.price && (
-          <p className="text-sm text-destructive flex items-center gap-1">
-            <AlertCircle className="w-4 h-4" />
-            {errors.price}
-          </p>
-        )}
-      </div>
+
 
       {/* Cascading Category Selection */}
       <div className="space-y-4 p-4 border border-border rounded-lg bg-muted/30">
@@ -683,81 +630,7 @@ export function ProductForm({
         </p>
       </div>
 
-      {/* SKU */}
-      <div className="space-y-2">
-        <Label htmlFor="sku" className="text-sm font-medium">
-          SKU (Stock Keeping Unit) <span className="text-destructive">*</span>
-        </Label>
-        <div className="flex gap-2">
-          <Input
-            id="sku"
-            name="sku"
-            value={formData.sku}
-            onChange={handleInputChange}
-            placeholder="e.g., FOOD-ABC123"
-            className={errors.sku ? "border-destructive flex-1" : "flex-1"}
-          />
-          <Button type="button" variant="outline" onClick={generateSKU}>
-            Generate
-          </Button>
-        </div>
-        {errors.sku && (
-          <p className="text-sm text-destructive flex items-center gap-1">
-            <AlertCircle className="w-4 h-4" />
-            {errors.sku}
-          </p>
-        )}
-      </div>
 
-      {/* Stock & Reorder Threshold */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Stock */}
-        <div className="space-y-2">
-          <Label htmlFor="stock" className="text-sm font-medium">
-            Stock Quantity
-          </Label>
-          <Input
-            id="stock"
-            name="stock"
-            type="number"
-            min="0"
-            value={formData.stock}
-            onChange={handleInputChange}
-            className={errors.stock ? "border-destructive" : ""}
-          />
-          {errors.stock && (
-            <p className="text-sm text-destructive flex items-center gap-1">
-              <AlertCircle className="w-4 h-4" />
-              {errors.stock}
-            </p>
-          )}
-        </div>
-
-        {/* Reorder Threshold */}
-        <div className="space-y-2">
-          <Label htmlFor="reorder_threshold" className="text-sm font-medium">
-            Reorder Threshold
-          </Label>
-          <Input
-            id="reorder_threshold"
-            name="reorder_threshold"
-            type="number"
-            min="0"
-            value={formData.reorder_threshold}
-            onChange={handleInputChange}
-            className={errors.reorder_threshold ? "border-destructive" : ""}
-          />
-          {errors.reorder_threshold && (
-            <p className="text-sm text-destructive flex items-center gap-1">
-              <AlertCircle className="w-4 h-4" />
-              {errors.reorder_threshold}
-            </p>
-          )}
-          <p className="text-xs text-muted-foreground">
-            Alert when stock falls below this number
-          </p>
-        </div>
-      </div>
 
       {/* Active Status */}
       <div className="flex items-center space-x-2">

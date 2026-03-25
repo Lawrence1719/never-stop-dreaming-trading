@@ -35,10 +35,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Get query parameters for filtering
+    // Get query parameters for filtering and pagination
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search') || '';
     const status = searchParams.get('status') || 'all';
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const limit = parseInt(searchParams.get('limit') || '10', 10);
 
     // Build query
     let query = supabaseAdmin
@@ -150,7 +152,19 @@ export async function GET(request: NextRequest) {
         );
       });
 
-    return NextResponse.json({ data: orders });
+    const totalCount = orders.length;
+    const totalPages = Math.ceil(totalCount / limit);
+    const paginatedOrders = orders.slice((page - 1) * limit, page * limit);
+
+    return NextResponse.json({ 
+      data: paginatedOrders, 
+      pagination: {
+        total: totalCount,
+        page,
+        limit,
+        totalPages
+      }
+    });
   } catch (error) {
     console.error('Failed to load orders', error);
     return NextResponse.json({ error: 'Failed to load orders' }, { status: 500 });

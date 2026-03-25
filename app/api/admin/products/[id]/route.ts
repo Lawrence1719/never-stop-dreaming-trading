@@ -83,9 +83,9 @@ export async function PUT(
     const supabaseAdmin = getClient();
 
     // Validate required fields
-    if (!body.name || !body.price || body.stock === undefined) {
+    if (!body.name) {
       return NextResponse.json(
-        { error: 'Missing required fields: name, price, stock' },
+        { error: 'Missing required fields: name' },
         { status: 400 }
       );
     }
@@ -94,11 +94,8 @@ export async function PUT(
       .from('products')
       .update({
         name: body.name,
-        sku: body.sku,
         description: body.description,
         category: body.category,
-        price: parseFloat(body.price),
-        stock: parseInt(body.stock),
         is_active: body.status === 'active',
         updated_at: new Date().toISOString(),
       })

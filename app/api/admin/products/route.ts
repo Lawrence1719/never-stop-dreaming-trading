@@ -108,10 +108,11 @@ export async function GET(request: NextRequest) {
     const products = (data || []).map((row: any) => {
       const variants = row.product_variants || [];
       const totalStock = variants.reduce((sum: number, v: any) => sum + (v.stock ?? 0), 0);
-      const prices = variants
-        .filter((v: any) => v.is_active)
+      const activeVariants = variants.filter((v: any) => v.is_active);
+      const prices = activeVariants
         .map((v: any) => Number(v.price))
         .sort((a: number, b: number) => a - b);
+      
       const minPrice = prices.length > 0 ? prices[0] : null;
       const maxPrice = prices.length > 0 ? prices[prices.length - 1] : null;
 
@@ -124,7 +125,7 @@ export async function GET(request: NextRequest) {
         price_range: minPrice !== null && maxPrice !== null 
           ? minPrice === maxPrice 
             ? formatPrice(minPrice)
-            : `${formatPrice(minPrice)} - ${formatPrice(maxPrice)}`
+            : `${formatPrice(minPrice)} – ${formatPrice(maxPrice)}`
           : 'N/A',
         status: row.is_active ? 'active' : 'inactive',
       };
