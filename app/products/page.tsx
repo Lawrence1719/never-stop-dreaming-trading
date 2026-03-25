@@ -8,6 +8,7 @@ import { ProductFilter } from "@/components/ecommerce/product-filter";
 import { CATEGORY_TREE } from "@/lib/data/categories";
 import { supabase } from '@/lib/supabase/client';
 import { Product } from "@/lib/types";
+import { PlacementBanner } from '@/components/marketing/PlacementBanner';
 import { SlidersHorizontal } from "lucide-react";
 import {
   Sheet,
@@ -219,7 +220,7 @@ export default function ProductsPage() {
 
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
             {/* Desktop Filters Sidebar */}
-            <div className="hidden lg:block lg:col-span-1">
+            <div className="hidden lg:block lg:col-span-1 space-y-8">
               <ProductFilter
                 onCategoryChange={(cat) => {
                   setSelectedCategory(cat);
@@ -228,6 +229,7 @@ export default function ProductsPage() {
                 onSortChange={setSortBy}
                 sortBy={sortBy}
               />
+              <PlacementBanner placement="sidebar" className="mt-8" />
             </div>
 
             {/* Mobile Filters Header/Button */}
@@ -264,6 +266,7 @@ export default function ProductsPage() {
             </div>
 
             <div className="lg:col-span-4">
+              <PlacementBanner placement="product_page" className="mb-6" />
               {filteredProducts.length > 0 || isLoadingProducts ? (
                 <ProductGrid 
                   products={filteredProducts} 

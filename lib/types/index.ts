@@ -199,3 +199,18 @@ export interface Notification {
   link?: string | null;
   created_at: string;
 }
+
+export interface Banner {
+  id: string;
+  title: string;
+  placement: 'homepage_hero' | 'product_page' | 'sidebar' | 'header';
+  image_url: string | null;
+  link_url: string | null;
+  status: 'active' | 'inactive' | 'scheduled';
+  clicks: number;
+  impressions: number;
+  starts_at: string | null;
+  ends_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
