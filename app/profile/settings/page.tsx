@@ -356,7 +356,7 @@ export default function SettingsPage() {
                     <p className="font-medium">Change Password</p>
                     <p className="text-sm text-muted-foreground">Update your account password</p>
                   </div>
-                  <Button variant="outline" size="sm" onClick={() => setReauthAction("password")}>
+                  <Button variant="outline" size="sm" onClick={() => router.push("/profile/change-password")}>
                     Change Password
                   </Button>
                 </div>
