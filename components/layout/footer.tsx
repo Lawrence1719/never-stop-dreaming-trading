@@ -1,24 +1,83 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Facebook, Twitter, Linkedin, Instagram, Mail, Phone, MapPin } from 'lucide-react';
+import { Facebook, Twitter, Linkedin, Instagram, Mail, Phone, MapPin, Loader2 } from 'lucide-react';
 import { useSettings } from "@/lib/hooks/use-settings";
 import { MAIN_CATEGORIES } from "@/lib/data/categories";
 import { useTheme } from "next-themes";
 import { Logo } from "@/components/ui/logo";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 export function Footer() {
   const { settings } = useSettings();
+  const [email, setEmail] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const storeName = settings?.general.storeName || 'Never Stop Dreaming';
   const tagline = settings?.general.tagline || 'Premium trading tools and education for serious investors.';
   const contactEmail = settings?.general.contactEmail || 'contact@example.com';
   const contactPhone = settings?.general.contactPhone || '+1 234 567 8900';
   const businessAddress = settings?.general.businessAddress || '123 Main Street, City, State 12345';
 
+  const handleSubscribe = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) return;
+
+    try {
+      setIsSubmitting(true);
+      const response = await fetch('/api/newsletter/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Subscription failed');
+
+      toast.success(data.message || 'Successfully subscribed!');
+      setEmail("");
+    } catch (error) {
+      console.error(error);
+      toast.error(error instanceof Error ? error.message : 'Failed to subscribe');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <footer className="bg-card border-t border-border mt-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        {/* Newsletter Section */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12 pb-12 border-b border-border">
+          <div>
+            <h3 className="text-xl font-bold mb-2">Subscribe to our newsletter</h3>
+            <p className="text-muted-foreground font-light">Get the latest trading tips, market analysis, and exclusive product updates delivered to your inbox.</p>
+          </div>
+          <form onSubmit={handleSubscribe} className="flex gap-2 items-start">
+            <div className="flex-1">
+              <Input 
+                placeholder="Enter your email" 
+                type="email" 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required 
+                className="bg-background/50"
+              />
+            </div>
+            <Button type="submit" disabled={isSubmitting} className="min-w-[120px]">
+              {isSubmitting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Subscribe"
+              )}
+            </Button>
+          </form>
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-8 mb-8">
           <div className="lg:col-span-2">
             <div className="mb-4">

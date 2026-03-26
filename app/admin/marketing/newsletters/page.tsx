@@ -1,19 +1,179 @@
 'use client';
 
-import { Plus, Edit, Trash2, Send, Users } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Edit, Trash2, Send, Loader2, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { toast } from 'sonner';
+import { format } from 'date-fns';
 
-const mockNewsletters = [
-  { id: 1, subject: 'Weekly Trading Tips', sentDate: '2025-01-15', recipients: 1250, openRate: '24.5%', clickRate: '8.2%', status: 'sent' },
-  { id: 2, subject: 'New Product Launch', sentDate: '2025-01-18', recipients: 1850, openRate: '31.2%', clickRate: '12.5%', status: 'sent' },
-  { id: 3, subject: 'Monthly Market Analysis', sentDate: null, recipients: 0, openRate: '-', clickRate: '-', status: 'draft' },
-  { id: 4, subject: 'Special Offer - Limited Time', sentDate: '2025-01-20', recipients: 2100, openRate: '28.7%', clickRate: '15.3%', status: 'sent' },
-];
+interface Campaign {
+  id: string;
+  subject: string;
+  content: string;
+  status: 'draft' | 'sending' | 'sent';
+  sent_at: string | null;
+  recipients_count: number;
+  created_at: string;
+}
+
+interface Stats {
+  totalSubscribers: number;
+  avgOpenRate: string;
+  avgClickRate: string;
+  activeCampaigns: number;
+}
 
 export default function NewslettersPage() {
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [stats, setStats] = useState<Stats>({
+    totalSubscribers: 0,
+    avgOpenRate: '0%',
+    avgClickRate: '0%',
+    activeCampaigns: 0,
+  });
+  const [loading, setLoading] = useState(true);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isSending, setIsSending] = useState<string | null>(null);
+  
+  // Confirmation dialog state
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    actionLabel: string;
+    onConfirm: () => void;
+    isDestructive?: boolean;
+  }>({
+    isOpen: false,
+    title: '',
+    description: '',
+    actionLabel: 'Confirm',
+    onConfirm: () => {},
+  });
+
+  // Form state
+  const [formData, setFormData] = useState({
+    subject: '',
+    content: '',
+  });
+
+  const fetchCampaigns = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/admin/newsletter/campaigns');
+      if (!response.ok) throw new Error('Failed to fetch campaigns');
+      const data = await response.json();
+      setCampaigns(data.campaigns);
+      setStats(data.stats);
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to load campaigns');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCampaigns();
+  }, []);
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const response = await fetch('/api/admin/newsletter/campaigns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+
+      if (!response.ok) throw new Error('Failed to create campaign');
+
+      toast.success('Campaign created successfully');
+      setIsCreateModalOpen(false);
+      setFormData({ subject: '', content: '' });
+      fetchCampaigns();
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to create campaign');
+    }
+  };
+
+  const handleSend = async (id: string) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Send Newsletter',
+      description: 'Are you sure you want to send this newsletter to all active subscribers? This action cannot be undone.',
+      actionLabel: 'Send Now',
+      onConfirm: async () => {
+        try {
+          setIsSending(id);
+          const response = await fetch(`/api/admin/newsletter/campaigns/${id}/send`, {
+            method: 'POST',
+          });
+
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || 'Failed to send campaign');
+
+          toast.success(`Newsletter sent to ${data.recipients_count} subscribers!`);
+          fetchCampaigns();
+        } catch (error) {
+          console.error(error);
+          toast.error(error instanceof Error ? error.message : 'Failed to send campaign');
+        } finally {
+          setIsSending(null);
+        }
+      }
+    });
+  };
+
+  const handleDelete = async (id: string) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: 'Delete Campaign',
+      description: 'Are you sure you want to delete this campaign? This action is permanent.',
+      actionLabel: 'Delete',
+      isDestructive: true,
+      onConfirm: async () => {
+        try {
+          const response = await fetch(`/api/admin/newsletter/campaigns/${id}`, {
+            method: 'DELETE',
+          });
+
+          if (!response.ok) throw new Error('Failed to delete campaign');
+
+          toast.success('Campaign deleted');
+          fetchCampaigns();
+        } catch (error) {
+          console.error(error);
+          toast.error('Failed to delete campaign');
+        }
+      }
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -21,7 +181,7 @@ export default function NewslettersPage() {
           <h1 className="text-3xl font-bold tracking-tight">Newsletters</h1>
           <p className="text-muted-foreground mt-1">Manage email newsletters and campaigns</p>
         </div>
-        <Button className="gap-2">
+        <Button className="gap-2" onClick={() => setIsCreateModalOpen(true)}>
           <Plus className="h-4 w-4" />
           Create Newsletter
         </Button>
@@ -34,8 +194,8 @@ export default function NewslettersPage() {
             <CardTitle className="text-sm font-medium">Total Subscribers</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">2,450</div>
-            <p className="text-xs text-green-600 mt-1">+125 this month</p>
+            <div className="text-2xl font-bold">{stats.totalSubscribers.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground mt-1">Active subscribers</p>
           </CardContent>
         </Card>
 
@@ -44,7 +204,7 @@ export default function NewslettersPage() {
             <CardTitle className="text-sm font-medium">Avg. Open Rate</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">28.1%</div>
+            <div className="text-2xl font-bold">{stats.avgOpenRate}</div>
             <p className="text-xs text-green-600 mt-1">+2.3% from last month</p>
           </CardContent>
         </Card>
@@ -54,18 +214,18 @@ export default function NewslettersPage() {
             <CardTitle className="text-sm font-medium">Avg. Click Rate</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">12.0%</div>
+            <div className="text-2xl font-bold">{stats.avgClickRate}</div>
             <p className="text-xs text-green-600 mt-1">+1.5% from last month</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Active Campaigns</CardTitle>
+            <CardTitle className="text-sm font-medium">Sent Campaigns</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">3</div>
-            <p className="text-xs text-muted-foreground mt-1">1 draft</p>
+            <div className="text-2xl font-bold">{stats.activeCampaigns}</div>
+            <p className="text-xs text-muted-foreground mt-1">Total delivered</p>
           </CardContent>
         </Card>
       </div>
@@ -77,53 +237,150 @@ export default function NewslettersPage() {
           <CardDescription>View and manage all newsletter campaigns</CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Subject</TableHead>
-                <TableHead>Sent Date</TableHead>
-                <TableHead>Recipients</TableHead>
-                <TableHead>Open Rate</TableHead>
-                <TableHead>Click Rate</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {mockNewsletters.map((newsletter) => (
-                <TableRow key={newsletter.id}>
-                  <TableCell className="font-medium">{newsletter.subject}</TableCell>
-                  <TableCell>{newsletter.sentDate || '-'}</TableCell>
-                  <TableCell>{newsletter.recipients}</TableCell>
-                  <TableCell>{newsletter.openRate}</TableCell>
-                  <TableCell>{newsletter.clickRate}</TableCell>
-                  <TableCell>
-                    <Badge variant={newsletter.status === 'sent' ? 'default' : 'secondary'}>
-                      {newsletter.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      {newsletter.status === 'draft' && (
-                        <Button variant="ghost" size="sm" className="gap-1">
-                          <Send className="h-3 w-3" />
-                          Send
-                        </Button>
-                      )}
-                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
-                        <Edit className="h-3 w-3" />
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive">
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </TableCell>
+          {loading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : campaigns.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <AlertCircle className="h-12 w-12 text-muted-foreground mb-4" />
+              <p className="text-lg font-medium">No campaigns found</p>
+              <p className="text-muted-foreground">Create your first newsletter to get started.</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Subject</TableHead>
+                  <TableHead>Sent Date</TableHead>
+                  <TableHead>Recipients</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {campaigns.map((campaign) => (
+                  <TableRow key={campaign.id}>
+                    <TableCell className="font-medium">{campaign.subject}</TableCell>
+                    <TableCell>
+                      {campaign.sent_at ? format(new Date(campaign.sent_at), 'yyyy-MM-dd HH:mm') : '-'}
+                    </TableCell>
+                    <TableCell>{campaign.recipients_count}</TableCell>
+                    <TableCell>
+                      <Badge 
+                        variant={
+                          campaign.status === 'sent' ? 'default' : 
+                          campaign.status === 'sending' ? 'secondary' : 'outline'
+                        }
+                      >
+                        {campaign.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        {campaign.status === 'draft' && (
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="gap-1"
+                            onClick={() => handleSend(campaign.id)}
+                            disabled={isSending === campaign.id}
+                          >
+                            {isSending === campaign.id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Send className="h-3 w-3" />
+                            )}
+                            Send
+                          </Button>
+                        )}
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" disabled={campaign.status !== 'draft'}>
+                          <Edit className="h-3 w-3" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-7 w-7 p-0 text-destructive"
+                          onClick={() => handleDelete(campaign.id)}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
+
+      {/* Create Modal */}
+      <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Create Newsletter</DialogTitle>
+            <DialogDescription>
+              Create a new email campaign to send to your subscribers.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleCreate}>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <label htmlFor="subject" className="text-sm font-medium">Subject</label>
+                <Input
+                  id="subject"
+                  placeholder="e.g., Weekly Trading Tips"
+                  value={formData.subject}
+                  onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <label htmlFor="content" className="text-sm font-medium">Content (HTML supported)</label>
+                <Textarea
+                  id="content"
+                  placeholder="Write your newsletter content here..."
+                  className="min-h-[300px]"
+                  value={formData.content}
+                  onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsCreateModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit">Save Draft</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmation Dialog */}
+      <AlertDialog 
+        open={confirmDialog.isOpen} 
+        onOpenChange={(open) => setConfirmDialog({ ...confirmDialog, isOpen: open })}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmDialog.title}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmDialog.description}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDialog.onConfirm}
+              className={confirmDialog.isDestructive ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}
+            >
+              {confirmDialog.actionLabel}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

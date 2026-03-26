@@ -7,6 +7,7 @@ import { WishlistProvider } from "@/lib/context/wishlist-context";
 import { ShippingProvider } from "@/lib/context/shipping-context";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 import { Toaster } from "@/components/ui/toaster";
+import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
@@ -17,6 +18,7 @@ export function Providers({ children }: { children: ReactNode }) {
             <WishlistProvider>
               {children}
               <Toaster />
+              <SonnerToaster position="top-right" closeButton richColors />
             </WishlistProvider>
           </ShippingProvider>
         </CartProvider>
