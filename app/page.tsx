@@ -35,11 +35,11 @@ export default function Home() {
               name: row.name,
               slug: row.slug || row.id,
               description: row.description || '',
-              price: Number(row.price) || 0,
+              price: row.minPrice || Number(row.price) || 0,
               compareAtPrice: row.compare_at_price ? Number(row.compare_at_price) : undefined,
-              images: row.image_url ? [row.image_url] : [],
+              images: row.images && row.images.length > 0 ? row.images : (row.image_url ? [row.image_url] : []),
               category: row.category || '',
-              stock: row.stock ?? 0,
+              stock: row.totalStock ?? row.stock ?? 0,
               sku: row.sku || '',
               rating: row.rating ?? 0,
               reviewCount: row.review_count ?? 0,
@@ -55,7 +55,16 @@ export default function Home() {
       // Fallback to direct Supabase query without featured filter
       const { data, error: sbError } = await supabase
         .from('products')
-        .select('*')
+        .select(`
+          *,
+          product_variants (
+            id,
+            price,
+            stock,
+            is_active
+          )
+        `)
+        .eq('is_active', true)
         .order('created_at', { ascending: false })
         .limit(8);
 
@@ -64,21 +73,28 @@ export default function Home() {
       }
 
       if (data) {
-        const mapped = data.map((row: any) => ({
-          id: row.id,
-          name: row.name,
-          slug: row.slug || row.id,
-          description: row.description || '',
-          price: Number(row.price) || 0,
-          compareAtPrice: row.compare_at_price ? Number(row.compare_at_price) : undefined,
-          images: row.image_url ? [row.image_url] : [],
-          category: row.category || '',
-          stock: row.stock ?? 0,
-          sku: row.sku || '',
-          rating: row.rating ?? 0,
-          reviewCount: row.review_count ?? 0,
-          featured: row.featured ?? false,
-        })) as Product[];
+        const mapped = data.map((row: any) => {
+          const variants = (row.product_variants || []).filter((v: any) => v.is_active);
+          const prices = variants.map((v: any) => Number(v.price)).sort((a: number, b: number) => a - b);
+          const minPrice = prices.length > 0 ? prices[0] : Number(row.price) || 0;
+          const totalStock = variants.reduce((sum: number, v: any) => sum + (v.stock ?? 0), 0);
+
+          return {
+            id: row.id,
+            name: row.name,
+            slug: row.slug || row.id,
+            description: row.description || '',
+            price: minPrice,
+            compareAtPrice: row.compare_at_price ? Number(row.compare_at_price) : undefined,
+            images: row.image_url ? [row.image_url] : [],
+            category: row.category || '',
+            stock: totalStock,
+            sku: row.sku || '',
+            rating: row.rating ?? 0,
+            reviewCount: row.review_count ?? 0,
+            featured: row.featured ?? false,
+          };
+        }) as Product[];
 
         setFeaturedProducts(mapped);
       }

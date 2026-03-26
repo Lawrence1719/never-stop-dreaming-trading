@@ -14,7 +14,7 @@ function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
-  const { logout } = useAuth();
+  const { user, logout, isLoading: authLoading } = useAuth();
 
   const token = searchParams.get('token');
   const email = searchParams.get('email');
@@ -25,12 +25,19 @@ function ResetPasswordForm() {
   const [isSaving, setIsSaving] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState('');
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
     if (!token || !email) {
       setError('Invalid or missing reset link. Please request a new one from your profile.');
     }
   }, [token, email]);
+
+  const handleSessionConflictLogout = async () => {
+    setIsLoggingOut(true);
+    await logout();
+    setIsLoggingOut(false);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,6 +105,40 @@ function ResetPasswordForm() {
             router.push('/admin/login');
           }} className="w-full">
             Go to Login Now
+          </Button>
+        </CardFooter>
+      </Card>
+    );
+  }
+
+  // Session conflict check
+  if (user && user.email !== email) {
+    return (
+      <Card className="w-full max-w-md mx-auto shadow-xl">
+        <CardHeader className="text-center space-y-4">
+          <div className="mx-auto w-16 h-16 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center">
+            <AlertCircle className="w-10 h-10 text-amber-600 dark:text-amber-400" />
+          </div>
+          <CardTitle className="text-2xl">Session Conflict</CardTitle>
+          <CardDescription>
+            You are currently logged in as <span className="font-semibold text-foreground">{user.email}</span>. 
+            To reset the password for <span className="font-semibold text-foreground">{email}</span>, you must sign out first.
+          </CardDescription>
+        </CardHeader>
+        <CardFooter className="pb-8">
+          <Button 
+            onClick={handleSessionConflictLogout} 
+            disabled={isLoggingOut}
+            className="w-full h-11 font-bold"
+          >
+            {isLoggingOut ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Signing out...
+              </>
+            ) : (
+              'Sign Out & Continue'
+            )}
           </Button>
         </CardFooter>
       </Card>

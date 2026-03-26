@@ -15,7 +15,7 @@ function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
-  const { logout } = useAuth();
+  const { user, logout, isLoading: authLoading } = useAuth();
 
   const token = searchParams.get('token');
   const email = searchParams.get('email');
@@ -26,12 +26,19 @@ function ResetPasswordForm() {
   const [isSaving, setIsSaving] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState('');
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
     if (!token || !email) {
       setError('Invalid or missing reset link. Please request a new one from your profile settings.');
     }
   }, [token, email]);
+
+  const handleSessionConflictLogout = async () => {
+    setIsLoggingOut(true);
+    await logout();
+    setIsLoggingOut(false);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,6 +105,38 @@ function ResetPasswordForm() {
           router.push('/login');
         }} className="w-full py-6">
           Login Now
+        </Button>
+      </div>
+    );
+  }
+
+  // Session conflict check
+  if (user && user.email !== email) {
+    return (
+      <div className="max-w-md w-full mx-auto bg-card border border-border rounded-xl p-8 shadow-sm text-center space-y-6">
+        <div className="w-20 h-20 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center mx-auto">
+          <AlertCircle className="w-10 h-10 text-amber-600 dark:text-amber-400" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-bold">Session Conflict</h2>
+          <p className="text-muted-foreground">
+            You are currently logged in as <span className="font-semibold text-foreground">{user.email}</span>. 
+            To reset the password for <span className="font-semibold text-foreground">{email}</span>, you must sign out first.
+          </p>
+        </div>
+        <Button 
+          onClick={handleSessionConflictLogout} 
+          disabled={isLoggingOut}
+          className="w-full py-6 font-bold"
+        >
+          {isLoggingOut ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Signing out...
+            </>
+          ) : (
+            'Sign Out & Continue'
+          )}
         </Button>
       </div>
     );
