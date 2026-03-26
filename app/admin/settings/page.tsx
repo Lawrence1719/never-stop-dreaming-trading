@@ -86,6 +86,13 @@ export default function SettingsPage() {
     
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      if (section === 'general') {
+        const { validatePhoneNumber } = await import('@/lib/utils/validation');
+        if (settings.general.contactPhone && !validatePhoneNumber(settings.general.contactPhone)) {
+          throw new Error('Please enter a valid 10-digit Philippine phone number starting with 9 for the contact phone.');
+        }
+      }
+
       const res = await fetch('/api/admin/settings', {
         method: 'PATCH',
         headers: {
@@ -118,11 +125,15 @@ export default function SettingsPage() {
 
   const updateSetting = (section: keyof Settings, key: string, value: any) => {
     if (!settings) return;
+    let newValue = value;
+    if (section === 'general' && key === 'contactPhone') {
+      newValue = value.replace(/\D/g, '');
+    }
     setSettings({
       ...settings,
       [section]: {
         ...settings[section],
-        [key]: value,
+        [key]: newValue,
       },
     });
   };
@@ -205,12 +216,21 @@ export default function SettingsPage() {
               </div>
               <div>
                 <Label htmlFor="phone">Contact Phone</Label>
-                <Input
-                  id="phone"
-                  value={settings.general.contactPhone}
-                  onChange={(e) => updateSetting('general', 'contactPhone', e.target.value)}
-                  className="mt-2"
-                />
+                <div className="relative mt-2">
+                  <div className="absolute left-3 top-2.5 flex items-center gap-1.5 text-sm text-muted-foreground pointer-events-none">
+                    <span role="img" aria-label="PH flag">🇵🇭</span>
+                    <span>+63</span>
+                  </div>
+                  <Input
+                    id="phone"
+                    value={settings.general.contactPhone}
+                    onChange={(e) => updateSetting('general', 'contactPhone', e.target.value)}
+                    maxLength={10}
+                    placeholder="9123456789"
+                    className="pl-16"
+                  />
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-1">Format: 9XXXXXXXXX (10 digits)</p>
               </div>
               <div>
                 <Label htmlFor="address">Business Address</Label>

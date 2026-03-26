@@ -50,7 +50,7 @@ export default function ContactPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
             {[
               { icon: Mail, label: "Email", value: "support@neverstoptrading.com" },
-              { icon: Phone, label: "Phone", value: "+1 (555) 123-4567" },
+              { icon: Phone, label: "Phone", value: "9123456789" },
               { icon: MapPin, label: "Address", value: "123 Trading St, New York, NY 10001" },
             ].map((contact, i) => {
               const Icon = contact.icon;

@@ -72,7 +72,7 @@
       if (!formData.phone.trim()) {
         newErrors.phone = "Phone number is required";
       } else if (!validatePhoneNumber(formData.phone)) {
-        newErrors.phone = "Please enter a valid Philippine phone number (e.g., 0912 345 6789)";
+        newErrors.phone = "Please enter a valid 10-digit Philippine phone number starting with 9 (e.g., 9123456789)";
       }
 
       setErrors(newErrors);
@@ -277,21 +277,30 @@
 
               <div>
                 <label className="block text-sm font-medium mb-2">Phone Number</label>
+              <div className="relative">
+                <div className="absolute left-3 top-2.5 flex items-center gap-1.5 text-sm text-muted-foreground pointer-events-none">
+                  <span role="img" aria-label="PH flag">🇵🇭</span>
+                  <span>+63</span>
+                </div>
                 <input
                   type="tel"
                   value={formData.phone}
                   onChange={(e) => {
-                    setFormData((prev) => ({ ...prev, phone: e.target.value }));
+                    const newValue = e.target.value.replace(/\D/g, "");
+                    setFormData((prev) => ({ ...prev, phone: newValue }));
                     if (errors.phone) setErrors((prev) => ({ ...prev, phone: "" }));
                   }}
-                  placeholder="0912 345 6789"
+                  maxLength={10}
+                  pattern="\d*"
+                  placeholder="9123456789"
                   autoComplete="tel"
-                  className={`w-full px-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
+                  className={`w-full pl-16 px-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
                     errors.phone ? "border-destructive" : "border-border"
                   }`}
                 />
-                {errors.phone && <p className="text-xs text-destructive mt-1">{errors.phone}</p>}
-                <p className="text-xs text-muted-foreground mt-1">Philippine format: 09XX XXX XXXX or +63 9XX XXX XXXX</p>
+              </div>
+              {errors.phone && <p className="text-xs text-destructive mt-1">{errors.phone}</p>}
+              <p className="text-xs text-muted-foreground mt-1">Philippine format: 9XXXXXXXXX (Exactly 10 digits)</p>
               </div>
 
               <div className="flex gap-3 pt-4 border-t border-border">

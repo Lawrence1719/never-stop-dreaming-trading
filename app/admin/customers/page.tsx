@@ -313,15 +313,25 @@ export default function CustomersPage() {
   };
 
   const handleNewCustomerChange = (field: keyof typeof newCustomer, value: string) => {
-    setNewCustomer((prev) => ({ ...prev, [field]: value }));
+    let newValue = value;
+    if (field === 'phone') {
+      newValue = value.replace(/\D/g, '');
+    }
+    setNewCustomer((prev) => ({ ...prev, [field]: newValue }));
     if (addCustomerError) setAddCustomerError(null);
   };
 
   const handleCreateCustomer = async () => {
-    const { firstName, lastName, email, password } = newCustomer;
-
+    const { firstName, lastName, email, phone, password } = newCustomer;
+  
     if (!firstName.trim() || !lastName.trim() || !email.trim() || !password.trim()) {
       setAddCustomerError('First name, last name, email, and password are required.');
+      return;
+    }
+  
+    const { validatePhoneNumber } = await import('@/lib/utils/validation');
+    if (phone.trim() && !validatePhoneNumber(phone.trim())) {
+      setAddCustomerError('Please enter a valid 10-digit Philippine phone number starting with 9.');
       return;
     }
 
@@ -754,10 +764,18 @@ export default function CustomersPage() {
               </div>
               <div>
                 <label className="text-sm font-medium">Phone</label>
-                <Input 
-                  defaultValue={selectedCustomer.phone}
-                  placeholder="Phone number"
-                />
+                <div className="relative mt-1">
+                  <div className="absolute left-3 top-2.5 flex items-center gap-1.5 text-sm text-muted-foreground pointer-events-none">
+                    <span role="img" aria-label="PH flag">🇵🇭</span>
+                    <span>+63</span>
+                  </div>
+                  <Input 
+                    defaultValue={selectedCustomer.phone}
+                    maxLength={10}
+                    placeholder="9123456789"
+                    className="pl-16"
+                  />
+                </div>
               </div>
               <div>
                 <label className="text-sm font-medium">Email (read-only)</label>
@@ -893,12 +911,21 @@ export default function CustomersPage() {
             </div>
             <div>
               <label className="text-sm font-medium mb-1 block">Phone Number</label>
-              <Input
-                type="tel"
-                placeholder="912 345 6789"
-                value={newCustomer.phone}
-                onChange={(e) => handleNewCustomerChange('phone', e.target.value)}
-              />
+              <div className="relative">
+                <div className="absolute left-3 top-2.5 flex items-center gap-1.5 text-sm text-muted-foreground pointer-events-none">
+                  <span role="img" aria-label="PH flag">🇵🇭</span>
+                  <span>+63</span>
+                </div>
+                <Input
+                  type="tel"
+                  placeholder="9123456789"
+                  value={newCustomer.phone}
+                  maxLength={10}
+                  onChange={(e) => handleNewCustomerChange('phone', e.target.value)}
+                  className="pl-16"
+                />
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">Format: 9XXXXXXXXX (10 digits)</p>
             </div>
             <div>
               <label className="text-sm font-medium mb-1 block">Password</label>

@@ -41,45 +41,11 @@ export const validatePhoneNumber = (phone: string): boolean => {
     return false;
   }
   
-  // Remove all non-digit characters except +
-  const cleaned = phone.replace(/[^\d+]/g, '');
+  // Remove all non-digit characters
+  const cleaned = phone.replace(/\D/g, '');
   
-  // Philippine phone number formats:
-  // Mobile: 09XX XXX XXXX (11 digits starting with 09)
-  // International: +63 9XX XXX XXXX (13 digits starting with +63)
-  // Landline: 0XXX XXX XXXX (10-11 digits starting with 0)
-  
-  // Check for international format (+63)
-  if (cleaned.startsWith('+63')) {
-    const digits = cleaned.substring(3); // Remove +63
-    // Should be 10 digits starting with 9 (mobile) or area code (landline)
-    return /^9\d{9}$/.test(digits) || /^[2-8]\d{6,7}$/.test(digits);
-  }
-  
-  // Check for local format (starts with 0)
-  if (cleaned.startsWith('0')) {
-    // Mobile: 09XX XXX XXXX (11 digits)
-    if (cleaned.startsWith('09')) {
-      return cleaned.length === 11 && /^09\d{9}$/.test(cleaned);
-    }
-    // Landline: 0XXX XXX XXXX (10-11 digits)
-    return cleaned.length >= 10 && cleaned.length <= 11 && /^0\d{9,10}$/.test(cleaned);
-  }
-  
-  // Check for digits only (without leading 0 or +)
-  // Should be 10 digits (mobile without leading 0 or landline area code)
-  if (/^\d+$/.test(cleaned)) {
-    // Mobile: 9XX XXX XXXX (10 digits starting with 9)
-    if (cleaned.startsWith('9') && cleaned.length === 10) {
-      return true;
-    }
-    // Landline: Area code + 7 digits (9-10 digits total)
-    if (cleaned.length >= 9 && cleaned.length <= 10) {
-      return true;
-    }
-  }
-  
-  return false;
+  // Philippine mobile format (after +63): 9XX XXX XXXX (Exactly 10 digits starting with 9)
+  return cleaned.length === 10 && /^9\d{9}$/.test(cleaned);
 };
 
 /**

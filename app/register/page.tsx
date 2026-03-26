@@ -85,7 +85,7 @@ export default function RegisterPage() {
     if (!formData.phone.trim()) {
       newErrors.phone = "Phone number is required";
     } else if (!validatePhoneNumber(formData.phone)) {
-      newErrors.phone = "Please enter a valid Philippine phone number (e.g., 0912 345 6789)";
+      newErrors.phone = "Please enter a valid 10-digit Philippine phone number starting with 9 (e.g., 9123456789)";
     }
 
     if (!validatePassword(formData.password)) {
@@ -106,7 +106,11 @@ export default function RegisterPage() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    let newValue = value;
+    if (name === "phone") {
+      newValue = value.replace(/\D/g, "");
+    }
+    setFormData((prev) => ({ ...prev, [name]: newValue }));
 
     if (name === "password") {
       const length = value.length;
@@ -377,17 +381,22 @@ export default function RegisterPage() {
 
               <div>
                 <label className="block text-sm font-medium mb-2">Phone Number</label>
-                <div className="relative flex items-center">
+                <div className="relative">
                   <Phone className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
-                  <span className="ml-9 mr-2 text-sm text-muted-foreground whitespace-nowrap">+63</span>
+                  <div className="absolute left-10 top-3 flex items-center gap-1.5 text-sm text-muted-foreground pointer-events-none">
+                    <span role="img" aria-label="PH flag">🇵🇭</span>
+                    <span>+63</span>
+                  </div>
                   <input
                     type="tel"
                     name="phone"
                     value={formData.phone}
                     onChange={handleChange}
-                    placeholder="912 345 6789"
+                    maxLength={10}
+                    pattern="\d*"
+                    placeholder="9123456789"
                     autoComplete="tel"
-                    className={`w-full pl-2 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${errors.phone ? "border-destructive" : "border-border"}`}
+                    className={`w-full pl-24 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${errors.phone ? "border-destructive" : "border-border"}`}
                   />
                 </div>
                 {errors.phone && <p className="text-xs text-destructive mt-1">{errors.phone}</p>}

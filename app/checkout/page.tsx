@@ -241,7 +241,7 @@ function CheckoutPageContent() {
         return "";
       case "phone":
         if (!value.trim()) return "Phone number is required";
-        if (!validatePhoneNumber(value)) return "Please enter a valid Philippine phone number (e.g., 0912 345 6789)";
+        if (!validatePhoneNumber(value)) return "Please enter a valid 10-digit Philippine phone number starting with 9 (e.g., 9123456789)";
         return "";
       case "street":
         const streetVal = validateStreetAddress(value);
@@ -725,11 +725,16 @@ function CheckoutPageContent() {
     setTouched(prev => ({ ...prev, barangay: true }));
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    setTouched((prev) => ({ ...prev, [name]: true }));
+    let newValue = value;
+    if (name === "phone") {
+      newValue = value.replace(/\D/g, "");
+    }
+    setFormData((prev) => ({ ...prev, [name]: newValue }));
+    if (touched[name as keyof typeof touched] || formSubmitted) {
+      setErrors((prev) => ({ ...prev, [name]: getFieldError(name, newValue) }));
+    }
 
     // If changing a critical address field manually, decide if we should deselect the address
     const criticalAddressFields = ["fullName", "street", "city", "province", "barangay"];
@@ -953,21 +958,29 @@ function CheckoutPageContent() {
                         <label className="block text-sm font-medium mb-1">
                           Phone <span className="text-destructive">*</span>
                         </label>
-                        <input
-                          type="tel"
-                          name="phone"
-                          value={formData.phone}
-                          onChange={handleInputChange}
-                          onBlur={handleBlur}
-                          placeholder="0912 345 6789"
-                          className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${(errors.phone && (touched.phone || formSubmitted)) ? "border-destructive border-2" : "border-border"
-                            }`}
-                        />
+                        <div className="relative">
+                          <div className="absolute left-3 top-2.5 flex items-center gap-1.5 text-sm text-muted-foreground pointer-events-none">
+                            <span role="img" aria-label="PH flag">🇵🇭</span>
+                            <span>+63</span>
+                          </div>
+                          <input
+                            type="tel"
+                            name="phone"
+                            value={formData.phone}
+                            onChange={handleInputChange}
+                            onBlur={handleBlur}
+                            maxLength={10}
+                            pattern="\d*"
+                            placeholder="9123456789"
+                            className={`w-full pl-16 px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${(errors.phone && (touched.phone || formSubmitted)) ? "border-destructive border-2" : "border-border"
+                              }`}
+                          />
+                        </div>
                         {errors.phone && (touched.phone || formSubmitted) && (
                           <p className="text-xs text-destructive mt-1">{errors.phone}</p>
                         )}
                         {!errors.phone && (touched.phone || formSubmitted) && formData.phone && (
-                          <p className="text-xs text-muted-foreground mt-1">✓ Valid Philippine phone number</p>
+                          <p className="text-xs text-muted-foreground mt-1">✓ Valid 10-digit phone number</p>
                         )}
                       </div>
                     </div>
