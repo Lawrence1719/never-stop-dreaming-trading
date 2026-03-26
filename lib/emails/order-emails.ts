@@ -6,7 +6,9 @@ import { transporter, defaultFrom } from './mailer';
 import { formatPrice } from '@/lib/utils/formatting';
 
 const getAppUrl = () => {
-  return process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+  return process.env.NEXT_PUBLIC_APP_URL || 
+         process.env.NEXT_PUBLIC_SITE_URL || 
+         'https://never-stop-dreaming-trading.vercel.app';
 };
 
 // Define styles for dark theme matching NSD

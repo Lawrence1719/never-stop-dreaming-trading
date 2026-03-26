@@ -68,10 +68,7 @@ export function UserMenu() {
         description: "You have been logged out successfully.",
         variant: "success",
       });
-      // Delay to ensure toast is visible before redirect
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      // Force navigation to home page
-      router.push("/");
+      // Allow page guards to handle redirect, or just refresh to clear global state
       router.refresh();
     } catch (error) {
       console.error("Logout error:", error);

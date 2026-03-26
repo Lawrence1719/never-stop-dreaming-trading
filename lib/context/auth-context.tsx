@@ -12,6 +12,9 @@ interface AuthContextType {
   logout: () => Promise<void>;
   register: (name: string, email: string, phone: string, password: string) => Promise<{ error: Error | null }>;
   updateProfile: (name: string, phone: string) => Promise<{ error: Error | null }>;
+  requestPasswordReset: () => Promise<{ error: Error | null }>;
+  requestCustomerPasswordReset: () => Promise<{ error: Error | null }>;
+  changePassword: (newPassword: string) => Promise<{ error: Error | null }>;
   resendConfirmationEmail: (email: string) => Promise<{ error: Error | null }>;
 }
 
@@ -174,8 +177,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await fetchUserProfile(session);
           console.info('[auth v3] Session recovered and role verified');
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('[auth v3] Initialization failed:', err);
+        // Handle Invalid Refresh Token specifically
+        if (err?.message?.includes('Refresh Token Not Found') || err?.message?.includes('invalid_grant')) {
+          console.warn('[auth] Invalid refresh token detected during init, clearing storage');
+          setUser(null);
+          // Manually clear storage to stop the loop
+          if (typeof window !== 'undefined') {
+            const keysToRemove: string[] = [];
+            for (let i = 0; i < localStorage.length; i++) {
+              const key = localStorage.key(i);
+              if (key && (key.includes('supabase') || key.includes('auth'))) {
+                keysToRemove.push(key);
+              }
+            }
+            keysToRemove.forEach(key => localStorage.removeItem(key));
+          }
+        }
       } finally {
         setIsLoading(false);
       }
@@ -321,13 +340,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({ name, phone })
-        .eq("id", user.id);
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        return { error: new Error("No active session found") };
+      }
 
-      if (error) {
-        return { error };
+      const response = await fetch('/api/admin/profile', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ name, phone }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        return { error: new Error(result.error || "Failed to update profile") };
       }
 
       // Update local user state
@@ -339,6 +370,107 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       return { error: null };
     } catch (error) {
+      console.error("Profile update failed:", error);
+      return { error: error as Error };
+    }
+  };
+
+  const requestPasswordReset = async () => {
+    if (!user) {
+      return { error: new Error("User not authenticated") };
+    }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        return { error: new Error("No active session found") };
+      }
+
+      const response = await fetch('/api/admin/profile/password/verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        return { error: new Error(result.error || "Failed to send verification email") };
+      }
+
+      return { error: null };
+    } catch (error) {
+      console.error("Verification email failed:", error);
+      return { error: error as Error };
+    }
+  };
+
+  const requestCustomerPasswordReset = async () => {
+    if (!user) {
+      return { error: new Error("User not authenticated") };
+    }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        return { error: new Error("No active session found") };
+      }
+
+      const response = await fetch('/api/profile/password/verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        return { error: new Error(result.error || "Failed to send verification email") };
+      }
+
+      return { error: null };
+    } catch (error) {
+      console.error("Verification email failed:", error);
+      return { error: error as Error };
+    }
+  };
+
+  const changePassword = async (newPassword: string) => {
+    if (!user) {
+      return { error: new Error("User not authenticated") };
+    }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        return { error: new Error("No active session found") };
+      }
+
+      const response = await fetch('/api/admin/profile/password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ newPassword }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        return { error: new Error(result.error || "Failed to update password") };
+      }
+
+      return { error: null };
+    } catch (error) {
+      console.error("Password update failed:", error);
       return { error: error as Error };
     }
   };
@@ -361,7 +493,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout, register, updateProfile, resendConfirmationEmail }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout, register, updateProfile, requestPasswordReset, requestCustomerPasswordReset, changePassword, resendConfirmationEmail }}>
       {children}
     </AuthContext.Provider>
   );

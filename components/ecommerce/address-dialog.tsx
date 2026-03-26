@@ -182,7 +182,7 @@ export function AddressDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 pt-4">
           <div className="space-y-2">
             <Label htmlFor="street">
               Street Address <span className="text-destructive">*</span>
@@ -266,8 +266,8 @@ export function AddressDialog({
                 id="zip"
                 placeholder="1630"
                 value={formData.zip}
-                readOnly
-                className={errors.zip ? "border-destructive bg-muted" : "bg-muted"}
+                onChange={(e) => setFormData(prev => ({ ...prev, zip: e.target.value }))}
+                className={errors.zip ? "border-destructive" : ""}
               />
               {errors.zip && (
                 <p className="text-sm text-destructive">{errors.zip}</p>

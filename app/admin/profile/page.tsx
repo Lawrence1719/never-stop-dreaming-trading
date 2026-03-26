@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/context/auth-context';
+import { useToast } from '@/hooks/use-toast';
 import { formatDate } from '@/lib/utils/formatting';
 import { LoadingScreen } from '@/components/ui/loading-screen';
 import { User, Settings, LogOut, Shield, Key, Bell, Activity } from 'lucide-react';
@@ -12,11 +13,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { supabase } from '@/lib/supabase/client';
+import { ChangePasswordDialog } from '@/components/admin/change-password-dialog';
 
 export default function AdminProfilePage() {
   const router = useRouter();
-  const { user, logout, isLoading } = useAuth();
+  const { user, logout, isLoading, updateProfile } = useAuth();
+  const { toast } = useToast();
   
   // Get tab from URL query params
   const [activeTab, setActiveTab] = useState(() => {
@@ -33,6 +35,7 @@ export default function AdminProfilePage() {
     email: user?.email || '',
     phone: user?.phone || '',
   });
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -55,23 +58,24 @@ export default function AdminProfilePage() {
 
     setIsSaving(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      // Update profile in Supabase
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          name: formData.name,
-          phone: formData.phone,
-        })
-        .eq('id', user.id);
+      const { error } = await updateProfile(formData.name, formData.phone);
 
       if (error) throw error;
 
       setSaved(true);
+      toast({
+        title: "Success",
+        description: "Profile updated successfully!",
+        variant: "success",
+      });
       setTimeout(() => setSaved(false), 3000);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to update profile', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update profile. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setIsSaving(false);
     }
@@ -213,9 +217,19 @@ export default function AdminProfilePage() {
                         </p>
                       </div>
                     </div>
-                    <Button variant="outline">Change Password</Button>
+                    <Button 
+                      variant="outline"
+                      onClick={() => setPasswordDialogOpen(true)}
+                    >
+                      Change Password
+                    </Button>
                   </div>
                 </div>
+
+                <ChangePasswordDialog 
+                  open={passwordDialogOpen} 
+                  onOpenChange={setPasswordDialogOpen} 
+                />
 
                 <div className="p-4 border border-border rounded-lg">
                   <div className="flex items-center justify-between">

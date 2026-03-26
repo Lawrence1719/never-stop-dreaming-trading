@@ -7,7 +7,7 @@ import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { useAuth } from "@/lib/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronLeft, Shield, Lock, Smartphone, Key } from 'lucide-react';
+import { ChevronLeft, Shield, Lock, Smartphone, Key, CheckCircle2, Loader2 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,14 +15,11 @@ import { Badge } from "@/components/ui/badge";
 
 export default function SecurityPage() {
   const router = useRouter();
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading, requestCustomerPasswordReset } = useAuth();
   const { toast } = useToast();
 
-  const [passwordData, setPasswordData] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: '',
-  });
+  const [isSendingLink, setIsSendingLink] = useState(false);
+  const [isLinkSent, setIsLinkSent] = useState(false);
 
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -51,44 +48,26 @@ export default function SecurityPage() {
     return null;
   }
 
-  const handleChangePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (passwordData.newPassword !== passwordData.confirmPassword) {
-      toast({
-        title: "Validation Error",
-        description: "Passwords do not match",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (passwordData.newPassword.length < 8) {
-      toast({
-        title: "Validation Error",
-        description: "Password must be at least 8 characters",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsLoading(true);
+  const handleRequestPasswordReset = async () => {
+    setIsSendingLink(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      const { error } = await requestCustomerPasswordReset();
+      if (error) throw error;
+      
+      setIsLinkSent(true);
       toast({
-        title: "Success",
-        description: "Password changed successfully",
+        title: "Link Sent",
+        description: `A verification link has been sent to ${user?.email}.`,
         variant: "success",
       });
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to change password. Please try again.",
+        description: error.message || "Failed to send reset link. Please try again.",
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      setIsSendingLink(false);
     }
   };
 
@@ -136,54 +115,34 @@ export default function SecurityPage() {
                 <Lock className="w-5 h-5 text-primary" />
                 <h2 className="text-xl font-semibold">Change Password</h2>
               </div>
-              <form onSubmit={handleChangePassword} className="space-y-4">
-                <div>
-                  <Label htmlFor="current-password">Current Password</Label>
-                  <Input
-                    id="current-password"
-                    type="password"
-                    value={passwordData.currentPassword}
-                    onChange={(e) =>
-                      setPasswordData((prev) => ({ ...prev, currentPassword: e.target.value }))
-                    }
-                    className="mt-2"
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="new-password">New Password</Label>
-                  <Input
-                    id="new-password"
-                    type="password"
-                    value={passwordData.newPassword}
-                    onChange={(e) =>
-                      setPasswordData((prev) => ({ ...prev, newPassword: e.target.value }))
-                    }
-                    className="mt-2"
-                    required
-                    minLength={8}
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Must be at least 8 characters long
-                  </p>
-                </div>
-                <div>
-                  <Label htmlFor="confirm-password">Confirm New Password</Label>
-                  <Input
-                    id="confirm-password"
-                    type="password"
-                    value={passwordData.confirmPassword}
-                    onChange={(e) =>
-                      setPasswordData((prev) => ({ ...prev, confirmPassword: e.target.value }))
-                    }
-                    className="mt-2"
-                    required
-                  />
-                </div>
-                <Button type="submit" disabled={isLoading}>
-                  {isLoading ? "Updating..." : "Update Password"}
-                </Button>
-              </form>
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  To change your password, we'll send a secure verification link to your registered email address. This ensures that only you can authorize this change.
+                </p>
+                {isLinkSent ? (
+                  <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex items-center gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 shrink-0" />
+                    <p className="text-sm text-green-800 dark:text-green-200">
+                      Reset link sent! Check <span className="font-semibold">{user.email}</span>
+                    </p>
+                  </div>
+                ) : (
+                  <Button 
+                    onClick={handleRequestPasswordReset} 
+                    disabled={isSendingLink}
+                    className="w-full sm:w-auto font-semibold"
+                  >
+                    {isSendingLink ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Sending Link...
+                      </>
+                    ) : (
+                      'Send Reset Link'
+                    )}
+                  </Button>
+                )}
+              </div>
             </div>
 
             {/* Two-Factor Authentication */}

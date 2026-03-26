@@ -111,9 +111,6 @@ export function MobileDrawer() {
                           description: "You have been logged out successfully.",
                           variant: "success",
                         });
-                        // Delay to ensure toast is visible before redirect
-                        await new Promise(resolve => setTimeout(resolve, 1500));
-                        router.push("/");
                         router.refresh();
                       } catch (error) {
                         console.error("Logout error:", error);
