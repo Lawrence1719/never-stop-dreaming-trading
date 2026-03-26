@@ -475,8 +475,8 @@ export default function ProductDetailPage() {
               <div className="bg-card border border-border rounded-lg p-5 space-y-4">
                 {/* Rating */}
                 {product.reviewCount > 0 ? (
-                  <div className="flex items-center gap-4">
-                    <div className="flex gap-1">
+                  <div className="flex items-center gap-4" role="img" aria-label={`Rating: ${product.rating.toFixed(1)} out of 5 stars from ${product.reviewCount} reviews`}>
+                    <div className="flex gap-1" aria-hidden="true">
                       {[...Array(5)].map((_, i) => (
                         <span
                           key={i}
@@ -498,8 +498,8 @@ export default function ProductDetailPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="text-center py-4 bg-secondary/10 rounded-lg border border-border">
-                    <div className="flex justify-center gap-1 mb-2">
+                  <div className="text-center py-4 bg-secondary/10 rounded-lg border border-border" role="img" aria-label="No ratings yet">
+                    <div className="flex justify-center gap-1 mb-2" aria-hidden="true">
                       {[...Array(5)].map((_, i) => (
                         <span key={i} className="text-xl text-muted">
                           ★

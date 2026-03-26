@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { AlertCircle, Loader2, Upload, X, Image as ImageIcon } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2, Upload, X, Image as ImageIcon } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 
@@ -318,7 +318,7 @@ export function ProductForm({
   // Generate random SKU - Removed as SKU is now at variant level
 
   // Validate form
-  const validateForm = (): boolean => {
+  const validateForm = (): Partial<Record<keyof ProductFormData | "mainCategory" | "subcategory", string>> | null => {
     const newErrors: Partial<Record<keyof ProductFormData | "mainCategory" | "subcategory", string>> = {};
 
     // Required fields
@@ -335,7 +335,7 @@ export function ProductForm({
     }
 
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    return Object.keys(newErrors).length === 0 ? null : newErrors;
   };
 
   // Simple URL validation
@@ -355,8 +355,9 @@ export function ProductForm({
     setSubmissionError(null);
     setIsSuccess(false);
 
-    if (!validateForm()) {
-      console.warn("Validation failed:", errors);
+    const validationErrors = validateForm();
+    if (validationErrors) {
+      console.warn("Validation failed:", validationErrors);
       return;
     }
 
@@ -668,7 +669,7 @@ export function ProductForm({
       {/* Success Message */}
       {isSuccess && (
         <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg flex gap-3 text-emerald-800 shadow-sm animate-in fade-in duration-300">
-          <ImageIcon className="w-5 h-5 shrink-0" />
+          <CheckCircle2 className="w-5 h-5 shrink-0" />
           <p className="text-sm font-medium">Product information updated successfully!</p>
         </div>
       )}

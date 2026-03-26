@@ -26,10 +26,10 @@ CREATE TABLE IF NOT EXISTS public.cms_faqs (
 );
 
 -- 3. Create cms_testimonials table
+-- NOTE: email field removed to minimize PII exposure (GDPR/CCPA compliant)
 CREATE TABLE IF NOT EXISTS public.cms_testimonials (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL,
-    email TEXT,
     rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
     comment TEXT NOT NULL,
     product_id UUID REFERENCES public.products(id) ON DELETE SET NULL,

@@ -10,9 +10,10 @@ export default function ShippingPage() {
       <main className="flex-1">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
           <h1 className="text-4xl font-bold mb-4">Shipping Information</h1>
-          <p className="text-muted-foreground mb-8">
+          <p className="text-muted-foreground mb-4">
             Learn about our shipping options, delivery times, and policies.
           </p>
+          <p className="text-xs text-muted-foreground mb-8 text-secondary">Last updated: March 2026</p>
 
           <div className="space-y-8">
             <section>

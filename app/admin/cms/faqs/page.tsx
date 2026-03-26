@@ -71,10 +71,15 @@ export default function FaqsPage() {
     setError(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.access_token) {
+        throw new Error('Authentication required');
+      }
+
       const res = await fetch('/api/admin/cms/faqs', {
-        headers: session?.access_token ? {
+        headers: {
           Authorization: `Bearer ${session.access_token}`,
-        } : {},
+        },
       });
 
       if (!res.ok) throw new Error('Failed to fetch FAQs');
@@ -112,6 +117,23 @@ export default function FaqsPage() {
   };
 
   const handleSave = async () => {
+    if (!formData.question.trim()) {
+      toast({
+        title: 'Validation Error',
+        description: 'Question is required.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (!formData.answer.trim()) {
+      toast({
+        title: 'Validation Error',
+        description: 'Answer is required.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -314,7 +336,9 @@ export default function FaqsPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setIsModalOpen(false)} disabled={isSubmitting}>
+              Cancel
+            </Button>
             <Button onClick={handleSave} disabled={isSubmitting}>
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {editingFaq ? 'Save Changes' : 'Create FAQ'}

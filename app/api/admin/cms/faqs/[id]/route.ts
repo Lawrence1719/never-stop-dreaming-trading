@@ -4,8 +4,9 @@ import { verifyAdminAuth } from '@/lib/admin/auth';
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const authHeader = request.headers.get('authorization') || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
 
@@ -15,20 +16,46 @@ export async function PATCH(
   }
 
   try {
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
     const supabaseAdmin = getClient();
+
+    const { question, answer, category, status, display_order } = body;
+
+    // Validate status if provided
+    if (status !== undefined && status !== null) {
+      const allowedStatuses = ['draft', 'published'];
+      if (!allowedStatuses.includes(status)) {
+        return NextResponse.json(
+          { error: 'Invalid status value' },
+          { status: 400 }
+        );
+      }
+    }
+    const updateData = {
+      ...(question !== undefined && { question }),
+      ...(answer !== undefined && { answer }),
+      ...(category !== undefined && { category }),
+      ...(status !== undefined && { status }),
+      ...(display_order !== undefined && { display_order }),
+      updated_at: new Date().toISOString(),
+    };
 
     const { data, error } = await supabaseAdmin
       .from('cms_faqs')
-      .update({
-        ...body,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', params.id)
+      .update(updateData)
+      .eq('id', id)
       .select()
       .single();
 
     if (error) {
+      if (error.code === 'PGRST116') {
+        return NextResponse.json({ error: 'FAQ not found' }, { status: 404 });
+      }
       console.error('Failed to update CMS FAQ', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
@@ -42,8 +69,9 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const authHeader = request.headers.get('authorization') || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
 
@@ -54,12 +82,17 @@ export async function DELETE(
 
   try {
     const supabaseAdmin = getClient();
-    const { error } = await supabaseAdmin
+    const { data, error } = await supabaseAdmin
       .from('cms_faqs')
       .delete()
-      .eq('id', params.id);
+      .eq('id', id)
+      .select()
+      .single();
 
     if (error) {
+      if (error.code === 'PGRST116') {
+        return NextResponse.json({ error: 'FAQ not found' }, { status: 404 });
+      }
       console.error('Failed to delete CMS FAQ', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }

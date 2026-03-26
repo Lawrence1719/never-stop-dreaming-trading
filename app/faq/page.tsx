@@ -19,6 +19,7 @@ interface GroupedFAQ {
 export default function FAQPage() {
   const [groupedFaqs, setGroupedFaqs] = useState<GroupedFAQ[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [expandedItems, setExpandedItems] = useState<string[]>([]);
 
   useEffect(() => {
@@ -27,6 +28,7 @@ export default function FAQPage() {
 
   const fetchFaqs = async () => {
     setIsLoading(true);
+    setError(null);
     try {
       const res = await fetch('/api/cms/faqs');
       if (!res.ok) throw new Error('Failed to fetch FAQs');
@@ -48,6 +50,7 @@ export default function FAQPage() {
       setGroupedFaqs(formattedGroups);
     } catch (err) {
       console.error('Error loading FAQs:', err);
+      setError('Unable to load FAQs. Please try again later.');
     } finally {
       setIsLoading(false);
     }
@@ -75,6 +78,16 @@ export default function FAQPage() {
               <Loader2 className="h-10 w-10 animate-spin text-primary" />
               <p className="mt-4 text-muted-foreground">Loading answers...</p>
             </div>
+          ) : error ? (
+            <div className="text-center py-20 text-destructive bg-destructive/10 rounded-lg border border-destructive/20 px-4">
+              <p className="font-semibold">{error}</p>
+              <button 
+                onClick={fetchFaqs}
+                className="mt-4 text-sm underline hover:no-underline"
+              >
+                Try again
+              </button>
+            </div>
           ) : groupedFaqs.length === 0 ? (
             <div className="text-center py-20 text-muted-foreground">
               No FAQs available at the moment. Please check back later.
@@ -93,6 +106,7 @@ export default function FAQPage() {
                         <div key={itemId} className="bg-card border border-border rounded-lg overflow-hidden">
                           <button
                             onClick={() => toggleItem(itemId)}
+                            aria-expanded={isExpanded}
                             className="w-full flex items-center justify-between p-4 hover:bg-secondary/10 transition-colors"
                           >
                             <p className="font-medium text-left">{item.question}</p>

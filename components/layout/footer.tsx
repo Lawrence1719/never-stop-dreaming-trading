@@ -17,11 +17,11 @@ export function Footer() {
   const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const storeName = settings?.general.storeName || 'Never Stop Dreaming';
-  const tagline = settings?.general.tagline || 'Premium trading tools and education for serious investors.';
-  const contactEmail = settings?.general.contactEmail || 'contact@example.com';
-  const contactPhone = settings?.general.contactPhone || '+1 234 567 8900';
-  const businessAddress = settings?.general.businessAddress || '123 Main Street, City, State 12345';
+  const storeName = settings?.general?.storeName || 'Never Stop Dreaming';
+  const tagline = settings?.general?.tagline || 'Premium trading tools and education for serious investors.';
+  const contactEmail = settings?.general?.contactEmail || 'contact@example.com';
+  const contactPhone = settings?.general?.contactPhone || '+1 234 567 8900';
+  const businessAddress = settings?.general?.businessAddress || '123 Main Street, City, State 12345';
 
   const handleSubscribe = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,8 +35,11 @@ export function Footer() {
         body: JSON.stringify({ email }),
       });
 
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Subscription failed');
+      }
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Subscription failed');
 
       toast.success(data.message || 'Successfully subscribed!');
       setEmail("");
@@ -66,6 +69,7 @@ export function Footer() {
                 onChange={(e) => setEmail(e.target.value)}
                 required 
                 className="bg-background/50"
+                aria-label="Email address for newsletter"
               />
             </div>
             <Button 

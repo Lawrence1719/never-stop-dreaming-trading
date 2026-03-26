@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
+import DOMPurify from 'dompurify';
 
 interface CMSPageContentProps {
   slug: string;
@@ -13,17 +14,22 @@ export function CMSPageContent({ slug, fallback }: CMSPageContentProps) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    const controller = new AbortController();
+    setContent(null);
+    setIsLoading(true);
+
     async function fetchContent() {
       try {
-        const res = await fetch('/api/cms/pages');
+        const res = await fetch('/api/cms/pages', { signal: controller.signal });
         if (!res.ok) throw new Error('Failed to fetch pages');
         const payload = await res.json();
         const pages = payload.data || [];
-        const page = pages.find((p: any) => p.slug === slug);
+        const page = pages.find((p: { slug: string; content?: string }) => p.slug === slug);
         if (page && page.content) {
           setContent(page.content);
         }
       } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') return;
         console.error(`Error loading CMS page ${slug}:`, err);
       } finally {
         setIsLoading(false);
@@ -31,6 +37,8 @@ export function CMSPageContent({ slug, fallback }: CMSPageContentProps) {
     }
 
     fetchContent();
+
+    return () => controller.abort();
   }, [slug]);
 
   if (isLoading) {
@@ -45,7 +53,7 @@ export function CMSPageContent({ slug, fallback }: CMSPageContentProps) {
     return (
       <div 
         className="prose prose-invert max-w-none"
-        dangerouslySetInnerHTML={{ __html: content }}
+        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(content) }}
       />
     );
   }

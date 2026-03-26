@@ -4,8 +4,9 @@ import { verifyAdminAuth } from '@/lib/admin/auth';
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const authHeader = request.headers.get('authorization') || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
 
@@ -15,20 +16,47 @@ export async function PATCH(
   }
 
   try {
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
     const supabaseAdmin = getClient();
+
+    const { name, rating, comment, product_id, status, date } = body;
+
+    // Validate rating if provided
+    if (rating !== undefined && rating !== null) {
+      if (typeof rating !== 'number' || rating < 1 || rating > 5) {
+        return NextResponse.json(
+          { error: 'Rating must be a number between 1 and 5' },
+          { status: 400 }
+        );
+      }
+    }
+
+    const updateData = {
+      ...(name !== undefined && { name }),
+      ...(rating !== undefined && { rating }),
+      ...(comment !== undefined && { comment }),
+      ...(product_id !== undefined && { product_id }),
+      ...(status !== undefined && { status }),
+      ...(date !== undefined && { date }),
+      updated_at: new Date().toISOString(),
+    };
 
     const { data, error } = await supabaseAdmin
       .from('cms_testimonials')
-      .update({
-        ...body,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', params.id)
+      .update(updateData)
+      .eq('id', id)
       .select()
       .single();
 
     if (error) {
+      if (error.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Testimonial not found' }, { status: 404 });
+      }
       console.error('Failed to update CMS testimonial', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
@@ -42,8 +70,9 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const authHeader = request.headers.get('authorization') || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
 
@@ -54,12 +83,17 @@ export async function DELETE(
 
   try {
     const supabaseAdmin = getClient();
-    const { error } = await supabaseAdmin
+    const { data, error } = await supabaseAdmin
       .from('cms_testimonials')
       .delete()
-      .eq('id', params.id);
+      .eq('id', id)
+      .select()
+      .single();
 
     if (error) {
+      if (error.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Testimonial not found' }, { status: 404 });
+      }
       console.error('Failed to delete CMS testimonial', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }

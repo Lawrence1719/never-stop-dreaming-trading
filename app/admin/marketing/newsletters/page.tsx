@@ -57,6 +57,8 @@ export default function NewslettersPage() {
   const [loading, setLoading] = useState(true);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isSending, setIsSending] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
   
   // Confirmation dialog state
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -80,6 +82,23 @@ export default function NewslettersPage() {
     content: '',
   });
 
+  const handleOpenCreateModal = (campaign: Campaign | null = null) => {
+    if (campaign) {
+      setEditingCampaign(campaign);
+      setFormData({
+        subject: campaign.subject,
+        content: campaign.content,
+      });
+    } else {
+      setEditingCampaign(null);
+      setFormData({
+        subject: '',
+        content: '',
+      });
+    }
+    setIsCreateModalOpen(true);
+  };
+
   const fetchCampaigns = async () => {
     try {
       setLoading(true);
@@ -102,22 +121,31 @@ export default function NewslettersPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsCreating(true);
     try {
-      const response = await fetch('/api/admin/newsletter/campaigns', {
-        method: 'POST',
+      const url = editingCampaign 
+        ? `/api/admin/newsletter/campaigns/${editingCampaign.id}` 
+        : '/api/admin/newsletter/campaigns';
+      const method = editingCampaign ? 'PATCH' : 'POST';
+
+      const response = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
 
-      if (!response.ok) throw new Error('Failed to create campaign');
+      if (!response.ok) throw new Error(`Failed to ${editingCampaign ? 'update' : 'create'} campaign`);
 
-      toast.success('Campaign created successfully');
+      toast.success(`Campaign ${editingCampaign ? 'updated' : 'created'} successfully`);
       setIsCreateModalOpen(false);
       setFormData({ subject: '', content: '' });
+      setEditingCampaign(null);
       fetchCampaigns();
     } catch (error) {
       console.error(error);
-      toast.error('Failed to create campaign');
+      toast.error(`Failed to ${editingCampaign ? 'update' : 'create'} campaign`);
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -181,7 +209,7 @@ export default function NewslettersPage() {
           <h1 className="text-3xl font-bold tracking-tight">Newsletters</h1>
           <p className="text-muted-foreground mt-1">Manage email newsletters and campaigns</p>
         </div>
-        <Button className="gap-2" onClick={() => setIsCreateModalOpen(true)}>
+        <Button className="gap-2" onClick={() => handleOpenCreateModal()}>
           <Plus className="h-4 w-4" />
           Create Newsletter
         </Button>
@@ -205,7 +233,7 @@ export default function NewslettersPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.avgOpenRate}</div>
-            <p className="text-xs text-muted-foreground mt-1">Average open rate</p>
+            <p className="text-xs text-muted-foreground mt-1">Average open rate (Estimated)</p>
           </CardContent>
         </Card>
 
@@ -215,7 +243,7 @@ export default function NewslettersPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.avgClickRate}</div>
-            <p className="text-xs text-muted-foreground mt-1">Average click rate</p>
+            <p className="text-xs text-muted-foreground mt-1">Average click rate (Estimated)</p>
           </CardContent>
         </Card>
 
@@ -294,7 +322,14 @@ export default function NewslettersPage() {
                             Send
                           </Button>
                         )}
-                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" disabled={campaign.status !== 'draft'}>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-7 w-7 p-0" 
+                          disabled={campaign.status !== 'draft'}
+                          onClick={() => handleOpenCreateModal(campaign)}
+                          title="Edit Campaign"
+                        >
                           <Edit className="h-3 w-3" />
                         </Button>
                         <Button 
@@ -319,9 +354,9 @@ export default function NewslettersPage() {
       <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
-            <DialogTitle>Create Newsletter</DialogTitle>
+            <DialogTitle>{editingCampaign ? 'Edit Newsletter' : 'Create Newsletter'}</DialogTitle>
             <DialogDescription>
-              Create a new email campaign to send to your subscribers.
+              {editingCampaign ? 'Update your newsletter campaign.' : 'Create a new email campaign to send to your subscribers.'}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreate}>
@@ -349,10 +384,18 @@ export default function NewslettersPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsCreateModalOpen(false)}>
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => setIsCreateModalOpen(false)} 
+                disabled={isCreating}
+              >
                 Cancel
               </Button>
-              <Button type="submit">Save Draft</Button>
+              <Button type="submit" disabled={isCreating}>
+                {isCreating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                {editingCampaign ? 'Save Changes' : 'Save Draft'}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>

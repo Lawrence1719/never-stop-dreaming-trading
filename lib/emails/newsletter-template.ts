@@ -25,13 +25,13 @@ const escapeHtml = (unsafe: string): string => {
     .replace(/'/g, "&#039;");
 };
 
-export function renderNewsletterEmail(subject: string, content: string) {
+export function renderNewsletterEmail(subject: string, content: string, recipientEmail: string, businessAddress?: string) {
   const escapedSubject = escapeHtml(subject);
   
-  // NOTE: We are escaping content for security. 
-  // If you want to support rich HTML (bold, links, etc.), 
-  // you should use a library like 'dompurify' to sanitize instead of simple escaping.
+  // Basic HTML escaping for safety. 
+  // For rich text support, use a proper sanitizer like DOMPurify if the input is trusted/controlled.
   const escapedContent = escapeHtml(content).replace(/\n/g, '<br>');
+  const displayAddress = businessAddress || '123 Trading Way, Financial District, Philippines';
 
   return `
     <!DOCTYPE html>
@@ -53,13 +53,13 @@ export function renderNewsletterEmail(subject: string, content: string) {
         
         <div style="${styles.footer}">
           <p style="margin: 0 0 10px 0;">&copy; ${new Date().getFullYear()} Never Stop Dreaming Trading. All rights reserved.</p>
-          <p style="margin: 0;">123 Trading Way, Financial District, Global</p>
+          <p style="margin: 0;">${displayAddress}</p>
           <div style="margin-top: 20px;">
             <a href="${getAppUrl()}" style="${styles.link}">Visit our store</a>
           </div>
-          <a href="${getAppUrl()}/newsletter/unsubscribe" style="${styles.unsubscribe}">Unsubscribe</a>
+          <a href="${getAppUrl()}/newsletter/unsubscribe?email=${encodeURIComponent(recipientEmail)}" style="${styles.unsubscribe}">Unsubscribe</a>
           <p style="margin-top: 15px; font-style: italic; font-size: 11px; color: #475569;">
-            This email was sent to you because you subscribed to our newsletter.
+            This email was sent to ${recipientEmail} because you subscribed to our newsletter.
           </p>
         </div>
       </div>

@@ -65,7 +65,7 @@ export function ProductCard({ product }: ProductCardProps) {
       <div className="group cursor-pointer flex flex-col h-full">
         <div className="relative bg-muted rounded-lg overflow-hidden mb-4">
           <img
-            src={product.images[0] || "/placeholder.svg"}
+            src={product.images?.[0] || "/placeholder.svg"}
             alt={product.name}
             className="w-full aspect-square object-cover group-hover:scale-110 transition-transform duration-300"
           />
@@ -125,10 +125,10 @@ export function ProductCard({ product }: ProductCardProps) {
             )}
           </div>
         </div>
-        <div className="flex items-center gap-1">
-          <span className="text-xs font-medium">{product.rating}</span>
-          <span className="text-xs text-accent">★</span>
-          <span className="text-xs text-muted-foreground">({product.reviewCount})</span>
+        <div className="flex items-center gap-1" role="img" aria-label={`Rating: ${product.rating} out of 5 stars from ${product.reviewCount} reviews`}>
+          <span className="text-xs font-medium" aria-hidden="true">{product.rating}</span>
+          <span className="text-xs text-accent" aria-hidden="true">★</span>
+          <span className="text-xs text-muted-foreground" aria-hidden="true">({product.reviewCount})</span>
         </div>
       </div>
     </Link>

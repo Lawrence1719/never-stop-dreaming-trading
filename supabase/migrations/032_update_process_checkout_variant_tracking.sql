@@ -9,7 +9,7 @@
 -- 1. Add image column to order_items if it doesn't exist
 DO $$ 
 BEGIN 
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='order_items' AND column_name='image') THEN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='order_items' AND column_name='image') THEN
     ALTER TABLE public.order_items ADD COLUMN image TEXT;
   END IF;
 END $$;
@@ -17,11 +17,11 @@ END $$;
 -- 2. Add shipping columns to orders if they don't exist
 DO $$ 
 BEGIN 
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='orders' AND column_name='shipping_method') THEN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='orders' AND column_name='shipping_method') THEN
     ALTER TABLE public.orders ADD COLUMN shipping_method TEXT;
   END IF;
   
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='orders' AND column_name='shipping_cost') THEN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='orders' AND column_name='shipping_cost') THEN
     ALTER TABLE public.orders ADD COLUMN shipping_cost NUMERIC(10,2) DEFAULT 0;
   END IF;
 END $$;
@@ -31,6 +31,7 @@ CREATE OR REPLACE FUNCTION public.process_checkout(payload JSONB)
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_user_id UUID;
@@ -58,9 +59,14 @@ BEGIN
   v_items := payload->'items';
   v_shipping_address_id := (payload->>'shipping_address_id')::UUID;
   v_shipping_method := payload->>'shipping_method';
-  v_shipping_cost := (payload->>'shipping_cost')::NUMERIC;
+  v_shipping_cost := COALESCE((payload->>'shipping_cost')::NUMERIC, 0);
   v_payment_method := payload->>'payment_method';
   v_idempotency_key := payload->>'idempotency_key';
+
+  -- Validate items array
+  IF v_items IS NULL OR jsonb_array_length(v_items) = 0 THEN
+    RAISE EXCEPTION 'Checkout requires at least one item';
+  END IF;
 
   -- 1. Idempotency Check
   IF v_idempotency_key IS NOT NULL THEN
@@ -85,6 +91,10 @@ BEGIN
     
     IF v_variant_id IS NULL THEN
       RAISE EXCEPTION 'Item "%" is missing variant_id', v_item->>'name';
+    END IF;
+
+    IF v_quantity IS NULL OR v_quantity <= 0 THEN
+      RAISE EXCEPTION 'Invalid quantity for item "%": must be a positive integer', v_item->>'name';
     END IF;
 
     SELECT stock INTO v_current_stock

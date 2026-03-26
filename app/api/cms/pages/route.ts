@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.error('Failed to fetch public CMS pages', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to load public CMS pages' }, { status: 500 });
     }
 
     return NextResponse.json({ data });

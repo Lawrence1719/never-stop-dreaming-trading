@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getClient } from '@/lib/supabase/admin';
+import { verifyAdminAuth } from '@/lib/admin/auth';
 
 export async function GET(req: NextRequest) {
+  const authHeader = req.headers.get('authorization') || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
+
+  const authResult = await verifyAdminAuth(token);
+  if (authResult.error) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status });
+  }
+
   try {
     const supabase = getClient();
 
@@ -38,7 +47,7 @@ export async function GET(req: NextRequest) {
         // Mocking rates for now as we don't have tracking setup yet
         avgOpenRate: '28.1%', 
         avgClickRate: '12.0%',
-        activeCampaigns: campaigns.filter(c => c.status === 'sent').length
+        activeCampaigns: (campaigns || []).filter(c => c.status === 'sent').length
       }
     });
   } catch (error) {
@@ -48,8 +57,23 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const authHeader = req.headers.get('authorization') || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
+
+  const authResult = await verifyAdminAuth(token);
+  if (authResult.error) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status });
+  }
+
   try {
-    const { subject, content } = await req.json();
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
+
+    const { subject, content } = body;
 
     if (!subject || !content) {
       return NextResponse.json({ error: 'Subject and content are required' }, { status: 400 });

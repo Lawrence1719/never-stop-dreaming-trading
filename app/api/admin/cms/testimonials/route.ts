@@ -43,12 +43,34 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
     const supabaseAdmin = getClient();
 
-    if (!body.name || !body.rating || !body.comment) {
+    if (!body.name || body.rating === undefined || body.rating === null || !body.comment) {
       return NextResponse.json(
         { error: 'Missing required fields: name, rating, comment' },
+        { status: 400 }
+      );
+    }
+
+    // Validate rating range and type
+    if (typeof body.rating !== 'number' || body.rating < 1 || body.rating > 5) {
+      return NextResponse.json(
+        { error: 'Rating must be a number between 1 and 5' },
+        { status: 400 }
+      );
+    }
+
+    // Validate status
+    const allowedStatuses = ['pending', 'published', 'archived'];
+    if (body.status && !allowedStatuses.includes(body.status)) {
+      return NextResponse.json(
+        { error: 'Invalid status value' },
         { status: 400 }
       );
     }
@@ -58,7 +80,6 @@ export async function POST(request: NextRequest) {
       .insert([
         {
           name: body.name,
-          email: body.email || null,
           rating: body.rating,
           comment: body.comment,
           product_id: body.product_id || null,

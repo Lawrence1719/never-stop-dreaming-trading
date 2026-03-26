@@ -5,103 +5,112 @@ import { Footer } from "@/components/layout/footer";
 import { ProductGrid } from "@/components/ecommerce/product-grid";
 import { Product } from "@/lib/types";
 import Link from "next/link";
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, AlertCircle } from 'lucide-react';
 import { MAIN_CATEGORIES } from '@/lib/data/categories';
 import { BannerHero } from '@/components/marketing/BannerHero';
 import { supabase } from '@/lib/supabase/client';
+import { NewsletterForm } from '@/components/marketing/NewsletterForm';
 
 export default function Home() {
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [testimonials, setTestimonials] = useState<any[]>([]);
   const [isTestimonialsLoading, setIsTestimonialsLoading] = useState(true);
+  const [testimonialsError, setTestimonialsError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchFeaturedProducts = async () => {
-      setIsLoading(true);
-      try {
-        // Try fetching from public API first
-        const res = await fetch('/api/public/products');
-        if (res.ok) {
-          const json = await res.json();
-          if (json?.data) {
-            const mapped = (json.data as any[])
-              .slice(0, 8) // Limit to 8 products
-              .map((row: any) => ({
-                id: row.id,
-                name: row.name,
-                slug: row.slug || row.id,
-                description: row.description || '',
-                price: Number(row.price) || 0,
-                compareAtPrice: row.compare_at_price ? Number(row.compare_at_price) : undefined,
-                images: row.image_url ? [row.image_url] : [],
-                category: row.category || '',
-                stock: row.stock ?? 0,
-                sku: row.sku || '',
-                rating: row.rating ?? 0,
-                reviewCount: row.review_count ?? 0,
-                featured: row.featured ?? false,
-              })) as Product[];
+  const fetchFeaturedProducts = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      // Try fetching from public API first
+      const res = await fetch('/api/public/products');
+      if (res.ok) {
+        const json = await res.json();
+        if (json?.data) {
+          const mapped = (json.data as any[])
+            .slice(0, 8) // Limit to 8 products
+            .map((row: any) => ({
+              id: row.id,
+              name: row.name,
+              slug: row.slug || row.id,
+              description: row.description || '',
+              price: Number(row.price) || 0,
+              compareAtPrice: row.compare_at_price ? Number(row.compare_at_price) : undefined,
+              images: row.image_url ? [row.image_url] : [],
+              category: row.category || '',
+              stock: row.stock ?? 0,
+              sku: row.sku || '',
+              rating: row.rating ?? 0,
+              reviewCount: row.review_count ?? 0,
+              featured: row.featured ?? false,
+            })) as Product[];
 
-            setFeaturedProducts(mapped);
-            setIsLoading(false);
-            return;
-          }
-        }
-
-        // Fallback to direct Supabase query without featured filter
-        const { data, error } = await supabase
-          .from('products')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(8);
-
-        if (error) {
-          console.error('Supabase error:', error);
+          setFeaturedProducts(mapped);
           setIsLoading(false);
           return;
         }
-
-        if (data) {
-          const mapped = data.map((row: any) => ({
-            id: row.id,
-            name: row.name,
-            slug: row.slug || row.id,
-            description: row.description || '',
-            price: Number(row.price) || 0,
-            compareAtPrice: row.compare_at_price ? Number(row.compare_at_price) : undefined,
-            images: row.image_url ? [row.image_url] : [],
-            category: row.category || '',
-            stock: row.stock ?? 0,
-            sku: row.sku || '',
-            rating: row.rating ?? 0,
-            reviewCount: row.review_count ?? 0,
-            featured: row.featured ?? false,
-          })) as Product[];
-
-          setFeaturedProducts(mapped);
-        }
-      } catch (err) {
-        console.error('Failed to fetch featured products:', err);
-      } finally {
-        setIsLoading(false);
       }
-    };
 
+      // Fallback to direct Supabase query without featured filter
+      const { data, error: sbError } = await supabase
+        .from('products')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(8);
+
+      if (sbError) {
+        throw sbError;
+      }
+
+      if (data) {
+        const mapped = data.map((row: any) => ({
+          id: row.id,
+          name: row.name,
+          slug: row.slug || row.id,
+          description: row.description || '',
+          price: Number(row.price) || 0,
+          compareAtPrice: row.compare_at_price ? Number(row.compare_at_price) : undefined,
+          images: row.image_url ? [row.image_url] : [],
+          category: row.category || '',
+          stock: row.stock ?? 0,
+          sku: row.sku || '',
+          rating: row.rating ?? 0,
+          reviewCount: row.review_count ?? 0,
+          featured: row.featured ?? false,
+        })) as Product[];
+
+        setFeaturedProducts(mapped);
+      }
+    } catch (err) {
+      console.error('Failed to fetch featured products:', err);
+      setError('Unable to load featured products. Please try again later.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchTestimonials = async () => {
+    setIsTestimonialsLoading(true);
+    setTestimonialsError(null);
+    try {
+      const res = await fetch('/api/cms/testimonials');
+      if (res.ok) {
+        const json = await res.json();
+        setTestimonials(json.data || []);
+      } else {
+        throw new Error('Failed to load testimonials');
+      }
+    } catch (err) {
+      console.error('Failed to fetch testimonials:', err);
+      setTestimonialsError('Unable to load feedback at this time.');
+    } finally {
+      setIsTestimonialsLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchFeaturedProducts();
-    const fetchTestimonials = async () => {
-      try {
-        const res = await fetch('/api/cms/testimonials');
-        if (res.ok) {
-          const json = await res.json();
-          setTestimonials(json.data || []);
-        }
-      } catch (err) {
-        console.error('Failed to fetch testimonials:', err);
-      } finally {
-        setIsTestimonialsLoading(false);
-      }
-    };
     fetchTestimonials();
   }, []);
 
@@ -118,12 +127,14 @@ export default function Home() {
             products={featuredProducts} 
             title="Featured Products" 
             loading={isLoading}
+            error={error}
+            onRetry={fetchFeaturedProducts}
             skeletonCount={8}
           />
         </section>
 
         {/* Categories Section */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 border-t border-border/50">
           <h2 className="text-2xl font-bold mb-8">Shop by Category</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {MAIN_CATEGORIES.map((name) => {
@@ -169,7 +180,7 @@ export default function Home() {
         </section>
 
         {/* Testimonials */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 border-t border-border/50">
           <h2 className="text-2xl font-bold mb-8 text-center">What Our Users Say</h2>
           
           {isTestimonialsLoading ? (
@@ -177,6 +188,17 @@ export default function Home() {
               {[...Array(3)].map((_, i) => (
                 <div key={i} className="bg-muted animate-pulse h-40 rounded-lg" />
               ))}
+            </div>
+          ) : testimonialsError ? (
+            <div className="text-center py-12 text-muted-foreground bg-muted/30 rounded-lg flex flex-col items-center gap-2">
+              <AlertCircle className="h-8 w-8 opacity-20" />
+              <p>{testimonialsError}</p>
+              <button 
+                onClick={fetchTestimonials}
+                className="text-xs underline hover:no-underline"
+              >
+                Retry
+              </button>
             </div>
           ) : testimonials.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
@@ -186,9 +208,17 @@ export default function Home() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {testimonials.slice(0, 3).map((testimonial, i) => (
                 <div key={testimonial.id || i} className="bg-card border border-border rounded-lg p-6 flex flex-col h-full">
-                  <div className="flex gap-1 mb-4">
+                  <div 
+                    className="flex gap-1 mb-4" 
+                    role="img" 
+                    aria-label={`${testimonial.rating} out of 5 stars`}
+                  >
                     {[...Array(5)].map((_, starIdx) => (
-                      <span key={starIdx} className={`text-sm ${starIdx < testimonial.rating ? 'text-yellow-400' : 'text-muted-foreground opacity-20'}`}>
+                      <span 
+                        key={starIdx} 
+                        aria-hidden="true"
+                        className={`text-sm ${starIdx < testimonial.rating ? 'text-yellow-400' : 'text-muted-foreground opacity-20'}`}
+                      >
                         ★
                       </span>
                     ))}
@@ -215,19 +245,7 @@ export default function Home() {
             <p className="text-muted-foreground mb-6">
               Subscribe to get the latest deals, promos, and exclusive offers.
             </p>
-            <form className="flex flex-col sm:flex-row gap-2 max-w-md mx-auto">
-              <input
-                type="email"
-                placeholder="your@email.com"
-                className="w-full sm:flex-1 px-4 py-3 rounded-lg bg-input border border-border focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-              <button
-                type="submit"
-                className="w-full sm:w-auto px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-semibold"
-              >
-                Subscribe
-              </button>
-            </form>
+            <NewsletterForm />
           </div>
         </section>
       </main>

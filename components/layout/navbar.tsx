@@ -27,7 +27,7 @@ export function Navbar({ minimal = false }: NavbarProps) {
   
   const cartCount = cart.items.reduce((sum, item) => sum + item.quantity, 0);
   const wishlistCount = user ? wishlist.length : 0;
-  const storeName = settings?.general.storeName || 'Never Stop Dreaming';
+  const storeName = settings?.general?.storeName || 'Never Stop Dreaming';
 
   return (
     <>
@@ -77,7 +77,7 @@ export function Navbar({ minimal = false }: NavbarProps) {
                   </button>
 
                   {/* Wishlist */}
-                  {settings?.system.enableWishlist !== false && (
+                  {settings?.system?.enableWishlist !== false && (
                     <Link
                       href="/wishlist"
                       className="p-2 rounded-md hover:bg-secondary/10 transition-colors relative"

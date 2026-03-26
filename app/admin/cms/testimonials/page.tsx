@@ -30,7 +30,6 @@ import { useToast } from '@/hooks/use-toast';
 interface CMSTestimonial {
   id: string;
   name: string;
-  email: string | null;
   rating: number;
   comment: string;
   product_id: string | null;
@@ -63,7 +62,6 @@ export default function TestimonialsPage() {
   // Form state
   const [formData, setFormData] = useState({
     name: '',
-    email: '',
     rating: 5,
     comment: '',
     product_id: 'none',
@@ -81,10 +79,15 @@ export default function TestimonialsPage() {
     setError(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.access_token) {
+        throw new Error('Authentication required');
+      }
+
       const res = await fetch('/api/admin/cms/testimonials', {
-        headers: session?.access_token ? {
+        headers: {
           Authorization: `Bearer ${session.access_token}`,
-        } : {},
+        },
       });
 
       if (!res.ok) throw new Error('Failed to fetch testimonials');
@@ -118,7 +121,6 @@ export default function TestimonialsPage() {
       setEditingTestimonial(testimonial);
       setFormData({
         name: testimonial.name,
-        email: testimonial.email || '',
         rating: testimonial.rating,
         comment: testimonial.comment,
         product_id: testimonial.product_id || 'none',
@@ -129,7 +131,6 @@ export default function TestimonialsPage() {
       setEditingTestimonial(null);
       setFormData({
         name: '',
-        email: '',
         rating: 5,
         comment: '',
         product_id: 'none',
@@ -141,6 +142,23 @@ export default function TestimonialsPage() {
   };
 
   const handleSave = async () => {
+    if (!formData.name.trim()) {
+      toast({
+        title: 'Validation Error',
+        description: 'Customer name is required',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (!formData.comment.trim()) {
+      toast({
+        title: 'Validation Error',
+        description: 'Comment is required',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -330,7 +348,6 @@ export default function TestimonialsPage() {
                       <TableCell>
                         <div>
                           <p className="font-medium">{testimonial.name}</p>
-                          {testimonial.email && <p className="text-xs text-muted-foreground">{testimonial.email}</p>}
                         </div>
                       </TableCell>
                       <TableCell className="text-sm">
@@ -366,7 +383,7 @@ export default function TestimonialsPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {new Date(testimonial.date).toLocaleDateString()}
+                        {testimonial.date ? new Date(testimonial.date).toLocaleDateString() : '—'}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2">
@@ -396,26 +413,14 @@ export default function TestimonialsPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="name">Customer Name</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="e.g., John Smith"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="email">Email (Optional)</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="john@example.com"
-                />
-              </div>
+            <div className="grid gap-2">
+              <Label htmlFor="name">Customer Name</Label>
+              <Input
+                id="name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="e.g., John Smith"
+              />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
@@ -491,7 +496,9 @@ export default function TestimonialsPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setIsModalOpen(false)} disabled={isSubmitting}>
+              Cancel
+            </Button>
             <Button onClick={handleSave} disabled={isSubmitting}>
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {editingTestimonial ? 'Save Changes' : 'Add Testimonial'}

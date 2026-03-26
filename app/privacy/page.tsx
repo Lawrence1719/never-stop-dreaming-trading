@@ -53,7 +53,8 @@ export default function PrivacyPage() {
 
       <main className="flex-1">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <h1 className="text-4xl font-bold mb-8">Privacy Policy</h1>
+          <h1 className="text-4xl font-bold mb-4">Privacy Policy</h1>
+          <p className="text-sm text-muted-foreground mb-8 text-secondary">Last updated: March 2026</p>
           <CMSPageContent slug="privacy" fallback={staticContent} />
         </div>
       </main>

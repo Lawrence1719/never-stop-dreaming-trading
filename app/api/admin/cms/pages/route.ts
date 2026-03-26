@@ -39,13 +39,41 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: authResult.error }, { status: authResult.status });
   }
 
+  // Ensure we have a valid user ID for ownership
+  if (!authResult.user?.id) {
+    return NextResponse.json({ error: 'User identification failed' }, { status: 401 });
+  }
+
   try {
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
     const supabaseAdmin = getClient();
 
     if (!body.title || !body.slug) {
       return NextResponse.json(
         { error: 'Missing required fields: title, slug' },
+        { status: 400 }
+      );
+    }
+
+    // Validate slug format (lowercase, numbers, and hyphens only)
+    const slugRegex = /^[a-z0-9-]+$/;
+    if (!slugRegex.test(body.slug)) {
+      return NextResponse.json(
+        { error: 'Slug must contain only lowercase letters, numbers, and hyphens' },
+        { status: 400 }
+      );
+    }
+
+    // Validate status
+    const allowedStatuses = ['draft', 'published'];
+    if (body.status && !allowedStatuses.includes(body.status)) {
+      return NextResponse.json(
+        { error: 'Invalid status value' },
         { status: 400 }
       );
     }

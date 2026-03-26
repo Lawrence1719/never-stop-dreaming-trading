@@ -4,8 +4,9 @@ import { verifyAdminAuth } from '@/lib/admin/auth';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const authHeader = request.headers.get('authorization') || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
 
@@ -19,10 +20,13 @@ export async function GET(
     const { data, error } = await supabaseAdmin
       .from('cms_pages')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .single();
 
     if (error) {
+      if (error.code === 'PGRST116') {
+        return NextResponse.json({ error: 'CMS page not found' }, { status: 404 });
+      }
       console.error('Failed to fetch CMS page', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
@@ -36,8 +40,9 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const authHeader = request.headers.get('authorization') || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
 
@@ -47,20 +52,56 @@ export async function PATCH(
   }
 
   try {
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
     const supabaseAdmin = getClient();
+
+    const { title, slug, content, status } = body;
+
+    // Validate slug if provided
+    if (slug !== undefined && slug !== null) {
+      const slugRegex = /^[a-z0-9-]+$/;
+      if (!slugRegex.test(slug)) {
+        return NextResponse.json(
+          { error: 'Slug must contain only lowercase letters, numbers, and hyphens' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Validate status if provided
+    if (status !== undefined && status !== null) {
+      const allowedStatuses = ['draft', 'published'];
+      if (!allowedStatuses.includes(status)) {
+        return NextResponse.json(
+          { error: 'Invalid status value' },
+          { status: 400 }
+        );
+      }
+    }
+    const updateData = {
+      ...(title !== undefined && { title }),
+      ...(slug !== undefined && { slug }),
+      ...(content !== undefined && { content }),
+      ...(status !== undefined && { status }),
+      updated_at: new Date().toISOString(),
+    };
 
     const { data, error } = await supabaseAdmin
       .from('cms_pages')
-      .update({
-        ...body,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', params.id)
+      .update(updateData)
+      .eq('id', id)
       .select()
       .single();
 
     if (error) {
+      if (error.code === 'PGRST116') {
+        return NextResponse.json({ error: 'CMS page not found' }, { status: 404 });
+      }
       console.error('Failed to update CMS page', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
@@ -74,8 +115,9 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const authHeader = request.headers.get('authorization') || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
 
@@ -86,12 +128,17 @@ export async function DELETE(
 
   try {
     const supabaseAdmin = getClient();
-    const { error } = await supabaseAdmin
+    const { data, error } = await supabaseAdmin
       .from('cms_pages')
       .delete()
-      .eq('id', params.id);
+      .eq('id', id)
+      .select()
+      .single();
 
     if (error) {
+      if (error.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Page not found' }, { status: 404 });
+      }
       console.error('Failed to delete CMS page', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }

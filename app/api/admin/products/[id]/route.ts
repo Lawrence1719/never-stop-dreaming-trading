@@ -1,42 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getClient } from '@/lib/supabase/admin';
-
-async function verifyAdminAuth(token: string | null) {
-  if (!token) {
-    return { error: 'Unauthorized', status: 401, user: null };
-  }
-
-  try {
-    const supabaseAdmin = getClient();
-    const {
-      data: { user },
-      error: userError,
-    } = await supabaseAdmin.auth.getUser(token);
-
-    if (userError || !user) {
-      return { error: 'Unauthorized', status: 401, user: null };
-    }
-
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
-    if (profileError || profile?.role !== 'admin') {
-      return { error: 'Forbidden', status: 403, user: null };
-    }
-
-    return { error: null, status: 200, user };
-  } catch (err) {
-    return { error: 'Unauthorized', status: 401, user: null };
-  }
-}
+import { verifyAdminAuth } from '@/lib/admin/auth';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const authHeader = request.headers.get('authorization') || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
 
@@ -46,7 +16,6 @@ export async function GET(
   }
 
   try {
-    const { id } = await params;
     const supabaseAdmin = getClient();
     const { data, error } = await supabaseAdmin
       .from('products')
@@ -69,6 +38,7 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const authHeader = request.headers.get('authorization') || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
 
@@ -78,8 +48,13 @@ export async function PUT(
   }
 
   try {
-    const { id } = await params;
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
+
     const supabaseAdmin = getClient();
 
     // Validate required fields
@@ -90,7 +65,7 @@ export async function PUT(
       );
     }
 
-    const { data, error } = await supabaseAdmin
+    const { data: product, error: productError } = await supabaseAdmin
       .from('products')
       .update({
         name: body.name,
@@ -103,27 +78,26 @@ export async function PUT(
       .select()
       .single();
 
-    if (error) {
-      console.error('Failed to update product', error);
+    if (productError) {
+      console.error('Failed to update product', productError);
       return NextResponse.json({ 
         error: 'Failed to update product',
-        details: error.message 
+        details: productError.message 
       }, { status: 500 });
     }
 
-    // Sync product images
+    // Sync product images using a safer 'Insert then Delete' pattern
     if (body.product_images && Array.isArray(body.product_images)) {
       try {
-        // Simplest way: Delete all existing and re-insert 
-        const { error: deleteError } = await supabaseAdmin
+        // 1. Fetch existing image IDs
+        const { data: existingImages } = await supabaseAdmin
           .from('product_images')
-          .delete()
+          .select('id')
           .eq('product_id', id);
+        
+        const oldImageIds = (existingImages || []).map(img => img.id);
 
-        if (deleteError) {
-          throw new Error(`Failed to clear existing images: ${deleteError.message}`);
-        }
-
+        // 2. Insert new images
         if (body.product_images.length > 0) {
           const imagesToInsert = body.product_images.map((img: any, index: number) => {
             if (!img.storage_path) {
@@ -137,23 +111,35 @@ export async function PUT(
             };
           });
 
-          const { error: imagesError } = await supabaseAdmin
+          const { error: insertError } = await supabaseAdmin
             .from('product_images')
             .insert(imagesToInsert);
 
-          if (imagesError) {
-            throw new Error(`Failed to insert new images: ${imagesError.message}`);
+          if (insertError) {
+            throw new Error(`Failed to insert new images: ${insertError.message}`);
+          }
+        }
+
+        // 3. Only if insert succeeded, delete the old images
+        if (oldImageIds.length > 0) {
+          const { error: deleteError } = await supabaseAdmin
+            .from('product_images')
+            .delete()
+            .in('id', oldImageIds);
+
+          if (deleteError) {
+            console.warn('New images inserted, but failed to clear old ones:', deleteError.message);
+            // We don't throw here to avoid failing the whole product update,
+            // as new images are already safely in.
           }
         }
       } catch (imageErr: any) {
         console.error('Failed to sync product images', imageErr);
-        // We re-throw this to be caught by the main catch block, 
-        // because image sync is critical for product consistency
         throw imageErr;
       }
     }
 
-    return NextResponse.json({ data });
+    return NextResponse.json({ data: product });
   } catch (error) {
     console.error('Failed to update product', error);
     return NextResponse.json({ 
@@ -167,6 +153,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const authHeader = request.headers.get('authorization') || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
 
@@ -176,11 +163,18 @@ export async function DELETE(
   }
 
   try {
-    const { id } = await params;
     const supabaseAdmin = getClient();
-    const { error } = await supabaseAdmin.from('products').delete().eq('id', id);
+    const { data: deleted, error } = await supabaseAdmin
+      .from('products')
+      .delete()
+      .eq('id', id)
+      .select()
+      .single();
 
     if (error) {
+      if (error.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+      }
       console.error('Failed to delete product', error);
       return NextResponse.json({ error: 'Failed to delete product' }, { status: 500 });
     }

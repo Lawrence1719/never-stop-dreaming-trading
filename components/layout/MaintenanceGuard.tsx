@@ -16,7 +16,7 @@ export function MaintenanceGuard({ children }: MaintenanceGuardProps) {
   const { user } = useAuth();
   const pathname = usePathname();
 
-  const isMaintenanceMode = settings?.system.maintenanceMode;
+  const isMaintenanceMode = settings?.system?.maintenanceMode;
   const isAdmin = user?.role === 'admin';
   const isExcludedPath = pathname?.startsWith('/admin') || pathname?.startsWith('/login');
 
@@ -63,7 +63,7 @@ export function MaintenanceGuard({ children }: MaintenanceGuardProps) {
               "Great things take time. Thank you for your patience."
             </p>
             <p className="text-xs text-muted-foreground mt-4">
-              &copy; {new Date().getFullYear()} {settings?.general.storeName || 'Never Stop Dreaming Trading'}. All rights reserved.
+              &copy; {new Date().getFullYear()} {settings?.general?.storeName || 'Never Stop Dreaming Trading'}. All rights reserved.
             </p>
           </div>
         </div>

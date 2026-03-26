@@ -40,12 +40,26 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
     const supabaseAdmin = getClient();
 
     if (!body.question || !body.answer) {
       return NextResponse.json(
         { error: 'Missing required fields: question, answer' },
+        { status: 400 }
+      );
+    }
+
+    // Validate status
+    const allowedStatuses = ['draft', 'published'];
+    if (body.status && !allowedStatuses.includes(body.status)) {
+      return NextResponse.json(
+        { error: 'Invalid status value' },
         { status: 400 }
       );
     }

@@ -1,14 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getClient } from '@/lib/supabase/admin';
+import { verifyAdminAuth } from '@/lib/admin/auth';
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const { id } = await params;
-    const { subject, content, status } = await req.json();
+  const { id } = await params;
+  const authHeader = req.headers.get('authorization') || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
 
+  const authResult = await verifyAdminAuth(token);
+  if (authResult.error) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status });
+  }
+
+  try {
+    let body;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
+
+    const { subject, content, status } = body;
     const supabase = getClient();
 
     const { data: campaign, error: updateError } = await supabase
@@ -17,12 +32,16 @@ export async function PATCH(
         ...(subject !== undefined && { subject }),
         ...(content !== undefined && { content }),
         ...(status !== undefined && { status }),
+        updated_at: new Date().toISOString(),
       })
       .eq('id', id)
       .select()
       .single();
 
     if (updateError) {
+      if (updateError.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
+      }
       console.error('Error updating campaign:', updateError);
       return NextResponse.json({ error: 'Failed to update campaign' }, { status: 500 });
     }
@@ -38,16 +57,28 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const { id } = await params;
-    const supabase = getClient();
+  const { id } = await params;
+  const authHeader = req.headers.get('authorization') || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
 
-    const { error: deleteError } = await supabase
+  const authResult = await verifyAdminAuth(token);
+  if (authResult.error) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status });
+  }
+
+  try {
+    const supabase = getClient();
+    const { data, error: deleteError } = await supabase
       .from('newsletter_campaigns')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .select()
+      .single();
 
     if (deleteError) {
+      if (deleteError.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
+      }
       console.error('Error deleting campaign:', deleteError);
       return NextResponse.json({ error: 'Failed to delete campaign' }, { status: 500 });
     }

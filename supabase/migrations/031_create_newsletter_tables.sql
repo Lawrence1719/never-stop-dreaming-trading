@@ -1,4 +1,6 @@
 -- Create newsletter_subscribers table
+-- NOTE: email field contains PII essential for newsletter delivery.
+-- This table is protected by strict RLS policies to prevent unauthorized access.
 CREATE TABLE IF NOT EXISTS public.newsletter_subscribers (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   email text NOT NULL UNIQUE,
@@ -48,6 +50,7 @@ CREATE POLICY "Admin full access on newsletter_subscribers"
 CREATE POLICY "Anyone can subscribe to newsletter"
   ON public.newsletter_subscribers
   FOR INSERT
+  TO public
   WITH CHECK (true);
 
 -- RLS Policies for newsletter_campaigns
