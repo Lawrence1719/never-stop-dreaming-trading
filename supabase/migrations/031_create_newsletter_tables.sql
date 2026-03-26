@@ -36,6 +36,12 @@ CREATE POLICY "Admin full access on newsletter_subscribers"
       SELECT 1 FROM public.profiles
       WHERE profiles.id = auth.uid() AND profiles.role = 'admin'
     )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE profiles.id = auth.uid() AND profiles.role = 'admin'
+    )
   );
 
 -- Anyone can subscribe (INSERT)
@@ -51,6 +57,12 @@ CREATE POLICY "Admin full access on newsletter_campaigns"
   FOR ALL
   TO authenticated
   USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE profiles.id = auth.uid() AND profiles.role = 'admin'
+    )
+  )
+  WITH CHECK (
     EXISTS (
       SELECT 1 FROM public.profiles
       WHERE profiles.id = auth.uid() AND profiles.role = 'admin'

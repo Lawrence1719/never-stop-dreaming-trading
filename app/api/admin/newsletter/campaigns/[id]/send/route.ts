@@ -43,10 +43,15 @@ export async function POST(
     }
 
     // Mark as sending
-    await supabase
+    const { error: sendingError } = await supabase
       .from('newsletter_campaigns')
       .update({ status: 'sending' })
       .eq('id', id);
+
+    if (sendingError) {
+      console.error('Error updating campaign to sending status:', sendingError);
+      return NextResponse.json({ error: 'Failed to update campaign status' }, { status: 500 });
+    }
 
     const recipientEmails = subscribers.map(s => s.email);
     const totalRecipients = recipientEmails.length;

@@ -14,9 +14,9 @@ export async function PATCH(
     const { data: campaign, error: updateError } = await supabase
       .from('newsletter_campaigns')
       .update({
-        ...(subject && { subject }),
-        ...(content && { content }),
-        ...(status && { status }),
+        ...(subject !== undefined && { subject }),
+        ...(content !== undefined && { content }),
+        ...(status !== undefined && { status }),
       })
       .eq('id', id)
       .select()

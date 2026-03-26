@@ -68,7 +68,12 @@ export function Footer() {
                 className="bg-background/50"
               />
             </div>
-            <Button type="submit" disabled={isSubmitting} className="min-w-[120px]">
+            <Button 
+              type="submit" 
+              disabled={isSubmitting} 
+              className="min-w-[120px]"
+              aria-label={isSubmitting ? "Subscribing..." : "Subscribe"}
+            >
               {isSubmitting ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (

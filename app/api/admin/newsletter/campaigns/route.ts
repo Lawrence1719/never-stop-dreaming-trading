@@ -5,10 +5,16 @@ export async function GET(req: NextRequest) {
   try {
     const supabase = getClient();
 
+    const searchParams = req.nextUrl.searchParams;
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const limit = parseInt(searchParams.get('limit') || '20', 10);
+    const offset = (page - 1) * limit;
+
     const { data: campaigns, error: fetchError } = await supabase
       .from('newsletter_campaigns')
       .select('*')
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
 
     if (fetchError) {
       console.error('Error fetching campaigns:', fetchError);

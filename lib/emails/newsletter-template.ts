@@ -12,14 +12,34 @@ const styles = {
   unsubscribe: 'margin-top: 20px; display: block; color: #64748b; text-decoration: underline;'
 };
 
+/**
+ * Basic HTML escaping to prevent XSS. 
+ * NOTE: For rich HTML support in content, consider using a library like DOMPurify.
+ */
+const escapeHtml = (unsafe: string): string => {
+  return unsafe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+};
+
 export function renderNewsletterEmail(subject: string, content: string) {
+  const escapedSubject = escapeHtml(subject);
+  
+  // NOTE: We are escaping content for security. 
+  // If you want to support rich HTML (bold, links, etc.), 
+  // you should use a library like 'dompurify' to sanitize instead of simple escaping.
+  const escapedContent = escapeHtml(content).replace(/\n/g, '<br>');
+
   return `
     <!DOCTYPE html>
     <html lang="en">
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>${subject}</title>
+      <title>${escapedSubject}</title>
     </head>
     <body style="margin: 0; padding: 0; ${styles.container}">
       <div style="${styles.wrapper}">
@@ -28,7 +48,7 @@ export function renderNewsletterEmail(subject: string, content: string) {
         </div>
         
         <div style="${styles.content}">
-          ${content}
+          ${escapedContent}
         </div>
         
         <div style="${styles.footer}">

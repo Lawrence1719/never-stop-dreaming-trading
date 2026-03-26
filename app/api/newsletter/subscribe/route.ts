@@ -30,7 +30,10 @@ export async function POST(req: NextRequest) {
         // Re-activate
         const { error: updateError } = await supabase
           .from('newsletter_subscribers')
-          .update({ is_active: true, full_name: fullName || null })
+          .update({ 
+            is_active: true, 
+            ...(fullName && { full_name: fullName })
+          })
           .eq('id', existing.id);
 
         if (updateError) {

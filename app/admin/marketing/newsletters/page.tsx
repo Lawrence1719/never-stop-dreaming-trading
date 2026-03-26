@@ -205,7 +205,7 @@ export default function NewslettersPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.avgOpenRate}</div>
-            <p className="text-xs text-green-600 mt-1">+2.3% from last month</p>
+            <p className="text-xs text-muted-foreground mt-1">Average open rate</p>
           </CardContent>
         </Card>
 
@@ -215,7 +215,7 @@ export default function NewslettersPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.avgClickRate}</div>
-            <p className="text-xs text-green-600 mt-1">+1.5% from last month</p>
+            <p className="text-xs text-muted-foreground mt-1">Average click rate</p>
           </CardContent>
         </Card>
 
