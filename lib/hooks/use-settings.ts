@@ -20,6 +20,12 @@ interface PublicSettings {
     cashOnDelivery: boolean;
     bankTransfer: boolean;
   };
+  system: {
+    maintenanceMode: boolean;
+    enableCustomerRegistration: boolean;
+    enableProductReviews: boolean;
+    enableWishlist: boolean;
+  };
 }
 
 /**
@@ -100,6 +106,12 @@ export function useSettings() {
               creditCard: true,
               cashOnDelivery: true,
               bankTransfer: false,
+            },
+            system: {
+              maintenanceMode: false,
+              enableCustomerRegistration: true,
+              enableProductReviews: true,
+              enableWishlist: true,
             },
           };
           cachedSettings = defaults;

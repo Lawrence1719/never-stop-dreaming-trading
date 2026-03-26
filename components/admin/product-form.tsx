@@ -84,18 +84,25 @@ export function ProductForm({
 
   // Validation errors
   const [errors, setErrors] = useState<Partial<Record<keyof ProductFormData | "mainCategory" | "subcategory" | "imageFile", string>>>({});
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
+  const [isSuccess, setIsSuccess] = useState(false);
 
   // Available subcategories based on selected main category
   const availableSubcategories = mainCategory ? CATEGORY_TREE[mainCategory] || [] : [];
 
   // Update category field when main/sub selection changes
   useEffect(() => {
-    if (mainCategory && subcategory) {
+    if (mainCategory) {
+      const categoryString = subcategory 
+        ? `${mainCategory} → ${subcategory}`
+        : mainCategory;
+        
       setFormData((prev) => ({
         ...prev,
-        category: `${mainCategory} → ${subcategory}`,
+        category: categoryString,
       }));
-      // Clear category errors when both are selected
+      
+      // Clear category errors
       setErrors((prev) => {
         const newErrors = { ...prev };
         delete newErrors.mainCategory;
@@ -344,8 +351,12 @@ export function ProductForm({
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("Submitting product form...", formData);
+    setSubmissionError(null);
+    setIsSuccess(false);
 
     if (!validateForm()) {
+      console.warn("Validation failed:", errors);
       return;
     }
 
@@ -364,11 +375,10 @@ export function ProductForm({
       };
 
       await onSubmit(submissionData);
+      setIsSuccess(true);
     } catch (err: any) {
-      // Handle error (e.g., set a form-level error message)
       console.error("Submission error:", err);
-      // Optionally set a general error state for the form
-      // setErrors(prev => ({ ...prev, general: "Failed to submit product. Please try again." }));
+      setSubmissionError(err instanceof Error ? err.message : "Failed to save product. Please try again.");
     }
   };
 
@@ -646,6 +656,22 @@ export function ProductForm({
           Product is active and visible to customers
         </Label>
       </div>
+
+      {/* Error Message */}
+      {submissionError && (
+        <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex gap-3 text-destructive shadow-sm animate-in fade-in duration-300">
+          <AlertCircle className="w-5 h-5 shrink-0" />
+          <p className="text-sm font-medium">{submissionError}</p>
+        </div>
+      )}
+
+      {/* Success Message */}
+      {isSuccess && (
+        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg flex gap-3 text-emerald-800 shadow-sm animate-in fade-in duration-300">
+          <ImageIcon className="w-5 h-5 shrink-0" />
+          <p className="text-sm font-medium">Product information updated successfully!</p>
+        </div>
+      )}
 
       {/* Form Actions */}
       <div className="flex items-center gap-3 pt-4 border-t border-border">

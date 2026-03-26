@@ -30,10 +30,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Fetch all products
+    // Fetch all products with their variants
     const { data: products, error: productsError } = await supabaseAdmin
       .from('products')
-      .select('id, name, sku, stock, reorder_threshold, category, is_active');
+      .select(`
+        id, 
+        name, 
+        sku, 
+        reorder_threshold, 
+        category, 
+        is_active,
+        product_variants (
+          stock,
+          is_active
+        )
+      `);
 
     if (productsError) {
       return NextResponse.json({ error: productsError.message }, { status: 500 });
@@ -63,7 +74,11 @@ export async function GET(request: NextRequest) {
       if (!product.is_active) return; // Skip inactive products
       
       totalProducts++;
-      const stock = product.stock || 0;
+      
+      // Calculate total stock from active variants
+      const variants = (product.product_variants || []).filter((v: any) => v.is_active);
+      const stock = variants.reduce((sum: number, v: any) => sum + (v.stock ?? 0), 0);
+      
       const threshold = product.reorder_threshold || 5;
       const category = product.category || 'Uncategorized';
 

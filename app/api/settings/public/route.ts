@@ -25,6 +25,10 @@ export async function GET() {
         'payment_credit_card',
         'payment_cash_on_delivery',
         'payment_bank_transfer',
+        'maintenance_mode',
+        'enable_customer_registration',
+        'enable_product_reviews',
+        'enable_wishlist',
       ]);
 
     if (fetchError) {
@@ -65,6 +69,12 @@ export async function GET() {
         cashOnDelivery: settings.payment_cash_on_delivery !== false,
         bankTransfer: settings.payment_bank_transfer === true,
       },
+      system: {
+        maintenanceMode: settings.maintenance_mode === true,
+        enableCustomerRegistration: settings.enable_customer_registration !== false,
+        enableProductReviews: settings.enable_product_reviews !== false,
+        enableWishlist: settings.enable_wishlist !== false,
+      },
     });
   } catch (error) {
     console.error('Failed to load public settings:', error instanceof Error ? error.message : error);
@@ -86,6 +96,12 @@ export async function GET() {
         creditCard: true,
         cashOnDelivery: true,
         bankTransfer: false,
+      },
+      system: {
+        maintenanceMode: false,
+        enableCustomerRegistration: true,
+        enableProductReviews: true,
+        enableWishlist: true,
       },
     });
   }

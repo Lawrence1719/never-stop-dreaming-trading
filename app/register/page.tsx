@@ -3,20 +3,20 @@
 import { useState, useEffect } from "react";
 import { useRouter } from 'next/navigation';
 import Link from "next/link";
-import Image from "next/image";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { useAuth } from "@/lib/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { validateEmail, validatePassword, validatePhoneNumber } from "@/lib/utils/validation";
 import { User, Mail, Lock, Phone, Eye, EyeOff } from 'lucide-react';
-import { useTheme } from "next-themes";
 import { Logo } from "@/components/ui/logo";
+import { useSettings } from "@/lib/hooks/use-settings";
 
 export default function RegisterPage() {
   const router = useRouter();
   const { register, user, isLoading: authLoading, resendConfirmationEmail } = useAuth();
   const { toast } = useToast();
+  const { settings, isLoading: settingsLoading } = useSettings();
 
   const [formData, setFormData] = useState({
     firstName: "",
@@ -135,14 +135,10 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate form - if errors exist, they're already shown in the form fields
-    // No need for a toast notification as the errors are visible inline
     const validation = validateForm();
     if (!validation.isValid) {
-      // Scroll to first error field for better UX
       const firstErrorField = Object.keys(validation.errors)[0];
       if (firstErrorField) {
-        // Wait a bit for the error state to update and render
         setTimeout(() => {
           const errorElement = document.querySelector(`[name="${firstErrorField}"]`) as HTMLElement;
           if (errorElement) {
@@ -157,7 +153,6 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      // Trim email before sending to ensure no whitespace issues
       const trimmedEmail = formData.email.trim().toLowerCase();
 
       const fullName = [formData.firstName, formData.middleName, formData.lastName]
@@ -173,7 +168,6 @@ export default function RegisterPage() {
       );
 
       if (error) {
-        // Show specific error messages based on error type
         let errorMessage = "Registration failed. Please try again.";
 
         if (error.message) {
@@ -183,9 +177,9 @@ export default function RegisterPage() {
           } else if (lowerMsg.includes("password")) {
             errorMessage = "Password is too weak. Please use a stronger password.";
           } else if (lowerMsg.includes("email")) {
-            errorMessage = "Invalid email address or provider error. If you are using Resend, please check your SMTP settings and ensure your domain is verified.";
+            errorMessage = "Invalid email address or provider error.";
           } else if (lowerMsg.includes("smtp") || lowerMsg.includes("configuration") || lowerMsg.includes("mail")) {
-            errorMessage = "Email delivery failed. This is usually due to misconfigured SMTP settings (Resend). Please check your Supabase Dashboard.";
+            errorMessage = "Email delivery failed. Please contact support.";
           } else {
             errorMessage = error.message;
           }
@@ -200,16 +194,13 @@ export default function RegisterPage() {
         return;
       }
 
-      // Success - show success state
       setIsSuccess(true);
       toast({
         title: "Check your email",
         description: "Please check your email to confirm your account before logging in.",
         variant: "success",
       });
-      // Redirect will be handled by useEffect when user state updates
     } catch (error) {
-      // Handle unexpected errors
       const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred. Please try again.";
       toast({
         title: "Error",
@@ -276,232 +267,213 @@ export default function RegisterPage() {
     );
   }
 
-
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
-
       <main className="flex-1 flex items-center justify-center px-4 py-16">
-        <div className="w-full max-w-xl">
-          <div className="text-center mb-8">
-            <div className="flex justify-center mb-6">
-              <Logo variant="long" className="h-16 w-auto" />
-            </div>
-            <h1 className="text-3xl font-bold mb-2">Create Account</h1>
-            <p className="text-muted-foreground">Join Never Stop Dreaming Trading</p>
-            <p className="text-xs text-muted-foreground mt-1">Quick sign-up · Takes less than a minute</p>
+        {settingsLoading ? (
+          <div className="w-full max-w-xl text-center">
+            <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
+            <p className="text-muted-foreground animate-pulse">Loading settings...</p>
           </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
-            {/* Name (First / Middle / Last) */}
-            <div>
-              <label className="block text-sm font-medium mb-2">Name</label>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {/* First Name */}
-                <div className="relative">
-                  <User className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
-                  <input
-                    type="text"
-                    name="firstName"
-                    value={formData.firstName}
-                    onChange={handleChange}
-                    placeholder="First"
-                    className={`w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${errors.firstName ? "border-destructive" : "border-border"
-                      }`}
-                  />
-                </div>
-
-                {/* Middle Name (Optional) */}
-                <div className="relative">
-                  <User className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
-                  <input
-                    type="text"
-                    name="middleName"
-                    value={formData.middleName}
-                    onChange={handleChange}
-                    placeholder="Middle (optional)"
-                    className="w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary border-border"
-                  />
-                </div>
-
-                {/* Last Name */}
-                <div className="relative">
-                  <User className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
-                  <input
-                    type="text"
-                    name="lastName"
-                    value={formData.lastName}
-                    onChange={handleChange}
-                    placeholder="Last"
-                    className={`w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${errors.lastName ? "border-destructive" : "border-border"
-                      }`}
-                  />
-                </div>
+        ) : settings?.system.enableCustomerRegistration === false ? (
+          <div className="w-full max-w-xl text-center space-y-8 p-12 bg-card border border-border rounded-2xl shadow-xl">
+            <div className="flex justify-center mb-6">
+              <div className="p-4 bg-amber-500/10 rounded-full">
+                <User className="w-16 h-16 text-amber-500" />
               </div>
-              {(errors.firstName || errors.lastName) && (
-                <p className="text-xs text-destructive mt-1">
-                  {errors.firstName || errors.lastName}
-                </p>
-              )}
+            </div>
+            <div className="space-y-4">
+              <h1 className="text-4xl font-extrabold tracking-tight">Registration Disabled</h1>
+              <p className="text-xl text-muted-foreground leading-relaxed">
+                New customer registrations are currently suspended. Please contact us if you need assistance or try again later.
+              </p>
+            </div>
+            <div className="flex gap-4 justify-center pt-8">
+              <Link
+                href="/login"
+                className="px-8 py-3 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-all font-bold shadow-lg shadow-primary/20"
+              >
+                Go to Login
+              </Link>
+              <Link
+                href="/"
+                className="px-8 py-3 bg-secondary text-secondary-foreground rounded-xl hover:bg-secondary/80 transition-all font-bold"
+              >
+                Back to Home
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <div className="w-full max-w-xl">
+            <div className="text-center mb-8">
+              <div className="flex justify-center mb-6">
+                <Logo variant="long" className="h-16 w-auto" />
+              </div>
+              <h1 className="text-3xl font-bold mb-2">Create Account</h1>
+              <p className="text-muted-foreground">Join {settings?.general.storeName || 'Never Stop Dreaming Trading'}</p>
             </div>
 
-            {/* Email */}
-            <div>
-              <label className="block text-sm font-medium mb-2">Email Address</label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  onBlur={handleEmailBlur}
-                  placeholder="you@example.com"
-                  autoComplete="off"
-                  className={`w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${errors.email ? "border-destructive" : "border-border"
-                    }`}
-                />
-              </div>
-              {errors.email && <p className="text-xs text-destructive mt-1">{errors.email}</p>}
-            </div>
-
-            {/* Phone */}
-            <div>
-              <label className="block text-sm font-medium mb-2">Phone Number</label>
-              <div className="relative flex items-center">
-                <Phone className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
-                <span className="ml-9 mr-2 text-sm text-muted-foreground whitespace-nowrap">+63</span>
-                <input
-                  type="tel"
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleChange}
-                  placeholder="912 345 6789"
-                  autoComplete="tel"
-                  className={`w-full pl-2 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${errors.phone ? "border-destructive" : "border-border"
-                    }`}
-                />
-              </div>
-              {errors.phone && <p className="text-xs text-destructive mt-1">{errors.phone}</p>}
-              <p className="text-xs text-muted-foreground mt-1">Philippine numbers · Enter the 9XX XXX XXXX part only.</p>
-            </div>
-
-            {/* Password */}
-            <div>
-              <label className="block text-sm font-medium mb-2">Password</label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
-                <input
-                  type={showPassword ? "text" : "password"}
-                  name="password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  placeholder="••••••••"
-                  autoComplete="new-password"
-                  className={`w-full pl-10 pr-10 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${errors.password ? "border-destructive" : "border-border"
-                    }`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((prev) => !prev)}
-                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
-              </div>
-              {errors.password && <p className="text-xs text-destructive mt-1">{errors.password}</p>}
-              {passwordStrength && (
-                <div className="mt-2">
-                  <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
-                    <div
-                      className={`h-full transition-all ${passwordStrength === "weak"
-                          ? "w-1/3 bg-destructive"
-                          : passwordStrength === "medium"
-                            ? "w-2/3 bg-amber-500"
-                            : "w-full bg-emerald-500"
-                        }`}
+            <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
+              <div>
+                <label className="block text-sm font-medium mb-2">Name</label>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="relative">
+                    <User className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
+                    <input
+                      type="text"
+                      name="firstName"
+                      value={formData.firstName}
+                      onChange={handleChange}
+                      placeholder="First"
+                      className={`w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${errors.firstName ? "border-destructive" : "border-border"}`}
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1 capitalize">
-                    Password strength: {passwordStrength}
-                  </p>
+                  <div className="relative">
+                    <User className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
+                    <input
+                      type="text"
+                      name="middleName"
+                      value={formData.middleName}
+                      onChange={handleChange}
+                      placeholder="Middle (optional)"
+                      className="w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary border-border"
+                    />
+                  </div>
+                  <div className="relative">
+                    <User className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
+                    <input
+                      type="text"
+                      name="lastName"
+                      value={formData.lastName}
+                      onChange={handleChange}
+                      placeholder="Last"
+                      className={`w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${errors.lastName ? "border-destructive" : "border-border"}`}
+                    />
+                  </div>
                 </div>
-              )}
-            </div>
-
-            {/* Confirm Password */}
-            <div>
-              <label className="block text-sm font-medium mb-2">Confirm Password</label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
-                <input
-                  type={showConfirmPassword ? "text" : "password"}
-                  name="confirmPassword"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  placeholder="••••••••"
-                  autoComplete="new-password"
-                  className={`w-full pl-10 pr-10 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${errors.confirmPassword ? "border-destructive" : "border-border"
-                    }`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword((prev) => !prev)}
-                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground"
-                  aria-label={showConfirmPassword ? "Hide password" : "Show password"}
-                >
-                  {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
+                {(errors.firstName || errors.lastName) && (
+                  <p className="text-xs text-destructive mt-1">{errors.firstName || errors.lastName}</p>
+                )}
               </div>
-              {errors.confirmPassword && <p className="text-xs text-destructive mt-1">{errors.confirmPassword}</p>}
-            </div>
 
-            {/* Terms */}
-            <label className="flex items-start gap-2">
-              <input
-                type="checkbox"
-                checked={termsAccepted}
-                onChange={(e) => {
-                  setTermsAccepted(e.target.checked);
-                  if (errors.terms) setErrors((prev) => ({ ...prev, terms: "" }));
-                }}
-                className="mt-1 h-4 w-4 rounded border border-border text-primary focus:ring-2 focus:ring-primary"
-              />
-              <span className="text-sm">
-                I agree to the{" "}
-                <Link
-                  href="/terms"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  Terms & Conditions
-                </Link>
-              </span>
-            </label>
-            {errors.terms && <p className="text-xs text-destructive">{errors.terms}</p>}
+              <div>
+                <label className="block text-sm font-medium mb-2">Email Address</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    onBlur={handleEmailBlur}
+                    placeholder="you@example.com"
+                    autoComplete="off"
+                    className={`w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${errors.email ? "border-destructive" : "border-border"}`}
+                  />
+                </div>
+                {errors.email && <p className="text-xs text-destructive mt-1">{errors.email}</p>}
+              </div>
 
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLoading ? "Creating account..." : "Create Account"}
-            </button>
-          </form>
+              <div>
+                <label className="block text-sm font-medium mb-2">Phone Number</label>
+                <div className="relative flex items-center">
+                  <Phone className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
+                  <span className="ml-9 mr-2 text-sm text-muted-foreground whitespace-nowrap">+63</span>
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    placeholder="912 345 6789"
+                    autoComplete="tel"
+                    className={`w-full pl-2 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${errors.phone ? "border-destructive" : "border-border"}`}
+                  />
+                </div>
+                {errors.phone && <p className="text-xs text-destructive mt-1">{errors.phone}</p>}
+              </div>
 
-          {/* Login Link */}
-          <p className="text-center text-sm text-muted-foreground mt-6">
-            Already have an account?{" "}
-            <Link href="/login" className="text-primary hover:underline font-semibold">
-              Sign in here
-            </Link>
-          </p>
-        </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    name="password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    placeholder="••••••••"
+                    autoComplete="new-password"
+                    className={`w-full pl-10 pr-10 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${errors.password ? "border-destructive" : "border-border"}`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground"
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+                {errors.password && <p className="text-xs text-destructive mt-1">{errors.password}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Confirm Password</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    name="confirmPassword"
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    placeholder="••••••••"
+                    autoComplete="new-password"
+                    className={`w-full pl-10 pr-10 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${errors.confirmPassword ? "border-destructive" : "border-border"}`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((prev) => !prev)}
+                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground"
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+                {errors.confirmPassword && <p className="text-xs text-destructive mt-1">{errors.confirmPassword}</p>}
+              </div>
+
+              <label className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={termsAccepted}
+                  onChange={(e) => {
+                    setTermsAccepted(e.target.checked);
+                    if (errors.terms) setErrors((prev) => ({ ...prev, terms: "" }));
+                  }}
+                  className="mt-1 h-4 w-4 rounded border border-border text-primary focus:ring-2 focus:ring-primary"
+                />
+                <span className="text-sm">
+                  I agree to the{" "}
+                  <Link href="/terms" className="text-primary hover:underline">Terms & Conditions</Link>
+                </span>
+              </label>
+              {errors.terms && <p className="text-xs text-destructive">{errors.terms}</p>}
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoading ? "Creating account..." : "Create Account"}
+              </button>
+            </form>
+
+            <p className="text-center text-sm text-muted-foreground mt-6">
+              Already have an account?{" "}
+              <Link href="/login" className="text-primary hover:underline font-semibold">Sign in here</Link>
+            </p>
+          </div>
+        )}
       </main>
-
       <Footer />
     </div>
   );

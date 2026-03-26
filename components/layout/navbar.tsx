@@ -77,18 +77,20 @@ export function Navbar({ minimal = false }: NavbarProps) {
                   </button>
 
                   {/* Wishlist */}
-                  <Link
-                    href="/wishlist"
-                    className="p-2 rounded-md hover:bg-secondary/10 transition-colors relative"
-                    aria-label="Wishlist"
-                  >
-                    <Heart className="w-5 h-5" />
-                    {wishlistCount > 0 && (
-                      <span className="absolute top-0 right-0 bg-accent text-accent-foreground text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
-                        {wishlistCount}
-                      </span>
-                    )}
-                  </Link>
+                  {settings?.system.enableWishlist !== false && (
+                    <Link
+                      href="/wishlist"
+                      className="p-2 rounded-md hover:bg-secondary/10 transition-colors relative"
+                      aria-label="Wishlist"
+                    >
+                      <Heart className="w-5 h-5" />
+                      {wishlistCount > 0 && (
+                        <span className="absolute top-0 right-0 bg-accent text-accent-foreground text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                          {wishlistCount}
+                        </span>
+                      )}
+                    </Link>
+                  )}
 
                   {/* Cart */}
                   <Link

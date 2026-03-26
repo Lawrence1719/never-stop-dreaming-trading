@@ -13,6 +13,8 @@ import { supabase } from '@/lib/supabase/client';
 export default function Home() {
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [testimonials, setTestimonials] = useState<any[]>([]);
+  const [isTestimonialsLoading, setIsTestimonialsLoading] = useState(true);
 
   useEffect(() => {
     const fetchFeaturedProducts = async () => {
@@ -87,6 +89,20 @@ export default function Home() {
     };
 
     fetchFeaturedProducts();
+    const fetchTestimonials = async () => {
+      try {
+        const res = await fetch('/api/cms/testimonials');
+        if (res.ok) {
+          const json = await res.json();
+          setTestimonials(json.data || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch testimonials:', err);
+      } finally {
+        setIsTestimonialsLoading(false);
+      }
+    };
+    fetchTestimonials();
   }, []);
 
   return (
@@ -155,31 +171,41 @@ export default function Home() {
         {/* Testimonials */}
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
           <h2 className="text-2xl font-bold mb-8 text-center">What Our Users Say</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[
-              {
-                name: "Sarah Chen",
-                role: "Regular Shopper",
-                quote: "The fresh produce is incredible. Best grocery delivery I've used! Highly recommended!",
-              },
-              {
-                name: "Michael Rodriguez",
-                role: "Loyal Customer",
-                quote: "Unbeatable prices and the widest selection of snacks. My go-to store for all household essentials.",
-              },
-              {
-                name: "Emma Thompson",
-                role: "New Customer",
-                quote: "Ordering was so easy and everything arrived perfectly chilled. Great quality and service!",
-              },
-            ].map((testimonial, i) => (
-              <div key={i} className="bg-card border border-border rounded-lg p-6">
-                <p className="text-muted-foreground mb-4 italic">"{testimonial.quote}"</p>
-                <p className="font-semibold">{testimonial.name}</p>
-                <p className="text-sm text-muted-foreground">{testimonial.role}</p>
-              </div>
-            ))}
-          </div>
+          
+          {isTestimonialsLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="bg-muted animate-pulse h-40 rounded-lg" />
+              ))}
+            </div>
+          ) : testimonials.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No testimonials yet. Be the first to share your experience!
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {testimonials.slice(0, 3).map((testimonial, i) => (
+                <div key={testimonial.id || i} className="bg-card border border-border rounded-lg p-6 flex flex-col h-full">
+                  <div className="flex gap-1 mb-4">
+                    {[...Array(5)].map((_, starIdx) => (
+                      <span key={starIdx} className={`text-sm ${starIdx < testimonial.rating ? 'text-yellow-400' : 'text-muted-foreground opacity-20'}`}>
+                        ★
+                      </span>
+                    ))}
+                  </div>
+                  <p className="text-muted-foreground mb-4 italic flex-1">"{testimonial.comment}"</p>
+                  <div>
+                    <p className="font-semibold">{testimonial.name}</p>
+                    {testimonial.product?.name && (
+                      <p className="text-xs text-primary font-medium mt-1">
+                        Verified Buyer: {testimonial.product.name}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
         {/* Newsletter */}

@@ -113,28 +113,43 @@ export async function PUT(
 
     // Sync product images
     if (body.product_images && Array.isArray(body.product_images)) {
-      // Simplest way: Delete all existing and re-insert 
-      // (Or a more complex diff if performance matters, but for few images this is safe)
-      await supabaseAdmin
-        .from('product_images')
-        .delete()
-        .eq('product_id', id);
-
-      if (body.product_images.length > 0) {
-        const imagesToInsert = body.product_images.map((img: any, index: number) => ({
-          product_id: id,
-          storage_path: img.storage_path,
-          sort_order: img.sort_order ?? index,
-          is_primary: img.is_primary || false,
-        }));
-
-        const { error: imagesError } = await supabaseAdmin
+      try {
+        // Simplest way: Delete all existing and re-insert 
+        const { error: deleteError } = await supabaseAdmin
           .from('product_images')
-          .insert(imagesToInsert);
+          .delete()
+          .eq('product_id', id);
 
-        if (imagesError) {
-          console.error('Failed to sync product images', imagesError);
+        if (deleteError) {
+          throw new Error(`Failed to clear existing images: ${deleteError.message}`);
         }
+
+        if (body.product_images.length > 0) {
+          const imagesToInsert = body.product_images.map((img: any, index: number) => {
+            if (!img.storage_path) {
+              throw new Error(`Image at index ${index} is missing storage_path`);
+            }
+            return {
+              product_id: id,
+              storage_path: img.storage_path,
+              sort_order: img.sort_order ?? index,
+              is_primary: img.is_primary || false,
+            };
+          });
+
+          const { error: imagesError } = await supabaseAdmin
+            .from('product_images')
+            .insert(imagesToInsert);
+
+          if (imagesError) {
+            throw new Error(`Failed to insert new images: ${imagesError.message}`);
+          }
+        }
+      } catch (imageErr: any) {
+        console.error('Failed to sync product images', imageErr);
+        // We re-throw this to be caught by the main catch block, 
+        // because image sync is critical for product consistency
+        throw imageErr;
       }
     }
 

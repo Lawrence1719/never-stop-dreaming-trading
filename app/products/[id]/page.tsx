@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useParams } from 'next/navigation';
+import { useSettings } from "@/lib/hooks/use-settings";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { ProductGrid } from "@/components/ecommerce/product-grid";
@@ -202,6 +203,7 @@ export default function ProductDetailPage() {
   const { addItem } = useCart();
   const { addItem: addToWishlist, removeItem: removeFromWishlist, isInWishlist } = useWishlist();
   const { toast } = useToast();
+  const { settings } = useSettings();
 
   // Show sticky cart on mobile after scrolling past product details
   useEffect(() => {
@@ -409,17 +411,19 @@ export default function ProductDetailPage() {
                       createdAt={product.updated_at}
                     />
                   </div>
-                  <button
-                    onClick={handleWishlist}
-                    className={`p-3 rounded-full transition-all hover:scale-110 ${
-                      inWishlist
-                        ? "bg-accent text-accent-foreground"
-                        : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-                    }`}
-                    aria-label={inWishlist ? "Remove from wishlist" : "Add to wishlist"}
-                  >
-                    <Heart className="w-6 h-6" fill={inWishlist ? "currentColor" : "none"} />
-                  </button>
+                  {settings?.system.enableWishlist !== false && (
+                    <button
+                      onClick={handleWishlist}
+                      className={`p-3 rounded-full transition-all hover:scale-110 ${
+                        inWishlist
+                          ? "bg-accent text-accent-foreground"
+                          : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                      }`}
+                      aria-label={inWishlist ? "Remove from wishlist" : "Add to wishlist"}
+                    >
+                      <Heart className="w-6 h-6" fill={inWishlist ? "currentColor" : "none"} />
+                    </button>
+                  )}
                 </div>
 
                 {/* Pricing Panel - Prominent */}
@@ -570,21 +574,23 @@ export default function ProductDetailPage() {
 
                 {/* Secondary Actions */}
                 <div className="flex gap-3">
-                  <button
-                    onClick={handleWishlist}
-                    className={`flex-1 px-4 py-3 border rounded-lg transition-all hover:scale-105 active:scale-95 ${
-                      inWishlist
-                        ? "border-accent bg-accent/10 text-accent-foreground"
-                        : "border-border hover:border-primary/50 hover:bg-primary/5"
-                    }`}
-                  >
-                    <div className="flex items-center justify-center gap-2">
-                      <Heart className="w-5 h-5" fill={inWishlist ? "currentColor" : "none"} />
-                      <span className="font-medium">
-                        {inWishlist ? "In Wishlist" : "Add to Wishlist"}
-                      </span>
-                    </div>
-                  </button>
+                  {settings?.system.enableWishlist !== false && (
+                    <button
+                      onClick={handleWishlist}
+                      className={`flex-1 px-4 py-3 border rounded-lg transition-all hover:scale-105 active:scale-95 ${
+                        inWishlist
+                          ? "border-accent bg-accent/10 text-accent-foreground"
+                          : "border-border hover:border-primary/50 hover:bg-primary/5"
+                      }`}
+                    >
+                      <div className="flex items-center justify-center gap-2">
+                        <Heart className="w-5 h-5" fill={inWishlist ? "currentColor" : "none"} />
+                        <span className="font-medium">
+                          {inWishlist ? "In Wishlist" : "Add to Wishlist"}
+                        </span>
+                      </div>
+                    </button>
+                  )}
                   <button
                     className="px-4 py-3 border border-border rounded-lg hover:border-primary/50 hover:bg-primary/5 transition-all hover:scale-105 active:scale-95"
                     title="Share Product"
@@ -617,9 +623,11 @@ export default function ProductDetailPage() {
           </div>
 
           {/* Customer Reviews */}
-          <div className="mb-10">
-            <ProductReviews product={product} />
-          </div>
+          {settings?.system.enableProductReviews !== false && (
+            <div className="mb-10">
+              <ProductReviews product={product} />
+            </div>
+          )}
 
           {/* Product Recommendations */}
           <div className="space-y-8">
