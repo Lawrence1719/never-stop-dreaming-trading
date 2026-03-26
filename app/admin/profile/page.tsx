@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/context/auth-context';
 import { formatDate } from '@/lib/utils/formatting';
+import { LoadingScreen } from '@/components/ui/loading-screen';
 import { User, Settings, LogOut, Shield, Key, Bell, Activity } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -82,13 +83,7 @@ export default function AdminProfilePage() {
   };
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <p className="text-muted-foreground">Loading...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen message="Admin Profile" subMessage="Loading your settings..." />;
   }
 
   if (!user || user.role !== 'admin') {

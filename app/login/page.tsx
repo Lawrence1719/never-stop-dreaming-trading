@@ -15,6 +15,7 @@ import { useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTheme } from "next-themes";
 import { Logo } from "@/components/ui/logo";
+import { LoadingScreen } from "@/components/ui/loading-screen";
 
 function LoginPageContent() {
   const router = useRouter();
@@ -153,8 +154,8 @@ function LoginPageContent() {
       });
       setShowResendConfirmation(false);
 
-      // Delay to ensure toast is visible before redirect
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // 1-second delay for the "Welcome Back" animation to be visible
+      await new Promise(resolve => setTimeout(resolve, 1000));
       // Clear the flag to allow useEffect to handle redirect
       setJustLoggedIn(false);
     } catch (error) {
@@ -212,16 +213,7 @@ function LoginPageContent() {
 
   // Show loading state while checking auth
   if (authLoading) {
-    return (
-      <div className="flex flex-col min-h-screen">
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-muted-foreground">Loading...</p>
-          </div>
-        </div>
-      </div>
-    );
+    return <LoadingScreen message="Welcome Back" subMessage="Signing you in..." />;
   }
 
 
@@ -231,116 +223,142 @@ function LoginPageContent() {
 
       <main className="flex-1 flex items-center justify-center px-4 py-16">
         <div className="w-full max-w-md">
-          <div className="text-center mb-8">
-            <div className="flex justify-center mb-6">
-              <Logo variant="long" className="h-16 w-auto" priority />
-            </div>
-            <h1 className="text-3xl font-bold mb-2">Welcome Back</h1>
-            <p className="text-muted-foreground">Sign in to your account</p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
-            {/* General Form Error */}
-            {errors.form && (
-              <div className="p-4 bg-destructive/10 border border-destructive rounded-lg">
-                <p className="text-sm text-destructive font-medium">{errors.form}</p>
+          {(justLoggedIn || (user && !authLoading)) ? (
+            <div className="text-center animate-in fade-in zoom-in duration-500">
+              <div className="flex justify-center mb-8">
+                <Logo variant="long" className="h-16 w-auto" priority />
               </div>
-            )}
-
-            {/* Email */}
-            <div>
-              <label className="block text-sm font-medium mb-2">Email Address</label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    if (errors.email) setErrors((prev) => ({ ...prev, email: "" }));
-                    if (errors.form) setErrors((prev) => ({ ...prev, form: "" }));
-                  }}
-                  placeholder="you@example.com"
-                  className={`w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${errors.email ? "border-destructive" : "border-border"
-                    }`}
-                  autoComplete="off"
-                />
+              <div className="bg-card p-10 rounded-2xl border border-border shadow-xl backdrop-blur-sm relative overflow-hidden">
+                <div className="absolute inset-0 bg-primary/5 -z-10" />
+                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                </div>
+                <h2 className="text-3xl font-bold mb-3 tracking-tight">Welcome Back!</h2>
+                <p className="text-muted-foreground text-lg">
+                  {user?.role === 'admin' 
+                    ? "Accessing admin dashboard..." 
+                    : "Fastening your seatbelt..."}
+                </p>
+                <div className="mt-8 flex justify-center gap-1">
+                  <div className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]"></div>
+                  <div className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]"></div>
+                  <div className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce"></div>
+                </div>
               </div>
-              {errors.email && <p className="text-xs text-destructive mt-1">{errors.email}</p>}
             </div>
-
-            {/* Password */}
-            <div>
-              <label className="block text-sm font-medium mb-2">Password</label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value);
-                    if (errors.password) setErrors((prev) => ({ ...prev, password: "" }));
-                    if (errors.form) setErrors((prev) => ({ ...prev, form: "" }));
-                  }}
-                  placeholder="••••••••"
-                  className={`w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${errors.password ? "border-destructive" : "border-border"
-                    }`}
-                  autoComplete="current-password"
-                />
+          ) : (
+            <>
+              <div className="text-center mb-8">
+                <div className="flex justify-center mb-6">
+                  <Logo variant="long" className="h-16 w-auto" priority />
+                </div>
+                <h1 className="text-3xl font-bold mb-2">Welcome Back</h1>
+                <p className="text-muted-foreground">Sign in to your account</p>
               </div>
-              {errors.password && <p className="text-xs text-destructive mt-1">{errors.password}</p>}
-            </div>
 
-            {/* Remember & Forgot */}
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="rounded"
-                />
-                <span className="text-sm">Remember me</span>
-              </label>
-              <Link href="/forgot-password" className="text-sm text-primary hover:underline">
-                Forgot password?
-              </Link>
-            </div>
+              <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
+                {/* General Form Error */}
+                {errors.form && (
+                  <div className="p-4 bg-destructive/10 border border-destructive rounded-lg">
+                    <p className="text-sm text-destructive font-medium">{errors.form}</p>
+                  </div>
+                )}
 
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLoading ? "Signing in..." : "Sign In"}
-            </button>
-          </form>
+                {/* Email */}
+                <div>
+                  <label className="block text-sm font-medium mb-2">Email Address</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        if (errors.email) setErrors((prev) => ({ ...prev, email: "" }));
+                        if (errors.form) setErrors((prev) => ({ ...prev, form: "" }));
+                      }}
+                      placeholder="you@example.com"
+                      className={`w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${errors.email ? "border-destructive" : "border-border"
+                        }`}
+                      autoComplete="off"
+                    />
+                  </div>
+                  {errors.email && <p className="text-xs text-destructive mt-1">{errors.email}</p>}
+                </div>
 
-          {/* Email Not Confirmed Message */}
-          {showResendConfirmation && (
-            <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-              <p className="text-sm text-yellow-800 dark:text-yellow-200 mb-3">
-                Your email address hasn't been confirmed yet. Please check your inbox for the confirmation link.
+                {/* Password */}
+                <div>
+                  <label className="block text-sm font-medium mb-2">Password</label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        if (errors.password) setErrors((prev) => ({ ...prev, password: "" }));
+                        if (errors.form) setErrors((prev) => ({ ...prev, form: "" }));
+                      }}
+                      placeholder="••••••••"
+                      className={`w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${errors.password ? "border-destructive" : "border-border"
+                        }`}
+                      autoComplete="current-password"
+                    />
+                  </div>
+                  {errors.password && <p className="text-xs text-destructive mt-1">{errors.password}</p>}
+                </div>
+
+                {/* Remember & Forgot */}
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="rounded"
+                    />
+                    <span className="text-sm">Remember me</span>
+                  </label>
+                  <Link href="/forgot-password" className="text-sm text-primary hover:underline">
+                    Forgot password?
+                  </Link>
+                </div>
+
+                {/* Submit */}
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isLoading ? "Signing in..." : "Sign In"}
+                </button>
+              </form>
+
+              {/* Email Not Confirmed Message */}
+              {showResendConfirmation && (
+                <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                  <p className="text-sm text-yellow-800 dark:text-yellow-200 mb-3">
+                    Your email address hasn't been confirmed yet. Please check your inbox for the confirmation link.
+                  </p>
+                  <button
+                    onClick={handleResendConfirmation}
+                    disabled={isResending}
+                    className="w-full px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isResending ? "Sending..." : "Resend Confirmation Email"}
+                  </button>
+                </div>
+              )}
+
+              {/* Signup Link */}
+              <p className="text-center text-sm text-muted-foreground mt-6">
+                Don't have an account?{" "}
+                <Link href="/register" className="text-primary hover:underline font-semibold">
+                  Sign up here
+                </Link>
               </p>
-              <button
-                onClick={handleResendConfirmation}
-                disabled={isResending}
-                className="w-full px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isResending ? "Sending..." : "Resend Confirmation Email"}
-              </button>
-            </div>
+            </>
           )}
-
-          {/* Signup Link */}
-          <p className="text-center text-sm text-muted-foreground mt-6">
-            Don't have an account?{" "}
-            <Link href="/register" className="text-primary hover:underline font-semibold">
-              Sign up here
-            </Link>
-          </p>
-
         </div>
       </main>
 

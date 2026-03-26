@@ -37,7 +37,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // mark loading and in-progress
     profileFetchInProgressRef.current = true;
-    setIsLoading(true);
     try {
       const { data: profile, error } = await supabase
         .from("profiles")
@@ -143,7 +142,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       profileFetchInProgressRef.current = false;
       // done loading profile
-      setIsLoading(false);
     }
   };
 
@@ -165,23 +163,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     (async () => {
       try {
         const result = await supabase.auth.getSession();
-        // Debug log: show whether session exists (don't log tokens)
-        console.debug('[auth] getSession result:', {
-          hasSession: !!result?.data?.session,
-        });
-
         const { data: { session } } = result;
+
         if (session) {
-          // Set a minimal user immediately so the UI responds quickly,
-          // then fetch the full profile in the background to enrich the data.
+          // Set a minimal user immediately to keep the UI state warm,
+          // but REMAIN in isLoading=true until the role is verified from the profile
           setUser(buildUserFromSession(session));
-          fetchUserProfile(session).catch((err) => console.error('Error fetching profile on init', err));
-        } else {
-          setIsLoading(false);
+          
+          // Fetch the full profile (critical for role-based redirection)
+          await fetchUserProfile(session);
+          console.info('[auth v3] Session recovered and role verified');
         }
       } catch (err) {
-        console.error('[auth] getSession failed:', err);
-        // Ensure we don't block the app UI if session retrieval fails
+        console.error('[auth v3] Initialization failed:', err);
+      } finally {
         setIsLoading(false);
       }
     })();

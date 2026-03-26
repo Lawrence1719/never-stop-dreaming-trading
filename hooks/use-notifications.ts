@@ -44,9 +44,9 @@ export function useNotifications(
     }
   }, [user, targetRole]);
 
-  const fetchNotifications = useCallback(async () => {
+  const fetchNotifications = useCallback(async (silent = false) => {
     if (!user || !enabled) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
 
     try {
       let query = supabase
@@ -88,7 +88,7 @@ export function useNotifications(
     if (!user || !enabled) return;
 
     const channel = supabase
-      .channel(`notifications_${user.id}_${targetRole}`)
+      .channel(`notifications:${user.id}:${targetRole}`)
       .on(
         'postgres_changes',
         {
@@ -98,17 +98,22 @@ export function useNotifications(
           filter: `user_id=eq.${user.id}`,
         },
         (payload: any) => {
-          if (payload.new && payload.new.target_role === targetRole) {
-            fetchNotifications();
-          }
-          if (payload.eventType === 'DELETE' || (payload.old && payload.old.target_role === targetRole)) {
-            fetchNotifications();
-          }
+          console.info(`[notifications v3] Realtime ${payload.eventType} for ${targetRole}`);
+          
+          // Re-fetch silently to update the unread count and list
+          fetchNotifications(true);
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.info(`[notifications v3] Realtime status for ${targetRole}:`, status);
+        if (status === 'SUBSCRIBED') {
+          // Silent refresh once subscribed to catch anything missed during connection
+          fetchNotifications(true);
+        }
+      });
 
     return () => {
+      console.info(`[notifications v3] Unsubscribing from ${targetRole}`);
       supabase.removeChannel(channel);
     };
   }, [user, targetRole, enabled, fetchNotifications]);

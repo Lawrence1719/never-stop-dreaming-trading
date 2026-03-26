@@ -137,5 +137,6 @@ export function usePhilippineAddress(initialState?: Partial<AddressState>) {
     cityName,
     barangayName,
     zipCode,
+    setZipCode,
   };
 }

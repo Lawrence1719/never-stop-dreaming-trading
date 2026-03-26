@@ -10,8 +10,8 @@
  */
 
 const API_SOURCES = [
-  "https://psgc.cloud/api",
   "https://psgc.gitlab.io/api",
+  "https://psgc.cloud/api",
 ];
 
 // In-memory cache to avoid redundant calls during a session
@@ -56,16 +56,38 @@ async function fetchWithCache<T>(path: string): Promise<T> {
   if (cache[path]) return cache[path] as T;
 
   let lastError: Error | null = null;
-
+  
+  // Try sources in order
   for (const base of API_SOURCES) {
-    const url = `${base}${path}`;
-    try {
-      const data = await fetchFromSource<T>(url);
-      cache[path] = data;
-      return data;
-    } catch (error) {
-      lastError = toError(error);
-      console.warn(`[address.service] Source failed, trying next: ${url}`);
+    // Try both with and without .json suffix for maximum compatibility
+    const variations = [path];
+    if (path.endsWith(".json")) {
+      variations.push(path.replace(".json", ""));
+    } else {
+      variations.push(`${path}.json`);
+    }
+
+    for (const p of variations) {
+      const url = `${base}${p}`;
+      try {
+        const data = await fetchFromSource<T>(url);
+        cache[path] = data; // Cache by the original requested path
+        
+        // Log success to reassure user (V3 Watermark)
+        console.info(`[address.service v3] Success: ${url}`);
+        return data;
+      } catch (error) {
+        lastError = toError(error);
+        const msg = lastError.message;
+        
+        // Silent continue for 404s as they are expected during "probing"
+        if (msg.includes("404")) {
+          continue;
+        }
+
+        // Only warn for non-404 errors (like network timeout)
+        console.warn(`[address.service v3] variation failed (${url}): ${msg}`);
+      }
     }
   }
 
@@ -118,7 +140,12 @@ export interface PSGCBarangay {
 
 /** Get all provinces */
 export async function getProvinces(): Promise<PSGCProvince[]> {
-  return fetchWithCache<PSGCProvince[]>("/provinces.json");
+  try {
+    return await fetchWithCache<PSGCProvince[]>("/provinces.json");
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("404")) return [];
+    throw error;
+  }
 }
 
 /** Get cities and municipalities for a specific province */
@@ -126,9 +153,14 @@ export async function getCitiesByProvince(
   provinceCode: string
 ): Promise<PSGCCityMunicipality[]> {
   if (!provinceCode) throw new Error("provinceCode is required");
-  return fetchWithCache<PSGCCityMunicipality[]>(
-    `/provinces/${provinceCode}/cities-municipalities.json`
-  );
+  try {
+    return await fetchWithCache<PSGCCityMunicipality[]>(
+      `/provinces/${provinceCode}/cities-municipalities.json`
+    );
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("404")) return [];
+    throw error;
+  }
 }
 
 /** Get barangays for a specific city or municipality */
@@ -136,9 +168,14 @@ export async function getBarangaysByCity(
   cityCode: string
 ): Promise<PSGCBarangay[]> {
   if (!cityCode) throw new Error("cityCode is required");
-  return fetchWithCache<PSGCBarangay[]>(
-    `/cities-municipalities/${cityCode}/barangays.json`
-  );
+  try {
+    return await fetchWithCache<PSGCBarangay[]>(
+      `/cities-municipalities/${cityCode}/barangays.json`
+    );
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("404")) return [];
+    throw error;
+  }
 }
 
 // ---------------------------------------------------------------------------

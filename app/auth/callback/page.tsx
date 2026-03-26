@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
+import { LoadingScreen } from "@/components/ui/loading-screen";
 
 function AuthCallbackContent() {
   const router = useRouter();
@@ -88,11 +89,10 @@ function AuthCallbackContent() {
   }
 
   return (
-    <div className="flex flex-col flex-1 items-center justify-center p-4">
-      <Loader2 className="w-12 h-12 animate-spin text-primary mb-4" />
-      <h1 className="text-2xl font-bold mb-2">Verifying your account...</h1>
-      <p className="text-muted-foreground">Please wait while we confirm your email.</p>
-    </div>
+    <LoadingScreen 
+      message="Verifying your account..." 
+      subMessage="Please wait while we confirm your email." 
+    />
   );
 }
 
@@ -100,10 +100,7 @@ export default function AuthCallbackPage() {
   return (
     <div className="flex flex-col min-h-screen">
       <Suspense fallback={
-        <div className="flex flex-col flex-1 items-center justify-center p-4">
-          <Loader2 className="w-12 h-12 animate-spin text-primary mb-4" />
-          <h1 className="text-2xl font-bold mb-2">Loading...</h1>
-        </div>
+        <LoadingScreen message="Loading..." subMessage="Initializing authentication..." />
       }>
         <AuthCallbackContent />
       </Suspense>

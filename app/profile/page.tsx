@@ -11,6 +11,7 @@ import { supabase } from "@/lib/supabase/client";
 import { User, Settings, LogOut, MapPin, CreditCard, Package, Shield, ShieldCheck, LayoutDashboard, Bell } from 'lucide-react';
 import { formatDate, formatPrice, formatRelativeTime } from "@/lib/utils/formatting";
 import { useNotifications } from "@/hooks/use-notifications";
+import { LoadingScreen } from "@/components/ui/loading-screen";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -101,17 +102,7 @@ export default function ProfilePage() {
   };
 
   if (isLoading) {
-    return (
-      <div className="flex flex-col min-h-screen">
-        <Navbar />
-        <main className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <p className="text-muted-foreground">Loading...</p>
-          </div>
-        </main>
-        <Footer />
-      </div>
-    );
+    return <LoadingScreen message="My Account" subMessage="Loading your profile..." />;
   }
 
   if (!user) {

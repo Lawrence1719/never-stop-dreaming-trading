@@ -36,6 +36,7 @@ import {
 import { ChevronLeft } from 'lucide-react';
 import { formatPrice } from '@/lib/utils/formatting';
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { Input } from "@/components/ui/input";
 
 function CheckoutPageContent() {
   const router = useRouter();
@@ -162,7 +163,8 @@ function CheckoutPageContent() {
     selectedCity, setSelectedCity,
     selectedBarangay, setSelectedBarangay,
     provinceName, cityName, barangayName,
-    zipCode: autoZipCode
+    zipCode: autoZipCode,
+    setZipCode
   } = usePhilippineAddress();
 
   const [addresses, setAddresses] = useState<any[]>([]);
@@ -177,13 +179,16 @@ function CheckoutPageContent() {
   
   // Sync hook state with formData
   useEffect(() => {
+    if (selectedProvince || selectedCity || selectedBarangay) {
+      console.info('[checkout v3] Syncing hook state to form:', { selectedProvince, selectedCity, selectedBarangay });
+    }
     setFormData(prev => ({
       ...prev,
-      province: provinceName,
+      province: (selectedProvince && !provinceName) ? prev.province : provinceName,
       provinceCode: selectedProvince,
-      city: cityName,
+      city: (selectedCity && !cityName) ? prev.city : cityName,
       cityCode: selectedCity,
-      barangay: barangayName,
+      barangay: (selectedBarangay && !barangayName) ? prev.barangay : barangayName,
       barangayCode: selectedBarangay,
       zip: autoZipCode || prev.zip
     }));
@@ -323,7 +328,7 @@ function CheckoutPageContent() {
         if (error) throw error;
         if (!mounted) return;
         setAddresses(data || []);
-        const def = (data || []).find((a: any) => a.is_default);
+        const def = (data || []).find((a: any) => a.is_default) || (data || [])[0];
         
         if (def) {
           // Repair missing codes for legacy addresses
@@ -333,17 +338,30 @@ function CheckoutPageContent() {
 
           const repairCodes = async () => {
             try {
+              let updated = false;
               if (!pCode && def.province) {
                 pCode = await findProvinceByName(def.province) || "";
+                if (pCode) {
+                  setSelectedProvince(pCode);
+                  updated = true;
+                }
               }
               if (pCode && !cCode && def.city) {
                 cCode = await findCityByName(pCode, def.city) || "";
+                if (cCode) {
+                  setSelectedCity(cCode);
+                  updated = true;
+                }
               }
               if (cCode && !bCode && def.barangay) {
                 bCode = await findBarangayByName(cCode, def.barangay) || "";
+                if (bCode) {
+                  setSelectedBarangay(bCode);
+                  updated = true;
+                }
               }
               
-              if (mounted) {
+              if (updated && mounted) {
                 setFormData(prev => ({
                   ...prev,
                   provinceCode: pCode,
@@ -894,6 +912,15 @@ function CheckoutPageContent() {
                             }
                             const a = addresses.find((ad) => ad.id === id);
                             if (a) {
+                              console.info('[checkout v3] Selected saved address:', a.full_name);
+                              const pCode = a.province_code || "";
+                              const cCode = a.city_code || "";
+                              const bCode = a.barangay_code || "";
+                              
+                              setSelectedProvince(pCode);
+                              setSelectedCity(cCode);
+                              setSelectedBarangay(bCode);
+
                               setFormData((prev) => ({
                                 ...prev,
                                 fullName: a.full_name,
@@ -901,11 +928,11 @@ function CheckoutPageContent() {
                                 phone: a.phone,
                                 street: a.street_address,
                                 province: a.province,
-                                provinceCode: a.province_code || "", 
+                                provinceCode: pCode,
                                 city: a.city,
-                                cityCode: a.city_code || "",
+                                cityCode: cCode,
                                 barangay: a.barangay || "",
-                                barangayCode: a.barangay_code || "",
+                                barangayCode: bCode,
                                 zip: a.zip_code,
                               }));
                               setSaveAsDefault(a.is_default || false);
@@ -1013,15 +1040,24 @@ function CheckoutPageContent() {
                           <label className="block text-sm font-medium mb-1">
                             Province <span className="text-destructive">*</span>
                           </label>
-                          <SearchableSelect
-                            options={provinces.map(p => ({ value: p.code, label: p.name }))}
-                            value={formData.provinceCode}
-                            onValueChange={handleProvinceChange}
-                            disabled={loadingProvinces}
-                            placeholder={loadingProvinces ? "Loading..." : "Select Province"}
-                            searchPlaceholder="Search province..."
-                            triggerClassName={(errors.province && (touched.province || formSubmitted)) ? "border-destructive border-2" : "border-border"}
-                          />
+                          {provinces.length > 0 ? (
+                            <SearchableSelect
+                              options={provinces.map(p => ({ value: p.code, label: p.name }))}
+                              value={formData.provinceCode}
+                              onValueChange={handleProvinceChange}
+                              disabled={loadingProvinces}
+                              placeholder={loadingProvinces ? "Loading..." : "Select Province"}
+                              searchPlaceholder="Search province..."
+                              triggerClassName={(errors.province && (touched.province || formSubmitted)) ? "border-destructive border-2" : "border-border"}
+                            />
+                          ) : (
+                            <Input
+                              value={formData.province}
+                              onChange={(e: any) => setFormData(prev => ({ ...prev, province: e.target.value, provinceCode: "" }))}
+                              placeholder="Enter province manually"
+                              className={(errors.province && (touched.province || formSubmitted)) ? "border-destructive border-2" : "border-border"}
+                            />
+                          )}
                           {errors.province && (touched.province || formSubmitted) && (
                             <p className="text-xs text-destructive mt-1">{errors.province}</p>
                           )}
@@ -1031,15 +1067,25 @@ function CheckoutPageContent() {
                           <label className="block text-sm font-medium mb-1">
                             City / Municipality <span className="text-destructive">*</span>
                           </label>
-                          <SearchableSelect
-                            options={cities.map(c => ({ value: c.code, label: c.name }))}
-                            value={formData.cityCode}
-                            onValueChange={handleCityChange}
-                            disabled={!formData.provinceCode || loadingCities}
-                            placeholder={!formData.provinceCode ? "Select province first" : loadingCities ? "Loading..." : "Select City"}
-                            searchPlaceholder="Search city/municipality..."
-                            triggerClassName={(errors.city && (touched.city || formSubmitted)) ? "border-destructive border-2" : "border-border"}
-                          />
+                          {cities.length > 0 ? (
+                            <SearchableSelect
+                              options={cities.map(c => ({ value: c.code, label: c.name }))}
+                              value={formData.cityCode}
+                              onValueChange={handleCityChange}
+                              disabled={!formData.provinceCode || loadingCities}
+                              placeholder={!formData.provinceCode ? "Select province first" : loadingCities ? "Loading..." : "Select City"}
+                              searchPlaceholder="Search city/municipality..."
+                              triggerClassName={(errors.city && (touched.city || formSubmitted)) ? "border-destructive border-2" : "border-border"}
+                            />
+                          ) : (
+                            <Input
+                              value={formData.city}
+                              onChange={(e: any) => setFormData(prev => ({ ...prev, city: e.target.value, cityCode: "" }))}
+                              placeholder="Enter city manually"
+                              disabled={!formData.province}
+                              className={(errors.city && (touched.city || formSubmitted)) ? "border-destructive border-2" : "border-border"}
+                            />
+                          )}
                           {errors.city && (touched.city || formSubmitted) && (
                             <p className="text-xs text-destructive mt-1">{errors.city}</p>
                           )}
@@ -1051,15 +1097,25 @@ function CheckoutPageContent() {
                           <label className="block text-sm font-medium mb-1">
                             Barangay <span className="text-destructive">*</span>
                           </label>
-                          <SearchableSelect
-                            options={barangays.map(b => ({ value: b.code, label: b.name }))}
-                            value={formData.barangayCode}
-                            onValueChange={handleBarangayChange}
-                            disabled={!formData.cityCode || loadingBarangays}
-                            placeholder={!formData.cityCode ? "Select city first" : loadingBarangays ? "Loading..." : "Select Barangay"}
-                            searchPlaceholder="Search barangay..."
-                            triggerClassName={(errors.barangay && (touched.barangay || formSubmitted)) ? "border-destructive border-2" : "border-border"}
-                          />
+                          {barangays.length > 0 ? (
+                            <SearchableSelect
+                              options={barangays.map(b => ({ value: b.code, label: b.name }))}
+                              value={formData.barangayCode}
+                              onValueChange={handleBarangayChange}
+                              disabled={!formData.cityCode || loadingBarangays}
+                              placeholder={!formData.cityCode ? "Select city first" : loadingBarangays ? "Loading..." : "Select Barangay"}
+                              searchPlaceholder="Search barangay..."
+                              triggerClassName={(errors.barangay && (touched.barangay || formSubmitted)) ? "border-destructive border-2" : "border-border"}
+                            />
+                          ) : (
+                            <Input
+                              value={formData.barangay}
+                              onChange={(e: any) => setFormData(prev => ({ ...prev, barangay: e.target.value, barangayCode: "" }))}
+                              placeholder="Enter barangay manually"
+                              disabled={!formData.city}
+                              className={(errors.barangay && (touched.barangay || formSubmitted)) ? "border-destructive border-2" : "border-border"}
+                            />
+                          )}
                           {errors.barangay && (touched.barangay || formSubmitted) && (
                             <p className="text-xs text-destructive mt-1">{errors.barangay}</p>
                           )}
@@ -1073,9 +1129,13 @@ function CheckoutPageContent() {
                             type="text"
                             name="zip"
                             value={formData.zip}
-                            readOnly
+                            onChange={(e) => {
+                              handleInputChange(e);
+                              setZipCode(e.target.value);
+                            }}
+                            onBlur={handleBlur}
                             placeholder="e.g., 1630"
-                            className={`w-full px-4 py-2 bg-muted border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${(errors.zip && (touched.zip || formSubmitted)) ? "border-destructive" : "border-border"
+                            className={`w-full px-4 py-2 bg-input border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${(errors.zip && (touched.zip || formSubmitted)) ? "border-destructive" : "border-border"
                               }`}
                           />
                           {errors.zip && (touched.zip || formSubmitted) && (

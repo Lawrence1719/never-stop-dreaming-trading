@@ -67,12 +67,6 @@ export default function AdminNavbar({
       await logout();
       console.log("Logout successful");
 
-      // Clear any local storage or session data
-      if (typeof window !== 'undefined') {
-        localStorage.clear();
-        sessionStorage.clear();
-      }
-
       toast({
         title: "Logged out",
         description: "You have been logged out successfully.",

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import AdminSidebar from '@/components/admin/admin-sidebar';
 import AdminNavbar from '@/components/admin/admin-navbar';
 import { useAuth } from '@/lib/context/auth-context';
+import { LoadingScreen } from '@/components/ui/loading-screen';
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -25,13 +26,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   // Show loading state while checking auth
   if (isLoading) {
-    return (
-      <div className="flex h-screen bg-background text-foreground items-center justify-center">
-        <div className="text-center">
-          <p className="text-muted-foreground">Loading...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen message="One Moment" subMessage="Preparing your dashboard..." />;
   }
 
   // Don't render admin layout if user is not admin
@@ -43,7 +38,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     <div className="flex h-screen bg-background text-foreground">
       <AdminSidebar isOpen={sidebarOpen} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <AdminNavbar onSidebarToggle={() => setSidebarOpen(!sidebarOpen)} sidebarOpen={sidebarOpen} user={user} />
+        <AdminNavbar onSidebarToggle={() => setSidebarOpen(!sidebarOpen)} sidebarOpen={sidebarOpen} />
         <main className="flex-1 overflow-auto">
           <div className="p-6">
             {children}
