@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, useRef } from 'react';
+import Link from 'next/link';
 import { ArrowDown, ArrowUp, DollarSign, ShoppingCart, Users, TrendingUp, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -65,6 +66,7 @@ export default function AdminDashboard() {
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeMetric, setActiveMetric] = useState<'orders' | 'revenue'>('revenue');
   const previousDateRangeRef = useRef<DashboardRange>('week');
 
   useEffect(() => {
@@ -282,29 +284,86 @@ export default function AdminDashboard() {
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Sales Overview</CardTitle>
-            <CardDescription>Your sales performance over the {dateRange}</CardDescription>
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <CardTitle>Sales Overview</CardTitle>
+              <CardDescription>Your sales performance over the {dateRange}</CardDescription>
+            </div>
+            <div className="flex bg-muted p-1 rounded-lg self-start sm:self-center">
+              <button
+                onClick={() => setActiveMetric('orders')}
+                className={`px-3 py-1 text-sm font-medium rounded-md transition-all duration-200 ${
+                  activeMetric === 'orders'
+                    ? 'bg-blue-500 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Orders
+              </button>
+              <button
+                onClick={() => setActiveMetric('revenue')}
+                className={`px-3 py-1 text-sm font-medium rounded-md transition-all duration-200 ${
+                  activeMetric === 'revenue'
+                    ? 'bg-green-600 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Revenue
+              </button>
+            </div>
           </CardHeader>
           <CardContent>
             {salesData.length === 0 ? (
               <div className="text-center text-sm text-muted-foreground">{isLoading ? 'Loading chart...' : 'No sales data for the selected range.'}</div>
             ) : (
               <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={salesData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--color-border))" />
-                  <XAxis dataKey="period" stroke="rgb(var(--color-muted-foreground))" />
-                  <YAxis yAxisId={0} orientation="left" stroke="rgb(var(--color-muted-foreground))" />
-                  <YAxis yAxisId={1} orientation="right" stroke="rgb(var(--color-muted-foreground))" />
+                <LineChart data={salesData} margin={{ top: 10, right: 10, left: -10, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgb(var(--color-border))" />
+                  <XAxis 
+                    dataKey="period" 
+                    stroke="rgb(var(--color-muted-foreground))" 
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis 
+                    stroke="rgb(var(--color-muted-foreground))" 
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(value) => activeMetric === 'revenue' ? formatPrice(value).replace('₱', '') : value}
+                  />
                   <Tooltip
+                    cursor={{ stroke: 'rgb(var(--color-border))', strokeWidth: 1 }}
                     contentStyle={{
                       backgroundColor: 'rgb(var(--color-card))',
                       border: '1px solid rgb(var(--color-border))',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
                     }}
+                    formatter={(value: any) => [activeMetric === 'revenue' ? formatPrice(value) : value, activeMetric === 'revenue' ? 'Revenue' : 'Orders']}
                   />
-                  <Legend />
-                  <Line yAxisId={1} type="monotone" dataKey="orders" stroke="#3b82f6" strokeWidth={2} name="Orders" />
-                  <Line yAxisId={0} type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={2} name="Revenue" />
+                  {activeMetric === 'orders' ? (
+                    <Line 
+                      type="monotone" 
+                      dataKey="orders" 
+                      stroke="#3b82f6" 
+                      strokeWidth={3} 
+                      dot={{ r: 4, fill: '#3b82f6' }}
+                      activeDot={{ r: 6 }}
+                      animationDuration={1000}
+                    />
+                  ) : (
+                    <Line 
+                      type="monotone" 
+                      dataKey="revenue" 
+                      stroke="#10b981" 
+                      strokeWidth={3} 
+                      dot={{ r: 4, fill: '#10b981' }}
+                      activeDot={{ r: 6 }}
+                      animationDuration={1000}
+                    />
+                  )}
                 </LineChart>
               </ResponsiveContainer>
             )}
@@ -352,7 +411,9 @@ export default function AdminDashboard() {
               <CardTitle>Recent Orders</CardTitle>
               <CardDescription>Latest 4 orders from your store</CardDescription>
             </div>
-            <Button variant="outline" size="sm">View All</Button>
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/admin/orders">View All</Link>
+            </Button>
           </div>
         </CardHeader>
         <CardContent>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useNotifications, Notification } from "@/hooks/use-notifications";
-import { Bell, Check, Info, AlertTriangle, AlertCircle, ShoppingBag, Package, ChevronRight, CheckCheck } from "lucide-react";
+import { Bell, Check, Info, AlertTriangle, AlertCircle, ShoppingBag, Package, ChevronRight, CheckCheck, User } from "lucide-react";
 import { useState, useEffect } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { useRouter } from "next/navigation";
@@ -29,6 +29,7 @@ export function NotificationBell({ targetRole = 'customer' }: { targetRole?: 'cu
       case 'error': return "border-red-500 bg-red-50 text-red-600";
       case 'order': return "border-blue-500 bg-blue-50 text-blue-600";
       case 'stock': return "border-orange-500 bg-orange-50 text-orange-600";
+      case 'user': return "border-purple-500 bg-purple-50 text-purple-600";
       default: return "border-blue-500 bg-blue-50 text-blue-600";
     }
   };
@@ -41,6 +42,7 @@ export function NotificationBell({ targetRole = 'customer' }: { targetRole?: 'cu
       case 'error': return <AlertCircle className={iconClass} />;
       case 'order': return <Package className={iconClass} />;
       case 'stock': return <ShoppingBag className={iconClass} />;
+      case 'user': return <User className={iconClass} />;
       default: return <Info className={iconClass} />;
     }
   };
@@ -63,7 +65,7 @@ export function NotificationBell({ targetRole = 'customer' }: { targetRole?: 'cu
       
       <DropdownMenuContent 
         align="end" 
-        className="w-96 p-0 shadow-2xl rounded-xl border-border bg-background/95 backdrop-blur-sm overflow-hidden animate-in zoom-in-95 duration-200"
+        className="w-[calc(100vw-32px)] sm:w-96 p-0 shadow-2xl rounded-xl border-border bg-background shadow-primary/5 overflow-hidden animate-in zoom-in-95 duration-200 z-[100]"
       >
         {/* Dropdown Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border/40">
@@ -115,8 +117,17 @@ export function NotificationBell({ targetRole = 'customer' }: { targetRole?: 'cu
                     onSelect={(e) => {
                       e.preventDefault();
                       if (!notification.is_read) markAsRead(notification.id);
-                      if (notification.link) {
-                        router.push(notification.link);
+                      
+                      // Handle navigation based on type
+                      let targetLink = notification.link;
+                      if (!targetLink) {
+                        if (notification.type === 'order') targetLink = '/admin/orders';
+                        else if (notification.type === 'stock') targetLink = '/admin/inventory';
+                        else if (notification.type === 'user') targetLink = '/admin/customers';
+                      }
+
+                      if (targetLink) {
+                        router.push(targetLink);
                         setOpen(false);
                       }
                     }}
@@ -145,7 +156,7 @@ export function NotificationBell({ targetRole = 'customer' }: { targetRole?: 'cu
                            )}
                          </div>
                          <p className={cn(
-                           "text-[12px] mt-1 line-clamp-1 break-words",
+                           "text-[12px] mt-1 break-words leading-normal",
                            !notification.is_read ? "text-foreground/80" : "text-muted-foreground/70"
                          )}>
                            {notification.message}
@@ -155,9 +166,7 @@ export function NotificationBell({ targetRole = 'customer' }: { targetRole?: 'cu
                          </p>
                       </div>
 
-                      {notification.link && (
-                        <ChevronRight className="w-4 h-4 text-muted-foreground/30 self-center group-hover:translate-x-1 transition-transform" />
-                      )}
+                      <ChevronRight className="w-4 h-4 text-muted-foreground/30 self-center shrink-0 group-hover:translate-x-1 transition-transform ml-auto" />
                     </div>
                   </DropdownMenuItem>
                 );

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Search, Download, MoreVertical, Edit, Trash2, Ban, UserCheck, Eye, Shield, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Download, MoreVertical, Edit, Trash2, Ban, UserCheck, Eye, Shield, Plus, ChevronLeft, ChevronRight, Check, Mail } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -69,6 +69,7 @@ export default function CustomersPage() {
   const [addCustomerOpen, setAddCustomerOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalCustomers, setTotalCustomers] = useState(0);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [currentUserIsSuperAdmin, setCurrentUserIsSuperAdmin] = useState(false);
@@ -83,6 +84,8 @@ export default function CustomersPage() {
   });
   const [addCustomerError, setAddCustomerError] = useState<string | null>(null);
   const [isAddingCustomer, setIsAddingCustomer] = useState(false);
+  const [addCustomerSuccess, setAddCustomerSuccess] = useState(false);
+  const [createdCustomerInfo, setCreatedCustomerInfo] = useState<{ name: string; email: string } | null>(null);
 
   // Debounce search term
   useEffect(() => {
@@ -116,6 +119,8 @@ export default function CustomersPage() {
         if (debouncedSearchTerm) params.append('search', debouncedSearchTerm);
         if (statusFilter !== 'all') params.append('status', statusFilter);
         if (roleFilter !== 'all') params.append('role', roleFilter);
+        params.append('page', currentPage.toString());
+        params.append('limit', '10');
 
         const res = await fetch(`/api/admin/customers?${params.toString()}`, {
           method: 'GET',
@@ -147,9 +152,11 @@ export default function CustomersPage() {
         
         setCustomers(filteredCustomers);
         setCurrentUserIsSuperAdmin(payload.currentUser?.isSuperAdmin || false);
-        // Calculate total pages (assuming 10 items per page for now)
+        // Calculate total pages based on payload totalCount
         const itemsPerPage = 10;
-        setTotalPages(Math.max(1, Math.ceil(filteredCustomers.length / itemsPerPage)));
+        const total = payload.totalCount || filteredCustomers.length;
+        setTotalCustomers(total);
+        setTotalPages(Math.max(1, Math.ceil(total / itemsPerPage)));
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') {
           return;
@@ -167,7 +174,7 @@ export default function CustomersPage() {
     fetchCustomers();
 
     return () => controller.abort();
-  }, [debouncedSearchTerm, statusFilter, roleFilter, refreshKey]);
+  }, [debouncedSearchTerm, statusFilter, roleFilter, refreshKey, currentPage]);
 
   const refreshCustomers = () => {
     setRefreshKey(prev => prev + 1);
@@ -367,8 +374,9 @@ export default function CustomersPage() {
         description: 'The new customer has been added successfully.',
         variant: 'success',
       });
-
-      setAddCustomerOpen(false);
+  
+      setCreatedCustomerInfo({ name: `${firstName} ${lastName}`, email: email });
+      setAddCustomerSuccess(true);
       setNewCustomer({
         firstName: '',
         middleName: '',
@@ -471,11 +479,11 @@ export default function CustomersPage() {
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  Array.from({ length: 5 }).map((_, idx) => (
+                  Array.from({ length: 10 }).map((_, idx) => (
                     <TableRow key={`loading-${idx}`} className="animate-pulse">
                       <TableCell><div className="h-4 bg-muted rounded w-24" /></TableCell>
                       <TableCell><div className="h-4 bg-muted rounded w-32" /></TableCell>
-                      <TableCell><div className="h-4 bg-muted rounded w-24" /></TableCell>
+                      <TableCell><div className="h-4 bg-muted rounded w-32" /></TableCell>
                       <TableCell><div className="h-4 bg-muted rounded w-8" /></TableCell>
                       <TableCell><div className="h-4 bg-muted rounded w-16" /></TableCell>
                       <TableCell><div className="h-4 bg-muted rounded w-16" /></TableCell>
@@ -638,7 +646,7 @@ export default function CustomersPage() {
           {/* Pagination */}
           <div className="flex items-center justify-between mt-6">
             <p className="text-sm text-muted-foreground">
-              Showing {customers.length} customer{customers.length !== 1 ? 's' : ''}
+              Showing {totalCustomers > 0 ? (currentPage - 1) * 10 + 1 : 0} to {Math.min(currentPage * 10, totalCustomers)} of {totalCustomers} customers
             </p>
             <div className="flex items-center gap-2">
               <Button 
@@ -865,102 +873,146 @@ export default function CustomersPage() {
       </AlertDialog>
 
       {/* Add Customer Dialog */}
-      <AlertDialog open={addCustomerOpen} onOpenChange={setAddCustomerOpen}>
+      <AlertDialog 
+        open={addCustomerOpen} 
+        onOpenChange={(open) => {
+          setAddCustomerOpen(open);
+          if (!open) {
+            setAddCustomerSuccess(false);
+            setCreatedCustomerInfo(null);
+          }
+        }}
+      >
         <AlertDialogContent className="max-w-md">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Add New Customer</AlertDialogTitle>
-            <AlertDialogDescription>
-              Manually register a new customer account. They will receive an email with login credentials.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-3">
-              <label className="text-sm font-medium mb-1 block">Name</label>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div>
-                  <Input
-                    placeholder="First name"
-                    value={newCustomer.firstName}
-                    onChange={(e) => handleNewCustomerChange('firstName', e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Input
-                    placeholder="Middle name (optional)"
-                    value={newCustomer.middleName}
-                    onChange={(e) => handleNewCustomerChange('middleName', e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Input
-                    placeholder="Last name"
-                    value={newCustomer.lastName}
-                    onChange={(e) => handleNewCustomerChange('lastName', e.target.value)}
-                  />
+          {addCustomerSuccess ? (
+            <div className="flex flex-col items-center text-center py-6 space-y-4">
+              <div className="w-16 h-16 bg-success/10 text-success rounded-full flex items-center justify-center mb-2">
+                <Check className="w-8 h-8" />
+              </div>
+              <AlertDialogHeader>
+                <AlertDialogTitle className="text-2xl">Customer Created Successfully</AlertDialogTitle>
+                <AlertDialogDescription className="text-base text-foreground/80">
+                  <span className="font-semibold">{createdCustomerInfo?.name}</span> ({createdCustomerInfo?.email}) has been registered.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="bg-muted/50 p-4 rounded-lg flex items-start gap-3 text-left w-full border border-border">
+                <Mail className="w-5 h-5 text-primary mt-0.5 shrink-0" />
+                <div className="text-sm">
+                  <p className="font-medium text-foreground">Verification Email Sent</p>
+                  <p className="text-muted-foreground">The customer must verify their email address before they can log in to their account.</p>
                 </div>
               </div>
+              <AlertDialogFooter className="w-full sm:flex-col gap-2">
+                <Button 
+                  className="w-full" 
+                  onClick={() => {
+                    setAddCustomerSuccess(false);
+                    setCreatedCustomerInfo(null);
+                  }}
+                >
+                  Create Another
+                </Button>
+                <AlertDialogCancel className="w-full mt-0">Close</AlertDialogCancel>
+              </AlertDialogFooter>
             </div>
-            <div>
-              <label className="text-sm font-medium mb-1 block">Email Address</label>
-              <Input
-                type="email"
-                placeholder="customer@example.com"
-                value={newCustomer.email}
-                onChange={(e) => handleNewCustomerChange('email', e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-1 block">Phone Number</label>
-              <div className="relative">
-                <div className="absolute left-3 top-2.5 flex items-center gap-1.5 text-sm text-muted-foreground pointer-events-none">
-                  <span role="img" aria-label="PH flag">🇵🇭</span>
-                  <span>+63</span>
+          ) : (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Add New Customer</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Manually register a new customer account. They will receive a verification email to activate their account.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-3">
+                  <label className="text-sm font-medium mb-1 block">Name</label>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <Input
+                        placeholder="First name"
+                        value={newCustomer.firstName}
+                        onChange={(e) => handleNewCustomerChange('firstName', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Input
+                        placeholder="Middle name"
+                        value={newCustomer.middleName}
+                        onChange={(e) => handleNewCustomerChange('middleName', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Input
+                        placeholder="Last name"
+                        value={newCustomer.lastName}
+                        onChange={(e) => handleNewCustomerChange('lastName', e.target.value)}
+                      />
+                    </div>
+                  </div>
                 </div>
-                <Input
-                  type="tel"
-                  placeholder="9123456789"
-                  value={newCustomer.phone}
-                  maxLength={10}
-                  onChange={(e) => handleNewCustomerChange('phone', e.target.value)}
-                  className="pl-16"
-                />
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Email Address</label>
+                  <Input
+                    type="email"
+                    placeholder="customer@example.com"
+                    value={newCustomer.email}
+                    onChange={(e) => handleNewCustomerChange('email', e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Phone Number</label>
+                  <div className="relative">
+                    <div className="absolute left-3 top-2.5 flex items-center gap-1.5 text-sm text-muted-foreground pointer-events-none">
+                      <span role="img" aria-label="PH flag">🇵🇭</span>
+                      <span>+63</span>
+                    </div>
+                    <Input
+                      type="tel"
+                      placeholder="9123456789"
+                      value={newCustomer.phone}
+                      maxLength={10}
+                      onChange={(e) => handleNewCustomerChange('phone', e.target.value)}
+                      className="pl-16"
+                    />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-1">Format: 9XXXXXXXXX (10 digits)</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Password</label>
+                  <Input
+                    type="password"
+                    placeholder="Minimum 6 characters"
+                    value={newCustomer.password}
+                    onChange={(e) => handleNewCustomerChange('password', e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">Role</label>
+                  <Select
+                    value={newCustomer.role}
+                    onValueChange={(value) => handleNewCustomerChange('role', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="customer">Customer</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {addCustomerError && (
+                  <p className="text-sm text-destructive">{addCustomerError}</p>
+                )}
               </div>
-              <p className="text-[10px] text-muted-foreground mt-1">Format: 9XXXXXXXXX (10 digits)</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-1 block">Password</label>
-              <Input
-                type="password"
-                placeholder="Minimum 6 characters"
-                value={newCustomer.password}
-                onChange={(e) => handleNewCustomerChange('password', e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-1 block">Role</label>
-              <Select
-                value={newCustomer.role}
-                onValueChange={(value) => handleNewCustomerChange('role', value)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="customer">Customer</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {addCustomerError && (
-              <p className="text-sm text-destructive">{addCustomerError}</p>
-            )}
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleCreateCustomer} disabled={isAddingCustomer}>
-              {isAddingCustomer ? 'Creating...' : 'Create Customer'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <Button onClick={handleCreateCustomer} disabled={isAddingCustomer}>
+                  {isAddingCustomer ? 'Creating...' : 'Create Customer'}
+                </Button>
+              </AlertDialogFooter>
+            </>
+          )}
         </AlertDialogContent>
       </AlertDialog>
 

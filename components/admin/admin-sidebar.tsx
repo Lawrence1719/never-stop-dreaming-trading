@@ -191,7 +191,7 @@ function SidebarItem({
   );
 }
 
-export default function AdminSidebar({ isOpen }: { isOpen: boolean }) {
+export default function AdminSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: () => void }) {
   const pathname = usePathname();
   const { unreadCount } = useNotifications('admin');
 
@@ -204,12 +204,23 @@ export default function AdminSidebar({ isOpen }: { isOpen: boolean }) {
   });
 
   return (
-    <aside
-      className={cn(
-        'bg-card border-r border-border transition-all duration-300 hidden md:flex flex-col',
-        isOpen ? 'w-64' : 'w-20'
-      )}
-    >
+    <>
+      {/* Mobile Overlay */}
+      <div 
+        className={cn(
+          "fixed inset-0 bg-background/80 backdrop-blur-sm z-40 transition-opacity duration-300 md:hidden",
+          isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        )}
+        onClick={onClose}
+      />
+
+      <aside
+        className={cn(
+          'bg-card border-r border-border transition-all duration-300 z-50 flex flex-col',
+          'fixed inset-y-0 left-0 md:relative',
+          isOpen ? 'w-64 translate-x-0' : 'w-64 -translate-x-full md:translate-x-0 md:w-20',
+        )}
+      >
       <div className="h-16 border-b border-border flex items-center justify-center px-4">
         <Link href="/admin/dashboard" className="flex items-center justify-center">
           <Logo variant="square" className="h-10 w-10" />
@@ -234,5 +245,6 @@ export default function AdminSidebar({ isOpen }: { isOpen: boolean }) {
         {isOpen && <p>v1.0.0</p>}
       </div>
     </aside>
+    </>
   );
 }

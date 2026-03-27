@@ -68,18 +68,19 @@ export async function GET(request: NextRequest) {
   try {
     const supabaseAdmin = getClient();
 
-    // Get query parameters for filtering
+    // Get query parameters for filtering and pagination
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search') || '';
     const status = searchParams.get('status') || 'all';
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '10');
+    const offset = (page - 1) * limit;
 
-    // Fetch all profiles
-    let profilesQuery = supabaseAdmin
+    // Fetch all profiles to allow cross-field filtering (since email/stats/blocked are external)
+    let { data: allProfiles, error: profilesError } = await supabaseAdmin
       .from('profiles')
       .select('id, name, phone, role, created_at')
       .order('created_at', { ascending: false });
-
-    const { data: profiles, error: profilesError } = await profilesQuery;
 
     if (profilesError) {
       console.error('Failed to fetch profiles', profilesError);
@@ -87,113 +88,82 @@ export async function GET(request: NextRequest) {
     }
 
     // Get all user IDs
-    const userIds = (profiles || []).map((p: any) => p.id);
+    const userIds = (allProfiles || []).map((p: any) => p.id);
 
-    // Fetch emails from auth.users
-    let emailsMap: Record<string, string | null> = {};
-    if (userIds.length > 0) {
-      try {
-        const {
-          data: { users },
-          error: usersError,
-        } = await supabaseAdmin.auth.admin.listUsers();
-
-        if (usersError) {
-          console.error('Failed to fetch user emails', usersError);
-        } else {
-          emailsMap = (users || []).reduce((acc, user) => {
-            if (userIds.includes(user.id)) {
-              acc[user.id] = user.email || null;
-            }
-            return acc;
-          }, {} as Record<string, string | null>);
-        }
-      } catch (err) {
-        console.error('Error fetching user emails:', err);
-      }
+    // Fetch emails and metadata from auth.users (requires service role)
+    const { data: { users: authUsers }, error: usersError } = await supabaseAdmin.auth.admin.listUsers();
+    
+    const emailsMap: Record<string, string> = {};
+    const blockedMap: Record<string, boolean> = {};
+    
+    if (!usersError) {
+      authUsers.forEach(user => {
+        emailsMap[user.id] = user.email || '';
+        blockedMap[user.id] = user.user_metadata?.blocked === true;
+      });
     }
 
-    // Fetch order statistics for each customer
-    const { data: ordersData, error: ordersError } = await supabaseAdmin
-      .from('orders')
-      .select('user_id, total, status');
-
-    if (ordersError) {
-      console.error('Failed to fetch orders for customer stats', ordersError);
-    }
-
-    // Calculate order stats per customer
+    // Fetch order stats
+    const { data: ordersData } = await supabaseAdmin.from('orders').select('user_id, total');
     const orderStats: Record<string, { count: number; total: number }> = {};
-    (ordersData || []).forEach((order: any) => {
+    (ordersData || []).forEach(order => {
       if (!order.user_id) return;
-      if (!orderStats[order.user_id]) {
-        orderStats[order.user_id] = { count: 0, total: 0 };
-      }
-      orderStats[order.user_id].count += 1;
-      orderStats[order.user_id].total += Number(order.total || 0);
+      const stats = orderStats[order.user_id] || { count: 0, total: 0 };
+      stats.count += 1;
+      stats.total += Number(order.total || 0);
+      orderStats[order.user_id] = stats;
     });
 
-    // Get blocked status from auth.users metadata
-    let blockedUsersMap: Record<string, boolean> = {};
-    if (userIds.length > 0) {
-      try {
-        const {
-          data: { users },
-          error: usersError,
-        } = await supabaseAdmin.auth.admin.listUsers();
-        if (!usersError) {
-          blockedUsersMap = (users || []).reduce((acc, user) => {
-            if (userIds.includes(user.id)) {
-              acc[user.id] = user.user_metadata?.blocked === true;
-            }
-            return acc;
-          }, {} as Record<string, boolean>);
-        }
-      } catch (err) {
-        console.error('Error fetching blocked status:', err);
-      }
-    }
+    const superAdminEmail = authResult.superAdminEmail;
 
-    const superAdminEmail = authResult.superAdminEmail as string | undefined;
+    // Map and Filter ALL customers
+    const allCustomers = (allProfiles || []).map((p: any) => {
+      const email = emailsMap[p.id] || '';
+      const isBlocked = blockedMap[p.id] || false;
+      const stats = orderStats[p.id] || { count: 0, total: 0 };
+      const role = p.role || 'customer';
+      const isSuperAdmin = superAdminEmail && email === superAdminEmail;
 
-    // Map the data to match the expected format
-    const customers = (profiles || [])
-      .map((profile: any) => {
-        const stats = orderStats[profile.id] || { count: 0, total: 0 };
-        const email = emailsMap[profile.id] || '';
-        const isBlocked = blockedUsersMap[profile.id] || false;
-        const isProfileSuperAdmin = superAdminEmail && email === superAdminEmail;
+      return {
+        id: p.id,
+        name: p.name || 'Unknown',
+        email,
+        phone: p.phone || '-',
+        orders: stats.count,
+        totalSpent: stats.total,
+        status: isBlocked ? 'blocked' : 'active',
+        joinDate: new Date(p.created_at).toISOString().split('T')[0],
+        role,
+        isSuperAdmin,
+      };
+    });
 
-        return {
-          id: profile.id,
-          name: profile.name || 'Unknown',
-          email,
-          phone: profile.phone || '-',
-          orders: stats.count,
-          totalSpent: stats.total,
-          status: isBlocked ? 'blocked' : 'active',
-          joinDate: new Date(profile.created_at).toISOString().split('T')[0],
-          role: profile.role || 'customer',
-          isSuperAdmin: isProfileSuperAdmin,
-        };
-      })
-      .filter((customer: any) => {
-        // Apply search filter
-        if (!search) return true;
+    // Apply filters
+    const filteredCustomers = allCustomers.filter(customer => {
+      // Status filter
+      if (status !== 'all' && customer.status !== status) return false;
+
+      // Search filter
+      if (search) {
         const searchLower = search.toLowerCase();
         return (
           customer.name.toLowerCase().includes(searchLower) ||
-          customer.email.toLowerCase().includes(searchLower)
+          customer.email.toLowerCase().includes(searchLower) ||
+          customer.role.toLowerCase().includes(searchLower) ||
+          customer.phone.includes(searchLower)
         );
-      })
-      .filter((customer: any) => {
-        // Apply status filter
-        if (status === 'all') return true;
-        return customer.status === status;
-      });
+      }
+      return true;
+    });
+
+    const totalCount = filteredCustomers.length;
+    const paginatedCustomers = filteredCustomers.slice(offset, offset + limit);
 
     return NextResponse.json({
-      data: customers,
+      data: paginatedCustomers,
+      totalCount,
+      page,
+      limit,
       currentUser: {
         id: authResult.user.id,
         email: authResult.user.email,
@@ -227,18 +197,28 @@ export async function POST(request: NextRequest) {
       .filter(Boolean)
       .join(' ');
 
+    const normalizedEmail = email.trim().toLowerCase();
     const normalizedRole = role === 'admin' ? 'admin' : 'customer';
+
+    // Password validation (min 6 chars to match registration)
+    if (password.length < 6) {
+      return NextResponse.json(
+        { error: 'Password must be at least 6 characters long.' },
+        { status: 400 }
+      );
+    }
 
     const supabaseAdmin = getClient();
 
     // Create auth user via admin API
+    // We set email_confirm: false to match registration flow (requires verification)
     const {
       data: { user: createdUser },
       error: createError,
     } = await supabaseAdmin.auth.admin.createUser({
-      email,
+      email: normalizedEmail,
       password,
-      email_confirm: true,
+      email_confirm: false,
       user_metadata: {
         name: fullName,
         phone,
@@ -254,17 +234,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Ensure a profile row exists for this user so they appear in customer lists
-    const { error: profileError } = await supabaseAdmin.from('profiles').insert({
-      id: createdUser.id,
-      name: fullName,
-      phone: phone || null,
-      role: normalizedRole,
-    });
+    // [REMOVED] Manual profile insertion - The DB trigger on_auth_user_created 
+    // in 001_create_profiles_table.sql handles this automatically.
 
-    if (profileError) {
-      // Log but don't fail the whole request; profile will be auto-created on first login
-      console.error('Failed to create profile for new customer', profileError);
+    // Trigger notification for admins
+    try {
+      const { notifyNewUser } = await import('@/lib/notifications/service');
+      await notifyNewUser(fullName, createdUser.id);
+    } catch (notifErr) {
+      console.error('Failed to trigger customer notification:', notifErr);
     }
 
     return NextResponse.json(

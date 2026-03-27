@@ -200,6 +200,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Trigger notification for admins
+    try {
+      const { notifyNewProduct } = await import('@/lib/notifications/service');
+      await notifyNewProduct(body.name, data.id);
+    } catch (notifErr) {
+      console.error('Failed to trigger product notification:', notifErr);
+    }
+
     return NextResponse.json({ data }, { status: 201 });
   } catch (error) {
     console.error('Failed to create product', error);

@@ -179,6 +179,15 @@ export async function DELETE(
       return NextResponse.json({ error: 'Failed to delete product' }, { status: 500 });
     }
 
+    if (deleted) {
+      try {
+        const { notifyDeletedProduct } = await import('@/lib/notifications/service');
+        await notifyDeletedProduct(deleted.name);
+      } catch (notifErr) {
+        console.error('Failed to trigger product deletion notification:', notifErr);
+      }
+    }
+
     return NextResponse.json({ message: 'Product deleted successfully' });
   } catch (error) {
     console.error('Failed to delete product', error);

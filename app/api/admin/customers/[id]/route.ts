@@ -289,11 +289,28 @@ export async function DELETE(
       return NextResponse.json({ error: 'Cannot delete super admin account' }, { status: 403 });
     }
     
+    // Fetch customer name for notification before deletion
+    const { data: profileToDelete } = await supabaseAdmin
+      .from('profiles')
+      .select('name')
+      .eq('id', id)
+      .single();
+
     // Delete user from auth.users (this will cascade delete profile due to ON DELETE CASCADE)
     const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(id);
 
     if (deleteError) {
       return NextResponse.json({ error: deleteError.message }, { status: 500 });
+    }
+
+    // Trigger notification
+    if (profileToDelete) {
+      try {
+        const { notifyDeletedUser } = await import('@/lib/notifications/service');
+        await notifyDeletedUser(profileToDelete.name);
+      } catch (notifErr) {
+        console.error('Failed to trigger customer deletion notification:', notifErr);
+      }
     }
 
     return NextResponse.json({ success: true });

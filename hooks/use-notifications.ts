@@ -7,7 +7,7 @@ export type Notification = {
   user_id: string;
   title: string;
   message: string;
-  type: 'info' | 'success' | 'warning' | 'error' | 'order' | 'stock' | 'system';
+  type: 'info' | 'success' | 'warning' | 'error' | 'order' | 'stock' | 'user' | 'system';
   is_read: boolean;
   link: string | null;
   target_role: 'customer' | 'admin';

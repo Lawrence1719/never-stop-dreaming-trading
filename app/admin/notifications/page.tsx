@@ -251,10 +251,10 @@ export default function AdminNotificationsPage() {
 
       {activeView === 'logs' ? (
         <Card>
-          <CardHeader>
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <CardHeader className="px-4 py-6 sm:px-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <CardTitle>Notification History</CardTitle>
+                <CardTitle className="text-xl">Notification History</CardTitle>
                 <CardDescription>Recent alerts and automated system notifications</CardDescription>
               </div>
               <div className="flex items-center gap-2">
@@ -269,7 +269,7 @@ export default function AdminNotificationsPage() {
                   </SelectContent>
                 </Select>
                 {unreadCount > 0 && (
-                  <Button variant="outline" size="sm" onClick={markAllAsRead} className="h-9">
+                  <Button variant="outline" size="sm" onClick={markAllAsRead} className="h-9 whitespace-nowrap">
                     Mark All Read
                   </Button>
                 )}
@@ -277,87 +277,185 @@ export default function AdminNotificationsPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[80px]">Type</TableHead>
-                  <TableHead>Notification</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {historyLoading ? (
-                  Array.from({ length: 5 }).map((_, idx) => (
-                    <TableRow key={`loading-${idx}`} className="animate-pulse">
-                      <TableCell colSpan={5}><div className="h-4 bg-muted rounded" /></TableCell>
-                    </TableRow>
-                  ))
-                ) : notifications.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
-                      No notifications found for the current filter.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  notifications.map((notification) => (
-                    <TableRow 
-                      key={notification.id}
-                      className={cn("cursor-pointer", !notification.is_read && "bg-primary/[0.02]")}
-                      onClick={() => {
-                        if (!notification.is_read) markAsRead(notification.id);
-                        if (notification.link) router.push(notification.link);
-                      }}
-                    >
-                      <TableCell>
-                        <div className={cn(
-                          "w-8 h-8 rounded-lg flex items-center justify-center",
-                          notification.type === 'success' ? "bg-green-100 text-green-600" :
-                          notification.type === 'warning' || notification.type === 'error' ? "bg-red-100 text-red-600" :
-                          notification.type === 'stock' ? "bg-amber-100 text-amber-600" :
-                          "bg-blue-100 text-blue-600"
+            {/* Mobile List View */}
+            <div className="flex flex-col divide-y divide-border/20 md:hidden">
+              {historyLoading ? (
+                Array.from({ length: 5 }).map((_, idx) => (
+                  <div key={`loading-mobile-${idx}`} className="p-4 flex gap-4 animate-pulse">
+                    <div className="w-10 h-10 rounded-xl bg-muted shrink-0" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 bg-muted rounded w-1/3" />
+                      <div className="h-3 bg-muted rounded w-full" />
+                    </div>
+                  </div>
+                ))
+              ) : notifications.length === 0 ? (
+                <div className="py-20 text-center text-muted-foreground text-sm">
+                  No notifications found.
+                </div>
+              ) : (
+                notifications.map((notification) => (
+                  <div
+                    key={notification.id}
+                    onClick={() => {
+                      if (!notification.is_read) markAsRead(notification.id);
+                      
+                      let targetLink = notification.link;
+                      if (!targetLink) {
+                        if (notification.type === 'order') targetLink = '/admin/orders';
+                        else if (notification.type === 'stock') targetLink = '/admin/inventory';
+                        else if (notification.type === 'user') targetLink = '/admin/customers';
+                      }
+
+                      if (targetLink) router.push(targetLink);
+                    }}
+                    className={cn(
+                      "flex items-start gap-4 p-4 pr-5 cursor-pointer relative transition-all active:bg-accent hover:bg-accent/50",
+                      !notification.is_read && "bg-primary/[0.03] border-l-[3px] border-primary"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-10 h-10 rounded-xl shrink-0 flex items-center justify-center shadow-sm",
+                      notification.type === 'success' ? "bg-green-100 text-green-600" :
+                      notification.type === 'warning' || notification.type === 'error' ? "bg-red-100 text-red-600" :
+                      notification.type === 'order' ? "bg-blue-100 text-blue-600" :
+                      notification.type === 'stock' ? "bg-orange-100 text-orange-600" :
+                      notification.type === 'user' ? "bg-purple-100 text-purple-600" :
+                      "bg-blue-100 text-blue-600"
+                    )}>
+                      {notification.type === 'success' ? <Check className="w-4 h-4" /> :
+                       notification.type === 'warning' || notification.type === 'error' ? <AlertCircle className="w-4 h-4" /> :
+                       notification.type === 'order' ? <Package className="w-4 h-4" /> :
+                       notification.type === 'stock' ? <ShoppingBag className="w-4 h-4" /> :
+                       notification.type === 'user' ? <User className="w-4 h-4" /> :
+                       <Info className="w-4 h-4" />}
+                    </div>
+                    
+                    <div className="flex flex-1 flex-col min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <span className={cn(
+                          "text-[14px] font-bold leading-tight truncate",
+                          !notification.is_read ? "text-foreground" : "text-muted-foreground"
                         )}>
-                          {notification.type === 'success' ? <Check className="w-4 h-4" /> :
-                           notification.type === 'warning' || notification.type === 'error' ? <AlertCircle className="w-4 h-4" /> :
-                           notification.type === 'stock' ? <BarChart3 className="w-4 h-4" /> :
-                           <Info className="w-4 h-4" />}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col">
-                          <span className={cn("font-medium", !notification.is_read ? "text-foreground" : "text-muted-foreground")}>
-                            {notification.title}
-                          </span>
-                          <span className="text-xs text-muted-foreground line-clamp-1">{notification.message}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={notification.is_read ? 'outline' : 'default'} className="rounded-full">
-                          {notification.is_read ? 'Read' : 'New'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
+                          {notification.title}
+                        </span>
+                        {!notification.is_read && (
+                          <div className="h-2 w-2 rounded-full bg-primary mt-1 shrink-0 shadow-[0_0_8px_rgba(var(--primary),0.6)]" />
+                        )}
+                      </div>
+                      <p className={cn(
+                        "text-[12px] mt-1 break-words leading-relaxed",
+                        !notification.is_read ? "text-foreground/80" : "text-muted-foreground/70"
+                      )}>
+                        {notification.message}
+                      </p>
+                      <span className="text-[11px] text-muted-foreground/60 mt-2 font-medium">
                         {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteNotification(notification.id);
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                      </span>
+                    </div>
+                    
+                    <ChevronRight className="w-4 h-4 text-muted-foreground/30 self-center shrink-0 ml-auto" />
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[80px]">Type</TableHead>
+                    <TableHead>Notification</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {historyLoading ? (
+                    Array.from({ length: 5 }).map((_, idx) => (
+                      <TableRow key={`loading-${idx}`} className="animate-pulse">
+                        <TableCell colSpan={5}><div className="h-4 bg-muted rounded" /></TableCell>
+                      </TableRow>
+                    ))
+                  ) : notifications.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
+                        No notifications found for the current filter.
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : (
+                    notifications.map((notification) => (
+                      <TableRow 
+                        key={notification.id}
+                        className={cn("cursor-pointer", !notification.is_read && "bg-primary/[0.02]")}
+                        onClick={() => {
+                          if (!notification.is_read) markAsRead(notification.id);
+                          
+                          let targetLink = notification.link;
+                          if (!targetLink) {
+                            if (notification.type === 'order') targetLink = '/admin/orders';
+                            else if (notification.type === 'stock') targetLink = '/admin/inventory';
+                            else if (notification.type === 'user') targetLink = '/admin/customers';
+                          }
+
+                          if (targetLink) router.push(targetLink);
+                        }}
+                      >
+                        <TableCell>
+                          <div className={cn(
+                            "w-8 h-8 rounded-lg flex items-center justify-center",
+                            notification.type === 'success' ? "bg-green-100 text-green-600" :
+                            notification.type === 'warning' || notification.type === 'error' ? "bg-red-100 text-red-600" :
+                            notification.type === 'order' ? "bg-blue-100 text-blue-600" :
+                            notification.type === 'stock' ? "bg-orange-100 text-orange-600" :
+                            notification.type === 'user' ? "bg-purple-100 text-purple-600" :
+                            "bg-blue-100 text-blue-600"
+                          )}>
+                            {notification.type === 'success' ? <Check className="w-4 h-4" /> :
+                             notification.type === 'warning' || notification.type === 'error' ? <AlertCircle className="w-4 h-4" /> :
+                             notification.type === 'order' ? <Package className="w-4 h-4" /> :
+                             notification.type === 'stock' ? <ShoppingBag className="w-4 h-4" /> :
+                             notification.type === 'user' ? <User className="w-4 h-4" /> :
+                             <Info className="w-4 h-4" />}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span className={cn("font-medium", !notification.is_read ? "text-foreground" : "text-muted-foreground")}>
+                              {notification.title}
+                            </span>
+                            <span className="text-xs text-muted-foreground line-clamp-1">{notification.message}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={notification.is_read ? 'outline' : 'default'} className="rounded-full">
+                            {notification.is_read ? 'Read' : 'New'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteNotification(notification.id);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
 
             {totalPages > 1 && (
               <div className="flex items-center justify-between pt-6">
@@ -376,7 +474,7 @@ export default function AdminNotificationsPage() {
         </Card>
       ) : (
         <Card className="max-w-4xl mx-auto">
-          <CardHeader>
+          <CardHeader className="px-4 py-6 sm:px-6">
             <CardTitle>Manual Notification Dispatch</CardTitle>
             <CardDescription>Send a targeted or broadcast notification to users.</CardDescription>
           </CardHeader>
