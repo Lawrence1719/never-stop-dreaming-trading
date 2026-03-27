@@ -18,6 +18,7 @@ interface RatingModalProps {
 export function RatingModal({ orderId, isOpen, onClose, onSuccess }: RatingModalProps) {
   const [rating, setRating] = useState<number>(0);
   const [hoverRating, setHoverRating] = useState<number>(0);
+  const [title, setTitle] = useState("");
   const [reviewText, setReviewText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
@@ -39,19 +40,35 @@ export function RatingModal({ orderId, isOpen, onClose, onSuccess }: RatingModal
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ rating, reviewText }),
+        body: JSON.stringify({ rating, reviewText, title }),
       });
 
+      const result = await response.json();
+
       if (!response.ok) {
-        throw new Error("Failed to submit review");
+        throw new Error(result.error || "Failed to submit review");
       }
 
-      toast({ title: "Success", description: "Thank you for your review!" });
+      if (result.moderated) {
+        toast({ 
+          title: "Review Moderated", 
+          description: result.message,
+          variant: "warning" 
+        });
+      } else {
+        toast({ title: "Success", description: "Thank you for your review!" });
+      }
+      
       onSuccess(rating, reviewText);
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      toast({ title: "Error", description: "Something went wrong. Please try again.", variant: "destructive" });
+      const errorMessage = error instanceof Error ? error.message : "Something went wrong. Please try again.";
+      toast({ 
+        title: "Error Submitting Review", 
+        description: errorMessage, 
+        variant: "destructive" 
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -86,16 +103,30 @@ export function RatingModal({ orderId, isOpen, onClose, onSuccess }: RatingModal
             ))}
           </div>
           
-          <div className="w-full space-y-2">
-            <label htmlFor="review" className="text-sm font-medium">Add a written review (optional)</label>
-            <Textarea
-              id="review"
-              placeholder="Tell us what you liked or how we can improve..."
-              value={reviewText}
-              onChange={(e) => setReviewText(e.target.value)}
-              disabled={isSubmitting}
-              rows={4}
-            />
+          <div className="w-full space-y-4">
+            <div className="space-y-2">
+              <label htmlFor="title" className="text-sm font-medium">Review Title (optional)</label>
+              <input
+                id="title"
+                type="text"
+                placeholder="Summarize your experience..."
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                disabled={isSubmitting}
+                className="w-full bg-background border border-border rounded-lg p-3 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+              />
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="review" className="text-sm font-medium">Add a written review (optional)</label>
+              <Textarea
+                id="review"
+                placeholder="Tell us what you liked or how we can improve..."
+                value={reviewText}
+                onChange={(e) => setReviewText(e.target.value)}
+                disabled={isSubmitting}
+                rows={4}
+              />
+            </div>
           </div>
         </div>
 

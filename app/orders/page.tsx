@@ -7,7 +7,7 @@ import { Footer } from "@/components/layout/footer";
 import { useAuth } from "@/lib/context/auth-context";
 import { formatPrice, formatDate } from "@/lib/utils/formatting";
 import { Order } from "@/lib/types";
-import { ChevronRight, Eye, Star } from 'lucide-react';
+import { ChevronRight, Eye, Star, CheckCircle } from 'lucide-react';
 import { supabase } from "@/lib/supabase/client";
 import { RatingModal } from "@/components/orders/RatingModal";
 
@@ -210,7 +210,17 @@ export default function OrdersPage() {
                       <ChevronRight className="w-4 h-4" />
                     </Link>
 
-                    {order.status === 'delivered' && (order.confirmedByCustomerAt || order.autoConfirmed) && (
+                    {order.status === 'delivered' && !order.confirmedByCustomerAt && !order.autoConfirmed && (
+                      <Link
+                        href={`/orders/${order.id}`}
+                        className="flex-1 min-w-[120px] flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        Confirm Receipt
+                      </Link>
+                    )}
+                    
+                    {(order.status === 'completed' || (order.status === 'delivered' && (order.confirmedByCustomerAt || order.autoConfirmed))) && (
                       order.hasRated ? (
                         <div className="flex-1 min-w-[120px] flex items-center justify-center gap-2 px-4 py-2 bg-muted text-muted-foreground rounded-lg text-sm font-medium border border-border">
                           <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />

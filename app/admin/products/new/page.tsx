@@ -14,12 +14,12 @@ export default function CreateProductPage() {
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [successInfo, setSuccessInfo] = useState<{ id: string; name: string } | null>(null);
 
   const handleSubmit = async (data: ProductFormData) => {
     setIsSubmitting(true);
     setError(null);
-    setSuccessMessage(null);
+    setSuccessInfo(null);
 
     try {
       const {
@@ -45,10 +45,7 @@ export default function CreateProductPage() {
       }
 
       const payload = await res.json();
-      setSuccessMessage('Product created! Redirecting to variants...');
-      setTimeout(() => {
-        router.push(`/admin/products/${payload.data.id}/variants`);
-      }, 1000);
+      setSuccessInfo({ id: payload.data.id, name: data.name });
     } catch (err) {
       console.error('Failed to create product', err);
       setError(err instanceof Error ? err.message : 'Failed to create product');
@@ -57,6 +54,36 @@ export default function CreateProductPage() {
       setIsSubmitting(false);
     }
   };
+
+  if (successInfo) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-6 text-center animate-in fade-in zoom-in duration-300">
+        <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center">
+          <svg className="w-10 h-10 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-bold">Product Created Successfully</h2>
+          <p className="text-muted-foreground max-w-sm mx-auto">
+            "{successInfo.name}" has been added to your catalog. You can now set up its variants and pricing.
+          </p>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-3 w-full max-w-sm">
+          <Button asChild className="flex-1">
+            <Link href={`/admin/products/${successInfo.id}/variants`}>
+              Manage Variants
+            </Link>
+          </Button>
+          <Button asChild variant="outline" className="flex-1">
+            <Link href="/admin/products">
+              Back to Products
+            </Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -71,13 +98,6 @@ export default function CreateProductPage() {
           <p className="text-muted-foreground mt-1 text-sm md:text-base">Add a new product and set up its image gallery.</p>
         </div>
       </div>
-
-      {/* Success Message */}
-      {successMessage && (
-        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
-          <p className="text-sm text-emerald-800 font-medium">{successMessage}</p>
-        </div>
-      )}
 
       {/* Error Message */}
       {error && (

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { Plus, Search, Filter, Download, Trash2, Edit, Eye, AlertCircle, Loader2 } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -55,6 +56,7 @@ export default function ProductsPage() {
   const [error, setError] = useState<string | null>(null);
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (searchTimeoutRef.current) {
@@ -72,6 +74,7 @@ export default function ProductsPage() {
   }, [searchTerm]);
 
   const handleDeleteProduct = async (productId: string) => {
+    const product = products.find((p) => p.id === productId);
     setDeletingProductId(productId);
     try {
       const {
@@ -95,8 +98,18 @@ export default function ProductsPage() {
 
       // Remove product from list
       setProducts((prev) => prev.filter((p) => p.id !== productId));
+      
+      toast({
+        title: 'Product deleted',
+        description: `"${product?.name || 'Product'}" has been successfully removed from the catalog.`,
+      });
     } catch (err) {
       console.error('Failed to delete product', err);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: err instanceof Error ? err.message : 'Failed to delete product',
+      });
       setError(err instanceof Error ? err.message : 'Failed to delete product');
     } finally {
       setDeletingProductId(null);

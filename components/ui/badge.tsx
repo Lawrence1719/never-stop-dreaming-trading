@@ -1,6 +1,6 @@
 interface BadgeProps {
   children: React.ReactNode;
-  variant?: "default" | "secondary" | "destructive" | "outline" | "accent";
+  variant?: "default" | "secondary" | "destructive" | "outline" | "accent" | "success";
   className?: string;
 }
 
@@ -13,6 +13,7 @@ export function Badge({ children, variant = "default", className = "" }: BadgePr
     destructive: "bg-destructive text-destructive-foreground",
     outline: "border border-primary text-primary",
     accent: "bg-accent text-accent-foreground",
+    success: "bg-emerald-500 text-white",
   };
 
   return <span className={`${baseClasses} ${variants[variant]} ${className}`}>{children}</span>;

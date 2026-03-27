@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Package, ShoppingCart, Users, BarChart3, Zap, Settings, ChevronDown, FileText, MapPin, Gift, BookOpen, ChevronRight, Link2, Bell } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Users, BarChart3, Zap, Settings, ChevronDown, FileText, MapPin, Gift, BookOpen, ChevronRight, Link2, Bell, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -33,6 +33,7 @@ const menuItems: MenuItem[] = [
     submenu: [
       { label: 'All Products', href: '/admin/products', icon: Package },
       { label: 'Inventory', href: '/admin/inventory', icon: Zap },
+      { label: 'Reviews', href: '/admin/products/reviews', icon: Star },
     ],
   },
   {

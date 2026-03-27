@@ -218,7 +218,7 @@ export default function OrderDetailsPage({ params }: { params: Promise<{ orderId
           </div>
 
           {/* Customer Confirmation Section */}
-          {order.status === 'delivered' && !order.confirmedByCustomerAt && !order.autoConfirmed && order.deliveredAt && (
+          {order.status === 'delivered' && !order.confirmedByCustomerAt && !order.autoConfirmed && (
             <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 border-2 border-green-200 dark:border-green-800 rounded-lg p-6 mb-8">
               <div className="flex items-start gap-4">
                 <div className="flex-shrink-0 w-12 h-12 bg-green-100 dark:bg-green-900/50 rounded-full flex items-center justify-center">
@@ -259,7 +259,7 @@ export default function OrderDetailsPage({ params }: { params: Promise<{ orderId
           )}
 
           {/* Confirmation Status - After Confirmed */}
-          {(order.confirmedByCustomerAt || order.autoConfirmed) && (
+          {(order.status === 'completed' || order.confirmedByCustomerAt || order.autoConfirmed) && (
             <div className={`border rounded-lg p-6 mb-8 ${order.hasRated ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800' : 'bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border-2 border-blue-200 dark:border-blue-800'}`}>
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                 <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center ${order.hasRated ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400' : 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400'}`}>

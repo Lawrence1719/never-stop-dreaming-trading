@@ -14,7 +14,12 @@ interface Review {
   product_id: string;
   order_id: string;
   rating: number;
+  title?: string;
+  variant_name?: string;
   comment: string;
+  status: 'approved' | 'rejected';
+  admin_reply?: string;
+  is_overridden?: boolean;
   created_at: string;
   profiles?: {
     name: string;
@@ -23,9 +28,10 @@ interface Review {
 
 interface ProductReviewsProps {
   product: Product;
+  onReviewSubmitted?: () => void;
 }
 
-export function ProductReviews({ product }: ProductReviewsProps) {
+export function ProductReviews({ product, onReviewSubmitted }: ProductReviewsProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -34,6 +40,7 @@ export function ProductReviews({ product }: ProductReviewsProps) {
   const [userReview, setUserReview] = useState<Review | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [rating, setRating] = useState(5);
+  const [title, setTitle] = useState("");
   const [comment, setComment] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [eligibilityChecked, setEligibilityChecked] = useState(false);
@@ -59,6 +66,7 @@ export function ProductReviews({ product }: ProductReviewsProps) {
           )
         `)
         .eq('product_id', product.id)
+        .eq('status', 'approved')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -68,7 +76,8 @@ export function ProductReviews({ product }: ProductReviewsProps) {
       if (existingReview) {
         setUserReview(existingReview);
         setRating(existingReview.rating);
-        setComment(existingReview.comment);
+        setTitle(existingReview.title || "");
+        setComment(existingReview.comment || "");
       }
     } catch (err) {
       console.error('Error fetching reviews:', err);
@@ -84,7 +93,7 @@ export function ProductReviews({ product }: ProductReviewsProps) {
         .from('orders')
         .select('id, items')
         .eq('user_id', user?.id)
-        .eq('status', 'delivered');
+        .in('status', ['delivered', 'completed']);
 
       if (error) throw error;
 
@@ -123,33 +132,42 @@ export function ProductReviews({ product }: ProductReviewsProps) {
 
     setIsSubmitting(true);
     try {
-      const reviewData = {
-        user_id: user.id,
-        product_id: product.id,
-        order_id: deliveredOrderId,
-        rating,
-        comment,
-      };
+      // Use the API route for moderation support
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
 
-      if (userReview) {
-        // Update existing review
-        const { error } = await supabase
-          .from('reviews')
-          .update({ rating, comment, updated_at: new Date().toISOString() })
-          .eq('id', userReview.id);
-        if (error) throw error;
-        toast({ title: "Review updated", variant: "success" });
+      const response = await fetch(`/api/orders/${deliveredOrderId}/rate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ 
+          rating, 
+          reviewText: comment,
+          title: title
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to submit review");
+      }
+
+      if (result.moderated) {
+        toast({ 
+          title: "Review Moderated", 
+          description: result.message,
+          variant: "warning" 
+        });
       } else {
-        // Insert new review
-        const { error } = await supabase
-          .from('reviews')
-          .insert(reviewData);
-        if (error) throw error;
-        toast({ title: "Review submitted", variant: "success" });
+        toast({ title: userReview ? "Review updated" : "Review submitted", variant: "success" });
       }
 
       setIsEditing(false);
       fetchReviews();
+      if (onReviewSubmitted) onReviewSubmitted();
     } catch (err: any) {
       toast({ 
         title: "Error submitting review", 
@@ -213,6 +231,17 @@ export function ProductReviews({ product }: ProductReviewsProps) {
                   </button>
                 ))}
               </div>
+            </div>
+            <div>
+              <label htmlFor="title" className="block text-sm font-medium mb-1">Review Title</label>
+              <input
+                id="title"
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Summarize your experience (optional)"
+                className="w-full bg-background border border-border rounded-lg p-3 text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
+              />
             </div>
             <div>
               <label htmlFor="comment" className="block text-sm font-medium mb-1">Comment</label>
@@ -293,12 +322,21 @@ export function ProductReviews({ product }: ProductReviewsProps) {
             {reviews.map((review) => (
               <div key={review.id} className="bg-card border border-border rounded-lg p-6 space-y-3 shadow-sm hover:shadow-md transition-shadow">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold">{review.profiles?.name || 'Verified Buyer'}</span>
-                    <span className="inline-flex items-center gap-1 bg-emerald-500/10 text-emerald-500 text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider border border-emerald-500/20">
-                      <CheckCircle2 className="w-3 h-3" />
-                      Verified
-                    </span>
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold">{review.profiles?.name || 'Verified Buyer'}</span>
+                      {review.order_id && (
+                        <span className="inline-flex items-center gap-1 bg-emerald-500/10 text-emerald-500 text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider border border-emerald-500/20">
+                          <CheckCircle2 className="w-3 h-3" />
+                          Verified
+                        </span>
+                      )}
+                    </div>
+                    {review.variant_name && (
+                      <span className="text-[10px] text-muted-foreground font-medium mt-0.5">
+                        Variant: {review.variant_name}
+                      </span>
+                    )}
                   </div>
                   <span className="text-xs text-muted-foreground">
                     {formatDate(review.created_at)}
@@ -313,9 +351,20 @@ export function ProductReviews({ product }: ProductReviewsProps) {
                     />
                   ))}
                 </div>
+                {review.title && (
+                  <h4 className="font-bold text-sm text-foreground">{review.title}</h4>
+                )}
                 <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">
                   {review.comment}
                 </p>
+
+                {/* Admin Reply */}
+                {review.admin_reply && (
+                  <div className="mt-4 p-4 bg-muted/50 rounded-lg border-l-4 border-primary/30">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-primary mb-1">Admin Reply</p>
+                    <p className="text-sm text-foreground italic">"{review.admin_reply}"</p>
+                  </div>
+                )}
               </div>
             ))}
           </div>
