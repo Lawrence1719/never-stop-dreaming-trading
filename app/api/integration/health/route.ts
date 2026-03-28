@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getOverallHealth } from '@/lib/utils/health';
 
 /**
  * GET /api/integration/health
@@ -7,7 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
  * Validates API key from Authorization: Bearer header
  * 
  * Response:
- * - 200: {"status": "operational", "authenticated": true}
+ * - 200: {"status": "operational", "authenticated": true, "database": "connected", ...}
  * - 401: {"status": "failed", "error": "Unauthorized", "authenticated": false}
  */
 export async function GET(request: NextRequest) {
@@ -52,13 +53,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Use centralized health check
+    const health = await getOverallHealth();
+
     return NextResponse.json({
-      status: 'operational',
+      ...health,
       authenticated: true,
-      timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Health check error:', error);
+    console.error('Integration health check error:', error);
     return NextResponse.json(
       {
         status: 'error',
