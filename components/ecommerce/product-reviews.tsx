@@ -88,35 +88,39 @@ export function ProductReviews({ product, onReviewSubmitted }: ProductReviewsPro
 
   const checkEligibility = async () => {
     try {
-      // Check if user has a delivered order for this product
+      // Check if user has a finalized (completed) order for this product
       const { data: orders, error } = await supabase
         .from('orders')
-        .select('id, items')
+        .select('id, items, confirmed_by_customer_at, auto_confirmed')
         .eq('user_id', user?.id)
-        .in('status', ['delivered', 'completed']);
+        .eq('status', 'completed');
 
       if (error) throw error;
 
-      // Also check order_items table for more accuracy
+      // Further filter for confirmed receipt by the customer
+      const confirmedOrders = orders?.filter(o => o.confirmed_by_customer_at || o.auto_confirmed);
+      const confirmedOrderIds = (confirmedOrders || []).map(o => o.id);
+
+      // Check order_items table for inclusion of this product in those confirmed orders
       const { data: orderItems, error: itemsError } = await supabase
         .from('order_items')
         .select('order_id')
         .eq('product_id', product.id)
-        .in('order_id', (orders || []).map(o => o.id));
+        .in('order_id', confirmedOrderIds.length > 0 ? confirmedOrderIds : ['00000000-0000-0000-0000-000000000000']);
 
       if (itemsError) throw itemsError;
 
       const hasDeliveredOrder = orderItems && orderItems.length > 0;
       
-      // Fallback to JSONB items check if order_items failed or returned nothing
-      const hasJsonbOrder = orders?.some(o => 
+      // Fallback to JSONB items check
+      const hasJsonbOrder = confirmedOrders?.some(o => 
         o.items && Array.isArray(o.items) && o.items.some((item: any) => item.product_id === product.id)
       );
 
       if (hasDeliveredOrder || hasJsonbOrder) {
         setIsEligible(true);
         // Store the order ID for the review
-        const orderId = orderItems?.[0]?.order_id || orders?.find(o => o.items?.some((i: any) => i.product_id === product.id))?.id;
+        const orderId = orderItems?.[0]?.order_id || confirmedOrders?.find(o => o.items?.some((i: any) => i.product_id === product.id))?.id;
         setDeliveredOrderId(orderId || null);
       }
     } catch (err) {
@@ -275,8 +279,8 @@ export function ProductReviews({ product, onReviewSubmitted }: ProductReviewsPro
         )
       ) : (
         <div className={`text-center ${reviews.length === 0 ? "pt-2" : "bg-secondary/10 border border-border rounded-lg p-4"}`}>
-          <p className="text-sm font-medium text-muted-foreground italic">Only verified buyers can review this product</p>
-          <p className="text-[10px] text-muted-foreground/60 mt-0.5 uppercase tracking-wider">Purchase required</p>
+          <p className="text-sm font-medium text-muted-foreground italic tracking-tight">Only verified buyers with confirmed & finalized orders can review</p>
+          <p className="text-[10px] text-muted-foreground/60 mt-1 uppercase tracking-widest font-bold">Admin & Customer confirmation required</p>
         </div>
       )}
     </div>

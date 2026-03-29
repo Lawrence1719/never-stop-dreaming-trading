@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Menu, Moon, Sun, LogOut, User, Settings } from 'lucide-react';
+import { Menu, Moon, Sun, LogOut, User, Settings, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -77,10 +77,10 @@ export default function AdminNavbar({
       router.push('/login');
       router.refresh();
 
-      // Force a hard reload to ensure all state is cleared
+      // Ensure a clean state by forcing a hard redirect after a short delay
       setTimeout(() => {
         window.location.href = '/login';
-      }, 100);
+      }, 300);
     } catch (error) {
       console.error("Logout error:", error);
       toast({
@@ -110,9 +110,14 @@ export default function AdminNavbar({
           variant="ghost"
           size="icon"
           onClick={onSidebarToggle}
-          className="md:hidden"
+          className="hover:bg-muted"
+          title={sidebarOpen ? "Minimize Sidebar" : "Maximize Sidebar"}
         >
-          <Menu className="h-5 w-5" />
+          {sidebarOpen ? (
+            <PanelLeftClose className="h-5 w-5" />
+          ) : (
+            <PanelLeftOpen className="h-5 w-5" />
+          )}
         </Button>
         <div className="hidden md:flex items-center flex-1 max-w-xs">
           <Input

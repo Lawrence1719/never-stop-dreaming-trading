@@ -1,35 +1,39 @@
-import { createClient } from '@supabase/supabase-js';
-import { cookies } from 'next/headers';
+import { createServerClient as createSupabaseServerClient, type CookieOptions } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 
+/**
+ * Modern Supabase Server Client for Next.js 16 Server Components and API Routes.
+ */
 export async function createServerClient() {
-  const cookieStore = await cookies();
-  
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+  const cookieStore = await cookies()
 
-  if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error('Supabase environment variables are not set');
-  }
-
-  return createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      storage: {
-        getItem: (key: string) => {
-          return cookieStore.get(key)?.value ?? null;
+  return createSupabaseServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value
         },
-        setItem: (key: string, value: string) => {
-          cookieStore.set(key, value, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            path: '/',
-          });
+        set(name: string, value: string, options: CookieOptions) {
+          try {
+            cookieStore.set({ name, value, ...options })
+          } catch (error) {
+            // The `set` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing
+            // user sessions.
+          }
         },
-        removeItem: (key: string) => {
-          cookieStore.delete(key);
+        remove(name: string, options: CookieOptions) {
+          try {
+            cookieStore.set({ name, value: '', ...options })
+          } catch (error) {
+            // The `remove` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing
+            // user sessions.
+          }
         },
       },
-    },
-  });
+    }
+  )
 }
-

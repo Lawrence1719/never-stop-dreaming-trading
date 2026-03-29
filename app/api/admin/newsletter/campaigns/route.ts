@@ -27,7 +27,15 @@ export async function GET(req: NextRequest) {
 
     if (fetchError) {
       console.error('Error fetching campaigns:', fetchError);
-      return NextResponse.json({ error: 'Failed to fetch campaigns' }, { status: 500 });
+      // Return 200 with empty data instead of 500 if the table is missing
+      // to allow the UI to load and tell the user to run migrations.
+      if (fetchError.code === '42P01') {
+        return NextResponse.json({ 
+          campaigns: [], 
+          stats: { totalSubscribers: 0, avgOpenRate: '0%', avgClickRate: '0%', activeCampaigns: 0 } 
+        });
+      }
+      return NextResponse.json({ error: 'Failed to fetch campaigns: ' + fetchError.message }, { status: 500 });
     }
 
     // Get total subscribers count for the stats

@@ -14,15 +14,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
-    // Redirect non-admin users away from admin pages
-    if (!isLoading) {
-      if (!user) {
-        router.push('/login');
-      } else if (user.role !== 'admin') {
-        router.push('/');
-      }
-    }
-  }, [user, isLoading, router]);
+    // Redirection is now handled by root middleware.ts for better performance and security.
+    // This client-side check is redundant but kept for extra safety if needed.
+  }, []);
 
   // Show loading state while checking auth
   if (isLoading) {

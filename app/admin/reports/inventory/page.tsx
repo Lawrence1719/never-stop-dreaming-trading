@@ -21,6 +21,7 @@ interface InventoryReport {
   };
   lowStockItems: Array<{
     name: string;
+    variant?: string;
     sku: string;
     stock: number;
     threshold: number;
@@ -47,12 +48,7 @@ export default function InventoryReportPage() {
       setError(null);
       
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const res = await fetch('/api/admin/reports/inventory', {
-          headers: session?.access_token
-            ? { Authorization: `Bearer ${session.access_token}` }
-            : undefined,
-        });
+        const res = await fetch('/api/admin/reports/inventory');
 
         if (!res.ok) {
           throw new Error('Failed to load inventory report');
@@ -174,9 +170,10 @@ export default function InventoryReportPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Product Name</TableHead>
+                <TableHead>Variant</TableHead>
                 <TableHead>SKU</TableHead>
-                <TableHead>Current Stock</TableHead>
-                <TableHead>Threshold</TableHead>
+                <TableHead className="text-right">Current Stock</TableHead>
+                <TableHead className="text-right">Threshold</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
@@ -195,11 +192,19 @@ export default function InventoryReportPage() {
                 data.lowStockItems.map((item, idx) => (
                   <TableRow key={idx}>
                     <TableCell className="font-medium">{item.name}</TableCell>
-                    <TableCell className="text-muted-foreground">{item.sku}</TableCell>
-                    <TableCell>{item.stock}</TableCell>
-                    <TableCell>{item.threshold}</TableCell>
                     <TableCell>
-                      <Badge variant={item.status === 'critical' ? 'destructive' : 'secondary'}>
+                      <Badge variant="outline" className="font-normal">
+                        {item.variant || 'Standard'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm font-mono text-muted-foreground">{item.sku}</TableCell>
+                    <TableCell className="text-right font-medium">{item.stock}</TableCell>
+                    <TableCell className="text-right text-muted-foreground">{item.threshold}</TableCell>
+                    <TableCell>
+                      <Badge 
+                        variant={item.status === 'critical' ? 'destructive' : 'secondary'}
+                        className="capitalize"
+                      >
                         {item.status}
                       </Badge>
                     </TableCell>
@@ -207,8 +212,8 @@ export default function InventoryReportPage() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                    No low stock items
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                    No low stock items found
                   </TableCell>
                 </TableRow>
               )}

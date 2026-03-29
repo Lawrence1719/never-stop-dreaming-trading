@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/lib/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { ChevronDown, LogOut, Loader2 } from 'lucide-react';
@@ -10,6 +10,7 @@ import { ChevronDown, LogOut, Loader2 } from 'lucide-react';
 export function UserMenu() {
   const { user, logout, isLoading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -62,14 +63,24 @@ export function UserMenu() {
     setIsLoggingOut(true);
     
     try {
+      // Define a list of routes that REQUIRE a login
+      const protectedRoutes = ['/profile', '/orders', '/checkout', '/notifications', '/settings'];
+      const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
+      
       await logout();
       toast({
         title: "Logged out",
         description: "You have been logged out successfully.",
         variant: "success",
       });
-      // Allow page guards to handle redirect, or just refresh to clear global state
-      router.refresh();
+      
+      if (isProtectedRoute) {
+        // Direct to home if on a private page
+        router.push('/');
+      } else {
+        // Just refresh UI for public pages (stay on product, etc.)
+        router.refresh();
+      }
     } catch (error) {
       console.error("Logout error:", error);
       toast({

@@ -1,119 +1,159 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getClient } from '@/lib/supabase/admin';
+import { createServerClient } from '@/lib/supabase/server';
+import { getClient as getSupabaseAdmin } from '@/lib/supabase/admin';
 
+/**
+ * Modern Inventory Report API.
+ * Uses Cookie-based authentication via createServerClient.
+ * Aligned with Database Schema (SKU on variants, multiple thresholds).
+ */
 export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get('authorization') || '';
-  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
-
-  if (!token) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   try {
-    const supabaseAdmin = getClient();
-    const {
-      data: { user },
-      error: userError,
-    } = await supabaseAdmin.auth.getUser(token);
-
-    if (userError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const supabase = await createServerClient()
+    
+    // 1. Verify session
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { data: profile } = await supabaseAdmin
+    // 2. Verify role
+    const { data: profile } = await supabase
       .from('profiles')
       .select('role')
       .eq('id', user.id)
-      .single();
+      .single()
 
     if (profile?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    // Fetch all products with their variants
-    const { data: products, error: productsError } = await supabaseAdmin
+    // 3. Use Admin Client (Service Role) to bypass RLS for report generation
+    const admin = getSupabaseAdmin()
+
+    // 4. Fetch all products with their variants
+    // CORRECTED SELECT: Removed 'sku' from base products, moved to variants.
+    const { data: products, error: productsError } = await admin
       .from('products')
       .select(`
         id, 
         name, 
-        sku, 
         reorder_threshold, 
         category, 
         is_active,
         product_variants (
+          id,
+          variant_label,
           stock,
+          sku,
+          reorder_threshold,
           is_active
         )
-      `);
+      `)
 
     if (productsError) {
-      return NextResponse.json({ error: productsError.message }, { status: 500 });
+      console.error('[Inventory Report] Database Error:', productsError)
+      return NextResponse.json({ 
+        error: 'Database query failed', 
+        details: productsError.message,
+        hint: productsError.hint 
+      }, { status: 500 })
     }
 
-    // Calculate inventory statistics
-    let totalProducts = 0;
-    let inStock = 0;
-    let lowStock = 0;
-    let outOfStock = 0;
+    // 5. Calculate inventory statistics
+    let totalProducts = 0
+    let inStock = 0
+    let lowStock = 0
+    let outOfStock = 0
     const lowStockItems: Array<{
-      name: string;
-      sku: string;
-      stock: number;
-      threshold: number;
-      status: 'critical' | 'low';
-    }> = [];
+      name: string
+      variant?: string
+      sku: string
+      stock: number
+      threshold: number
+      status: 'critical' | 'low'
+    }> = []
 
     const categoryStats: Record<string, {
-      total: number;
-      inStock: number;
-      lowStock: number;
-      outOfStock: number;
-    }> = {};
+      total: number
+      inStock: number
+      lowStock: number
+      outOfStock: number
+    }> = {}
 
-    (products || []).forEach((product: any) => {
-      if (!product.is_active) return; // Skip inactive products
+    ;(products || []).forEach((product: any) => {
+      if (!product.is_active) return // Skip inactive products
       
-      totalProducts++;
-      
-      // Calculate total stock from active variants
-      const variants = (product.product_variants || []).filter((v: any) => v.is_active);
-      const stock = variants.reduce((sum: number, v: any) => sum + (v.stock ?? 0), 0);
-      
-      const threshold = product.reorder_threshold || 5;
-      const category = product.category || 'Uncategorized';
+      totalProducts++
+      const category = product.category || 'Uncategorized'
 
       // Initialize category stats if needed
       if (!categoryStats[category]) {
-        categoryStats[category] = { total: 0, inStock: 0, lowStock: 0, outOfStock: 0 };
+        categoryStats[category] = { total: 0, inStock: 0, lowStock: 0, outOfStock: 0 }
       }
-      categoryStats[category].total++;
+      categoryStats[category].total++
 
-      // Categorize stock status
-      if (stock === 0) {
-        outOfStock++;
-        categoryStats[category].outOfStock++;
-      } else if (stock <= threshold) {
-        lowStock++;
-        categoryStats[category].lowStock++;
-        lowStockItems.push({
-          name: product.name,
-          sku: product.sku || '',
-          stock,
-          threshold,
-          status: stock <= threshold * 0.5 ? 'critical' : 'low',
-        });
+      // Process variants
+      const variants = (product.product_variants || []).filter((v: any) => v.is_active)
+      
+      // Calculate total stock for summary
+      const totalProductStock = variants.reduce((sum: number, v: any) => sum + (v.stock ?? 0), 0)
+      
+      // Default product threshold (fallback)
+      const baseThreshold = product.reorder_threshold || 5
+
+      // Check each variant for low stock alerts
+      let anyVariantOut = false
+      let anyVariantLow = false
+
+      variants.forEach((v: any) => {
+        const threshold = v.reorder_threshold || baseThreshold
+        const stock = v.stock ?? 0
+
+        if (stock === 0) {
+          anyVariantOut = true
+          lowStockItems.push({
+            name: product.name,
+            variant: v.variant_label,
+            sku: v.sku || '',
+            stock,
+            threshold,
+            status: 'critical',
+          })
+        } else if (stock <= threshold) {
+          anyVariantLow = true
+          lowStockItems.push({
+            name: product.name,
+            variant: v.variant_label,
+            sku: v.sku || '',
+            stock,
+            threshold,
+            status: stock <= threshold * 0.5 ? 'critical' : 'low',
+          })
+        }
+      })
+
+      // Update basic counts based on product aggregate
+      if (totalProductStock === 0) {
+        outOfStock++
+        categoryStats[category].outOfStock++
+      } else if (anyVariantLow || anyVariantOut) {
+        // If ANY variant is low/out, we consider the product status as needing attention
+        lowStock++
+        categoryStats[category].lowStock++
       } else {
-        inStock++;
-        categoryStats[category].inStock++;
+        inStock++
+        categoryStats[category].inStock++
       }
-    });
+    })
 
     // Sort low stock items by status (critical first)
     lowStockItems.sort((a, b) => {
-      if (a.status === 'critical' && b.status !== 'critical') return -1;
-      if (a.status !== 'critical' && b.status === 'critical') return 1;
-      return a.stock - b.stock;
-    });
+      if (a.status === 'critical' && b.status !== 'critical') return -1
+      if (a.status !== 'critical' && b.status === 'critical') return 1
+      return a.stock - b.stock
+    })
 
     // Format category stats
     const inventoryByCategory = Object.entries(categoryStats).map(([category, stats]) => ({
@@ -122,7 +162,7 @@ export async function GET(request: NextRequest) {
       inStock: stats.inStock,
       lowStock: stats.lowStock,
       outOfStock: stats.outOfStock,
-    }));
+    }))
 
     return NextResponse.json({
       summary: {
@@ -132,25 +172,14 @@ export async function GET(request: NextRequest) {
         outOfStock,
         inStockPercentage: totalProducts > 0 ? ((inStock / totalProducts) * 100).toFixed(1) : '0',
       },
-      lowStockItems: lowStockItems.slice(0, 20), // Limit to top 20
+      lowStockItems: lowStockItems.slice(0, 30), // Limit to top 30
       inventoryByCategory,
-    });
+    })
   } catch (error) {
-    console.error('Failed to load inventory report', error);
-    return NextResponse.json({ error: 'Failed to load inventory report' }, { status: 500 });
+    console.error('Failed to load inventory report [Crash]', error)
+    return NextResponse.json({ 
+      error: 'Unexpected server error', 
+      message: error instanceof Error ? error.message : 'Unknown error' 
+    }, { status: 500 })
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-

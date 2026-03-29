@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createServerClient } from '@/lib/supabase/server'
 import {
   getClient,
   getAverageOrderValue,
@@ -14,42 +15,37 @@ import {
 
 const allowedRanges: Range[] = ['day', 'week', 'month', 'all']
 
+/**
+ * Modern Admin Dashboard API.
+ * Uses Cookie-based authentication via createServerClient.
+ */
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  const requestedRange = (searchParams.get('range') as Range) || 'week'
-  const range: Range = allowedRanges.includes(requestedRange) ? requestedRange : 'week'
-  const authHeader = request.headers.get('authorization') || ''
-  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null
-
-  if (!token) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
   try {
-    const supabaseAdmin = getClient()
-    const {
-      data: { user },
-      error: userError,
-    } = await supabaseAdmin.auth.getUser(token)
-
-    if (userError || !user) {
+    const supabase = await createServerClient()
+    
+    // Verify session
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { data: profile, error: profileError } = await supabaseAdmin
+    // Verify role
+    const { data: profile } = await supabase
       .from('profiles')
       .select('role')
       .eq('id', user.id)
       .single()
 
-    if (profileError) {
-      console.error('Failed to load profile for dashboard', profileError)
-      return NextResponse.json({ error: 'Unable to verify user role' }, { status: 500 })
-    }
-
     if (profile?.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
+
+    const { searchParams } = new URL(request.url)
+    const requestedRange = (searchParams.get('range') as Range) || 'week'
+    const range: Range = allowedRanges.includes(requestedRange) ? requestedRange : 'week'
+
+    const supabaseAdmin = getClient()
 
     const [
       { revenue },
@@ -99,7 +95,6 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     console.error('Failed to load admin dashboard metrics', error)
-    return NextResponse.json({ error: 'Failed to load dashboard metrics' }, { status: 500 })
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
   }
 }
-

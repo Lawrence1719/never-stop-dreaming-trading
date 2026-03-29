@@ -46,12 +46,7 @@ export default function CustomersReportPage() {
       setError(null);
       
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const res = await fetch('/api/admin/reports/customers', {
-          headers: session?.access_token
-            ? { Authorization: `Bearer ${session.access_token}` }
-            : undefined,
-        });
+        const res = await fetch('/api/admin/reports/customers');
 
         if (!res.ok) {
           throw new Error('Failed to load customer report');

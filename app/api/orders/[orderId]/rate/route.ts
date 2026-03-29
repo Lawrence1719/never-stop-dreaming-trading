@@ -75,16 +75,20 @@ export async function POST(
     }
 
     // Apply strict business logic gates
-    if (order.status !== "delivered" && order.status !== "completed") {
-      return NextResponse.json(
-        { error: "Order must be delivered before it can be rated" },
-        { status: 400 }
-      );
+    // Apply strict business logic gates:
+    // 1. Admin MUST finalize the order (status === 'completed')
+    if (order.status !== "completed") {
+      const message = order.status === "delivered" 
+        ? "Order is delivered but still awaiting admin finalization before it can be rated"
+        : `Order status is '${order.status}'. It must be finalized as 'completed' by an admin before rating.`;
+        
+      return NextResponse.json({ error: message }, { status: 400 });
     }
 
+    // 2. Customer MUST confirm receipt (or system auto-confirms)
     if (!order.confirmed_by_customer_at && !order.auto_confirmed) {
       return NextResponse.json(
-        { error: "You must confirm receipt before rating the order" },
+        { error: "You must confirm receipt of the delivery before rating the order" },
         { status: 400 }
       );
     }

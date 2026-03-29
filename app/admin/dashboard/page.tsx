@@ -73,19 +73,9 @@ export default function AdminDashboard() {
     const controller = new AbortController();
     async function loadDashboard() {
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
         const res = await fetch(`/api/admin/dashboard?range=${dateRange}`, {
           method: 'GET',
-          credentials: 'include',
           signal: controller.signal,
-          headers: session?.access_token
-            ? {
-                Authorization: `Bearer ${session.access_token}`,
-              }
-            : undefined,
         });
         if (!res.ok) {
           const payload = await res.json().catch(() => ({}));

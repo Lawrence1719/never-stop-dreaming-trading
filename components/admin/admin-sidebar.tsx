@@ -124,13 +124,14 @@ function SidebarItem({
       {hasSubmenu ? (
         <button
           onClick={() => setExpanded(!expanded)}
+          title={!isOpen ? item.label : undefined}
           className={cn(
             'w-full px-3 py-2 rounded-md text-sm font-medium flex items-center justify-between transition-colors',
             isSubmenuActive ? 'bg-primary/10 text-primary' : 'hover:bg-muted'
           )}
         >
           <div className="flex items-center gap-2">
-            <Icon className="h-4 w-4" />
+            <Icon className="h-4 w-4 shrink-0" />
             {isOpen && <span>{item.label}</span>}
           </div>
           <div className="flex items-center gap-1">
@@ -147,7 +148,7 @@ function SidebarItem({
           </div>
         </button>
       ) : (
-        <Link href={item.href!}>
+        <Link href={item.href!} title={!isOpen ? item.label : undefined}>
           <div
             className={cn(
               'px-3 py-2 rounded-md text-sm font-medium flex items-center justify-between transition-colors',
@@ -157,7 +158,7 @@ function SidebarItem({
             )}
           >
             <div className="flex items-center gap-2">
-              <Icon className="h-4 w-4" />
+              <Icon className="h-4 w-4 shrink-0" />
               {isOpen && <span>{item.label}</span>}
             </div>
             {isOpen && item.badge !== undefined && item.badge > 0 && (
@@ -222,10 +223,17 @@ export default function AdminSidebar({ isOpen, onClose }: { isOpen: boolean; onC
           isOpen ? 'w-64 translate-x-0' : 'w-64 -translate-x-full md:translate-x-0 md:w-20',
         )}
       >
-      <div className="h-16 border-b border-border flex items-center justify-center px-4">
-        <Link href="/admin/dashboard" className="flex items-center justify-center">
-          <Logo variant="square" className="h-10 w-10" />
-          {isOpen && <span className="ml-2 font-bold text-lg whitespace-nowrap">Admin Panel</span>}
+      <div className={cn(
+        "h-16 border-b border-border flex items-center px-4 transition-all duration-300",
+        isOpen ? "justify-start" : "justify-center"
+      )}>
+        <Link href="/admin/dashboard" className="flex items-center overflow-hidden">
+          <Logo variant="square" className="h-10 w-10 shrink-0" />
+          {isOpen && (
+            <span className="ml-3 font-bold text-lg whitespace-nowrap opacity-100 transition-opacity duration-300 delay-100">
+              Admin Panel
+            </span>
+          )}
         </Link>
       </div>
 

@@ -6,10 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { supabase } from '@/lib/supabase/client';
-import { exportToCSV } from '@/lib/utils/export';
 import { formatPrice } from '@/lib/utils/formatting';
-import { startOfMonth, subMonths, endOfMonth } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   DropdownMenu,
@@ -41,6 +38,7 @@ export default function SalesReportPage() {
   const [error, setError] = useState<string | null>(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [exportFormat, setExportFormat] = useState<'pdf' | 'csv' | 'xlsx'>('pdf');
+  const [range, setRange] = useState<'day' | 'week' | 'month' | 'all'>('month');
 
   useEffect(() => {
     async function fetchReport() {
@@ -48,97 +46,15 @@ export default function SalesReportPage() {
       setError(null);
       
       try {
-        const now = new Date();
-        const startOfCurrentMonth = startOfMonth(now);
-        const startOfLastMonth = startOfMonth(subMonths(now, 1));
-        const endOfLastMonth = endOfMonth(subMonths(now, 1));
+        // We use the new modernized API route which handles auth via Cookies
+        const res = await fetch(`/api/admin/reports/sales?range=${range}`);
 
-        // 1. Fetch orders for current and last month to calculate growth
-        const { data: orders, error: ordersError } = await supabase
-          .from('orders')
-          .select('id, status, total, created_at')
-          .gte('created_at', startOfLastMonth.toISOString());
+        if (!res.ok) {
+          throw new Error('Failed to load sales report');
+        }
 
-        if (ordersError) throw ordersError;
-
-        // 2. Fetch conversion rate data
-        const { count: completedOrdersCount, error: completedErr } = await supabase
-          .from('orders')
-          .select('*', { count: 'exact', head: true })
-          .in('status', ['paid', 'completed', 'delivered']);
-
-        const { count: customerCount, error: customerErr } = await supabase
-          .from('profiles')
-          .select('*', { count: 'exact', head: true })
-          .eq('role', 'customer');
-
-        if (completedErr) throw completedErr;
-        if (customerErr) throw customerErr;
-
-        // 3. Use RPCs for complex aggregations (prevent NaN and memory issues)
-        const { data: rpcTopProducts, error: topErr } = await supabase.rpc('get_top_products_rpc', {
-          p_start_date: startOfCurrentMonth.toISOString(),
-          p_end_date: now.toISOString(),
-          p_limit: 10
-        });
-
-        const { data: rpcSalesByCategory, error: catErr } = await supabase.rpc('get_sales_by_category_rpc', {
-          p_start_date: startOfCurrentMonth.toISOString(),
-          p_end_date: now.toISOString()
-        });
-
-        if (topErr) throw topErr;
-        if (catErr) throw catErr;
-
-        // --- Data Transformation ---
-
-        // Stat Card Logic
-        const validStatuses = ['paid', 'completed', 'delivered'];
-        const currentMonthOrders = orders.filter(o => 
-          new Date(o.created_at) >= startOfCurrentMonth && 
-          validStatuses.includes(o.status)
-        );
-        const lastMonthOrders = orders.filter(o => {
-          const date = new Date(o.created_at);
-          return date >= startOfLastMonth && date <= endOfLastMonth && validStatuses.includes(o.status);
-        });
-
-        const currentRevenue = currentMonthOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
-        const lastRevenue = lastMonthOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
-        
-        const currentOrdersCount = currentMonthOrders.length;
-        const lastOrdersCount = lastMonthOrders.length;
-
-        const currentAOV = currentOrdersCount > 0 ? currentRevenue / currentOrdersCount : 0;
-        const lastAOV = lastOrdersCount > 0 ? lastRevenue / lastOrdersCount : 0;
-
-        const calculateGrowth = (current: number, previous: number) => {
-          if (previous === 0) return current > 0 ? 100 : 0;
-          return ((current - previous) / previous) * 100;
-        };
-
-        // Conversion Rate
-        const conversionRate = customerCount && customerCount > 0 
-          ? ((completedOrdersCount || 0) / customerCount) * 100 
-          : 0;
-
-        setData({
-          summary: {
-            totalRevenue: currentRevenue,
-            totalOrders: currentOrdersCount,
-            averageOrderValue: currentAOV,
-            conversionRate,
-            revenueGrowth: calculateGrowth(currentRevenue, lastRevenue),
-            ordersGrowth: calculateGrowth(currentOrdersCount, lastOrdersCount),
-            aovGrowth: calculateGrowth(currentAOV, lastAOV),
-          },
-          salesByCategory: rpcSalesByCategory || [],
-          topProducts: (rpcTopProducts || []).map((p: any) => ({
-            name: p.name,
-            sold: Number(p.sold) || 0,
-            revenue: Number(p.revenue) || 0
-          }))
-        });
+        const reportData = await res.json();
+        setData(reportData);
       } catch (err) {
         console.error('Failed to load sales report', err);
         setError(err instanceof Error ? err.message : 'Failed to load sales report');
@@ -147,7 +63,7 @@ export default function SalesReportPage() {
       }
     }
     fetchReport();
-  }, []);
+  }, [range]);
 
   const handleExport = (format: 'pdf' | 'csv' | 'xlsx') => {
     setExportFormat(format);
@@ -161,28 +77,40 @@ export default function SalesReportPage() {
           <h1 className="text-3xl font-bold tracking-tight">Sales Reports</h1>
           <p className="text-muted-foreground mt-1">Comprehensive sales analytics and insights</p>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button className="gap-2" disabled={isLoading || !data}>
-              <Download className="h-4 w-4" />
-              Export
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem onClick={() => handleExport('pdf')} className="cursor-pointer">
-              <FileText className="mr-2 h-4 w-4 text-red-500" />
-              <span>Export as PDF</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleExport('csv')} className="cursor-pointer">
-              <FileText className="mr-2 h-4 w-4 text-blue-500" />
-              <span>Export as CSV</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleExport('xlsx')} className="cursor-pointer">
-              <FileSpreadsheet className="mr-2 h-4 w-4 text-green-500" />
-              <span>Export as Excel</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex items-center gap-2">
+           <select 
+            value={range} 
+            onChange={(e) => setRange(e.target.value as any)}
+            className="bg-background border rounded px-2 py-1 text-sm h-10"
+          >
+            <option value="day">Last 24 Hours</option>
+            <option value="week">Last 7 Days</option>
+            <option value="month">Last 30 Days</option>
+            <option value="all">Lifetime</option>
+          </select>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button className="gap-2" disabled={isLoading || !data}>
+                <Download className="h-4 w-4" />
+                Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={() => handleExport('pdf')} className="cursor-pointer">
+                <FileText className="mr-2 h-4 w-4 text-red-500" />
+                <span>Export as PDF</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExport('csv')} className="cursor-pointer">
+                <FileText className="mr-2 h-4 w-4 text-blue-500" />
+                <span>Export as CSV</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExport('xlsx')} className="cursor-pointer">
+                <FileSpreadsheet className="mr-2 h-4 w-4 text-green-500" />
+                <span>Export as Excel</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       {error && (
@@ -215,7 +143,7 @@ export default function SalesReportPage() {
                   </div>
                   {stat.growth !== undefined ? (
                     <p className={`text-xs mt-1 ${stat.growth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {stat.growth >= 0 ? '+' : ''}{stat.growth.toFixed(2)}% from last month
+                      {stat.growth >= 0 ? '+' : ''}{stat.growth.toFixed(2)}% from last period
                     </p>
                   ) : (
                     <p className="text-xs text-muted-foreground mt-1">{stat.subtitle}</p>
@@ -312,7 +240,7 @@ export default function SalesReportPage() {
                       <TableCell className="font-medium text-sm">{product.name}</TableCell>
                       <TableCell className="text-right">{product.sold}</TableCell>
                       <TableCell className="text-right text-green-600 font-medium">
-                        {formatPrice(product.revenue)}
+                        {product.revenue}
                       </TableCell>
                     </TableRow>
                   ))

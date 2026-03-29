@@ -49,15 +49,18 @@ function LoginPageContent() {
 
     if (!authLoading && user && migrationDoneOrAdmin && !justLoggedIn) {
       const next = searchParams.get('next');
+      
+      console.info('[Login] User found, redirecting...', { role: user.role, next: next || 'default' });
+      
       if (next) {
-        router.push(next);
+        router.replace(next);
         return;
       }
 
       if (user.role === 'admin') {
         router.replace('/admin/dashboard');
       } else {
-        router.push('/');
+        router.replace('/');
       }
     }
   }, [user, authLoading, isMigrating, router, searchParams, justLoggedIn]);

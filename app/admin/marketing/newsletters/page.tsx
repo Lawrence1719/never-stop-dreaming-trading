@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { supabase } from '@/lib/supabase/client';
 
 interface Campaign {
   id: string;
@@ -99,10 +100,20 @@ export default function NewslettersPage() {
     setIsCreateModalOpen(true);
   };
 
+  const getAuthToken = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token || null;
+  };
+
   const fetchCampaigns = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/admin/newsletter/campaigns');
+      const token = await getAuthToken();
+      const response = await fetch('/api/admin/newsletter/campaigns', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       if (!response.ok) throw new Error('Failed to fetch campaigns');
       const data = await response.json();
       setCampaigns(data.campaigns);
@@ -128,9 +139,13 @@ export default function NewslettersPage() {
         : '/api/admin/newsletter/campaigns';
       const method = editingCampaign ? 'PATCH' : 'POST';
 
+      const token = await getAuthToken();
       const response = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify(formData),
       });
 
@@ -158,8 +173,12 @@ export default function NewslettersPage() {
       onConfirm: async () => {
         try {
           setIsSending(id);
+          const token = await getAuthToken();
           const response = await fetch(`/api/admin/newsletter/campaigns/${id}/send`, {
             method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
           });
 
           const data = await response.json();
@@ -186,8 +205,12 @@ export default function NewslettersPage() {
       isDestructive: true,
       onConfirm: async () => {
         try {
+          const token = await getAuthToken();
           const response = await fetch(`/api/admin/newsletter/campaigns/${id}`, {
             method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
           });
 
           if (!response.ok) throw new Error('Failed to delete campaign');

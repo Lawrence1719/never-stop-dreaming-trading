@@ -90,12 +90,26 @@ export async function POST(request: NextRequest) {
       idempotency_key: idempotencyKey
     };
 
+    console.info('[CheckoutAPI] Attempting order creation:', {
+      userId: user.id,
+      itemCount: items?.length,
+      total,
+      idempotencyKey
+    });
+
     // Execute atomic checkout transaction via RPC
+    const startTime = Date.now();
     const { data: result, error: rpcError } = await supabaseClient
       .rpc('process_checkout', { payload: rpcPayload });
+    const duration = Date.now() - startTime;
 
     if (rpcError) {
-      console.error('Failed to create order via RPC', rpcError);
+      console.error('[CheckoutAPI] RPC Failed:', {
+        errorCode: rpcError.code,
+        message: rpcError.message,
+        durationMs: duration,
+        idempotencyKey
+      });
 
       // Map specific database errors to user-friendly messages
       let errorMessage = 'Something went wrong while placing your order. Please try again.';

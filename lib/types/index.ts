@@ -140,6 +140,7 @@ export interface Order {
 export interface Profile {
   id: string;
   name: string;
+  email: string | null;
   phone: string | null;
   role: 'admin' | 'customer';
   created_at: string;
@@ -194,9 +195,10 @@ export interface Notification {
   user_id: string;
   title: string;
   message: string;
-  type: 'info' | 'success' | 'warning' | 'error' | 'order' | 'stock' | 'system';
-  read: boolean;
+  type: 'info' | 'success' | 'warning' | 'error' | 'order' | 'stock' | 'system' | 'user';
+  is_read: boolean;
   link?: string | null;
+  target_role: 'customer' | 'admin';
   created_at: string;
 }
 
