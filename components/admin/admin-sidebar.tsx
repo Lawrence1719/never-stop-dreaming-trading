@@ -12,6 +12,14 @@ import { useNotifications } from '@/hooks/use-notifications';
 import { Badge } from '@/components/ui/badge';
 import { useTheme } from 'next-themes';
 import { Logo } from '@/components/ui/logo';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 
 interface MenuItem {
   label: string;
@@ -91,11 +99,11 @@ const menuItems: MenuItem[] = [
       { label: 'Testimonials', href: '/admin/cms/testimonials', icon: Users },
     ],
   },
-  {
+  /* {
     label: 'Integration',
     href: '/admin/integration',
     icon: Link2,
-  },
+  }, */
   {
     label: 'Settings',
     href: '/admin/settings',
@@ -118,6 +126,47 @@ function SidebarItem({
 
   const isActive = item.href && pathname === item.href;
   const isSubmenuActive = item.submenu?.some((sub) => pathname === sub.href);
+
+  if (hasSubmenu && !isOpen) {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            className={cn(
+              'w-full px-3 py-2 rounded-md text-sm font-medium flex items-center justify-center transition-colors hover:bg-muted',
+              isSubmenuActive ? 'bg-primary/10 text-primary' : ''
+            )}
+            title={item.label}
+          >
+            <Icon className="h-4 w-4 shrink-0" />
+            {item.badge !== undefined && item.badge > 0 && (
+              <Badge variant="destructive" className="absolute top-1 right-1 h-4 min-w-[16px] px-1 text-[10px] flex items-center justify-center">
+                {item.badge}
+              </Badge>
+            )}
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="right" align="start" className="w-48 ml-2">
+          <DropdownMenuLabel className="font-bold">{item.label}</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {item.submenu!.map((subitem) => (
+            <DropdownMenuItem key={subitem.href} asChild>
+              <Link
+                href={subitem.href!}
+                className={cn(
+                  'flex items-center gap-2 cursor-pointer',
+                  pathname === subitem.href ? 'text-primary font-medium' : ''
+                )}
+              >
+                <subitem.icon className="h-4 w-4" />
+                <span>{subitem.label}</span>
+              </Link>
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  }
 
   return (
     <div>
@@ -151,7 +200,8 @@ function SidebarItem({
         <Link href={item.href!} title={!isOpen ? item.label : undefined}>
           <div
             className={cn(
-              'px-3 py-2 rounded-md text-sm font-medium flex items-center justify-between transition-colors',
+              'px-3 py-2 rounded-md text-sm font-medium flex items-center transition-colors relative',
+              !isOpen ? 'justify-center' : 'justify-between',
               isActive
                 ? 'bg-primary text-primary-foreground'
                 : 'hover:bg-muted'
@@ -161,8 +211,15 @@ function SidebarItem({
               <Icon className="h-4 w-4 shrink-0" />
               {isOpen && <span>{item.label}</span>}
             </div>
-            {isOpen && item.badge !== undefined && item.badge > 0 && (
-              <Badge variant={isActive ? "secondary" : "destructive"} className={cn("h-4 min-w-[16px] px-1 text-[10px] flex items-center justify-center", isActive && "bg-white text-primary")}>
+            {item.badge !== undefined && item.badge > 0 && (
+              <Badge 
+                variant={isActive ? "secondary" : "destructive"} 
+                className={cn(
+                  "h-4 min-w-[16px] px-1 text-[10px] flex items-center justify-center", 
+                  isActive && "bg-white text-primary",
+                  !isOpen && "absolute top-1 right-1"
+                )}
+              >
                 {item.badge}
               </Badge>
             )}
@@ -208,7 +265,7 @@ export default function AdminSidebar({ isOpen, onClose }: { isOpen: boolean; onC
   return (
     <>
       {/* Mobile Overlay */}
-      <div 
+      <div
         className={cn(
           "fixed inset-0 bg-background/80 backdrop-blur-sm z-40 transition-opacity duration-300 md:hidden",
           isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
@@ -223,37 +280,37 @@ export default function AdminSidebar({ isOpen, onClose }: { isOpen: boolean; onC
           isOpen ? 'w-64 translate-x-0' : 'w-64 -translate-x-full md:translate-x-0 md:w-20',
         )}
       >
-      <div className={cn(
-        "h-16 border-b border-border flex items-center px-4 transition-all duration-300",
-        isOpen ? "justify-start" : "justify-center"
-      )}>
-        <Link href="/admin/dashboard" className="flex items-center overflow-hidden">
-          <Logo variant="square" className="h-10 w-10 shrink-0" />
-          {isOpen && (
-            <span className="ml-3 font-bold text-lg whitespace-nowrap opacity-100 transition-opacity duration-300 delay-100">
-              Admin Panel
-            </span>
-          )}
-        </Link>
-      </div>
-
-      <ScrollArea className="flex-1">
-        <div className="p-3 space-y-1">
-          {updatedMenuItems.map((item, idx) => (
-            <SidebarItem
-              key={idx}
-              item={item}
-              isOpen={isOpen}
-              pathname={pathname}
-            />
-          ))}
+        <div className={cn(
+          "h-16 border-b border-border flex items-center px-4 transition-all duration-300",
+          isOpen ? "justify-start" : "justify-center"
+        )}>
+          <Link href="/admin/dashboard" className="flex items-center overflow-hidden">
+            <Logo variant="square" className="h-10 w-10 shrink-0" />
+            {isOpen && (
+              <span className="ml-3 font-bold text-lg whitespace-nowrap opacity-100 transition-opacity duration-300 delay-100">
+                Admin Panel
+              </span>
+            )}
+          </Link>
         </div>
-      </ScrollArea>
 
-      <div className="p-3 border-t border-border text-xs text-muted-foreground">
-        {isOpen && <p>v1.0.0</p>}
-      </div>
-    </aside>
+        <ScrollArea className="flex-1">
+          <div className="p-3 space-y-1">
+            {updatedMenuItems.map((item, idx) => (
+              <SidebarItem
+                key={idx}
+                item={item}
+                isOpen={isOpen}
+                pathname={pathname}
+              />
+            ))}
+          </div>
+        </ScrollArea>
+
+        <div className="p-3 border-t border-border text-xs text-muted-foreground">
+          {isOpen && <p>v1.0.0</p>}
+        </div>
+      </aside>
     </>
   );
 }
