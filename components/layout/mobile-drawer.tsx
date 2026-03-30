@@ -111,7 +111,11 @@ export function MobileDrawer() {
                           description: "You have been logged out successfully.",
                           variant: "success",
                         });
-                        router.refresh();
+                        if (user.role === 'courier') {
+                          router.push('/login');
+                        } else {
+                          router.refresh();
+                        }
                       } catch (error) {
                         console.error("Logout error:", error);
                         toast({

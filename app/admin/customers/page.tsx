@@ -998,8 +998,16 @@ export default function CustomersPage() {
                     <SelectContent>
                       <SelectItem value="customer">Customer</SelectItem>
                       <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="courier">Courier</SelectItem>
                     </SelectContent>
                   </Select>
+                  {newCustomer.role === 'courier' && (
+                    <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                      <p className="text-sm text-blue-800 dark:text-blue-300 font-medium leading-snug">
+                        ⚠️ Courier accounts are for delivery staff only. They will only have access to the Courier Dashboard.
+                      </p>
+                    </div>
+                  )}
                 </div>
                 {addCustomerError && (
                   <p className="text-sm text-destructive">{addCustomerError}</p>

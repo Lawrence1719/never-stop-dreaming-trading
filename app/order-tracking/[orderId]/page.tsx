@@ -6,7 +6,7 @@ import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { TrackingData, TrackingUpdate } from "@/lib/types";
 import { formatDate } from "@/lib/utils/formatting";
-import { MapPin, Truck } from 'lucide-react';
+import { MapPin, Truck, Phone, Image as ImageIcon, ShieldCheck, Clock } from 'lucide-react';
 import { supabase } from "@/lib/supabase/client";
 import { BackButton } from "./back-button";
 import { useAuth } from "@/lib/context/auth-context";
@@ -26,7 +26,11 @@ async function fetchOrderTracking(orderId: string, userId: string): Promise<Trac
     // Fetch order data
     const { data: order, error: orderError } = await supabase
       .from('orders')
-      .select('id, status, tracking_number, courier, shipped_at, delivered_at, created_at, user_id')
+      .select(`
+        id, status, tracking_number, courier, shipped_at, delivered_at, created_at, user_id,
+        courier_profile:profiles!courier_id(name, phone),
+        courier_deliveries(proof_image_url, delivery_notes, delivered_at)
+      `)
       .eq('id', orderId)
       .single();
 
@@ -100,6 +104,11 @@ async function fetchOrderTracking(orderId: string, userId: string): Promise<Trac
       location: currentLocation,
       estimatedDelivery: estimatedDelivery.toISOString(),
       updates: updates,
+      courierName: (order.courier_profile as any)?.name || null,
+      courierPhone: (order.courier_profile as any)?.phone || null,
+      proofImageUrl: (order.courier_deliveries?.[0] as any)?.proof_image_url || null,
+      deliveryNotes: (order.courier_deliveries?.[0] as any)?.delivery_notes || null,
+      deliveredAt: order.delivered_at,
     };
 
     return trackingData;
@@ -250,6 +259,43 @@ export default function OrderTrackingPage({ params }: { params: Promise<{ orderI
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Main Tracking */}
             <div className="lg:col-span-2">
+              {/* Delivery Confirmation Section */}
+              {tracking.status === 'delivered' && tracking.proofImageUrl && (
+                <div className="bg-card border border-border rounded-lg p-6 mb-8 shadow-sm">
+                  <h2 className="font-bold text-lg mb-4 flex items-center gap-2 text-green-700 dark:text-green-400">
+                    <ImageIcon className="w-5 h-5" />
+                    Delivery Confirmation
+                  </h2>
+                  <div className="flex flex-col md:flex-row gap-6">
+                    <div className="w-full md:w-1/2">
+                      <div className="relative aspect-video rounded-lg overflow-hidden bg-muted border border-border group cursor-zoom-in">
+                        <img 
+                          src={tracking.proofImageUrl} 
+                          alt="Proof of Delivery" 
+                          className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                          onClick={() => window.open(tracking.proofImageUrl || '', '_blank')}
+                        />
+                        <div className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                          Click to enlarge
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex-1 space-y-4">
+                      {tracking.deliveryNotes && (
+                        <div className="bg-muted/50 p-4 rounded-xl border border-border/50">
+                          <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Courier Notes</p>
+                          <p className="text-sm italic text-foreground leading-relaxed">"{tracking.deliveryNotes}"</p>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground bg-secondary/20 p-2 rounded-lg w-fit">
+                        <ShieldCheck className="w-4 h-4 text-green-600" />
+                        <span>Verified Delivery at {tracking.deliveredAt ? formatDate(tracking.deliveredAt) : 'Pending'}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="bg-card border border-border rounded-lg p-6 mb-8">
                 <div className="flex items-center justify-between mb-6">
                   <div>
@@ -295,6 +341,25 @@ export default function OrderTrackingPage({ params }: { params: Promise<{ orderI
                   <p className="text-xs font-medium text-muted-foreground mb-1">CURRENT LOCATION</p>
                   <p className="font-medium">{tracking.location}</p>
                 </div>
+
+                {/* Your Courier Section */}
+                {['shipped', 'delivered', 'completed'].includes(tracking.status) && tracking.courierName && (
+                  <div className="border-t border-border pt-6 space-y-4">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">YOUR COURIER</p>
+                    <div className="flex items-center gap-3 bg-muted/40 p-3 rounded-lg border border-border/50">
+                      <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-primary">
+                        <Truck className="w-5 h-5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-sm truncate">{tracking.courierName}</p>
+                        <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                          <Phone className="w-3 h-3" />
+                          {tracking.courierPhone || 'N/A'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="border-t border-border pt-6">
                   <p className="text-xs font-medium text-muted-foreground mb-3">SHIPMENT STATUS</p>

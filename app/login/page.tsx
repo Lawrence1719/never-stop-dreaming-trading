@@ -53,12 +53,18 @@ function LoginPageContent() {
       console.info('[Login] User found, redirecting...', { role: user.role, next: next || 'default' });
       
       if (next) {
-        router.replace(next);
+        if (user.role === 'courier' && !next.startsWith('/courier')) {
+          router.replace('/courier/dashboard');
+        } else {
+          router.replace(next);
+        }
         return;
       }
 
       if (user.role === 'admin') {
         router.replace('/admin/dashboard');
+      } else if (user.role === 'courier') {
+        router.replace('/courier/dashboard');
       } else {
         router.replace('/');
       }
@@ -240,7 +246,9 @@ function LoginPageContent() {
                 <p className="text-muted-foreground text-lg">
                   {user?.role === 'admin' 
                     ? "Accessing admin dashboard..." 
-                    : "Fastening your seatbelt..."}
+                    : user?.role === 'courier'
+                      ? "Accessing courier dashboard..."
+                      : "Fastening your seatbelt..."}
                 </p>
                 <div className="mt-8 flex justify-center gap-1">
                   <div className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]"></div>

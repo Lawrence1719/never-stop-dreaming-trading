@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
     // Build query
     let query = supabaseAdmin
       .from('orders')
-      .select('id, status, total, items, payment_method, payment_status, paid_at, created_at, updated_at, user_id')
+      .select('id, status, total, items, payment_method, payment_status, paid_at, created_at, updated_at, user_id, courier_id, courier_name:profiles!courier_id(name)')
       .order('created_at', { ascending: false});
 
     // Apply filters
@@ -139,6 +139,7 @@ export async function GET(request: NextRequest) {
           orderStatus: row.status,
           paymentStatus,
           date,
+          courier: row.courier_name?.name || null,
         };
       })
       .filter((order: any) => {

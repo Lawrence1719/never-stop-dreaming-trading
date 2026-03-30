@@ -15,7 +15,7 @@ export async function createNotification({
   message: string;
   type?: NotificationType;
   link?: string;
-  targetRole?: 'customer' | 'admin';
+  targetRole?: 'customer' | 'admin' | 'courier';
 }) {
   const supabase = getClient();
   
@@ -226,5 +226,33 @@ export async function checkLowStockAndNotify(items: any[]) {
         }
       }
     }
+  }
+}
+
+/**
+ * Notifies all admins about a cancelled order
+ */
+export async function notifyAdminsOrderCancelled(orderId: string, orderNumber: string) {
+  const supabase = getClient();
+  
+  const { data: admins, error: adminError } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('role', 'admin');
+
+  if (adminError || !admins) {
+    console.error('[NotificationService] Error fetching admins for cancellation notification:', adminError);
+    return;
+  }
+
+  for (const admin of admins) {
+    await createNotification({
+      userId: admin.id,
+      title: 'Order Cancelled',
+      message: `Order ${orderNumber} has been cancelled by the customer.`,
+      type: 'error',
+      link: `/admin/orders/${orderId}`,
+      targetRole: 'admin',
+    }).catch(err => console.error(`[NotificationService] Failed to notify admin ${admin.id} of cancellation:`, err));
   }
 }

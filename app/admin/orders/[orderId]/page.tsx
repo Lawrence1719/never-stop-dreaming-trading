@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { ArrowLeft, Package, Truck, CheckCircle, XCircle, Clock, Loader2, Copy, Mail, Phone, MapPin, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Package, Truck, CheckCircle, XCircle, Clock, Loader2, Copy, Mail, Phone, MapPin, AlertCircle, Image as ImageIcon, User, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -23,6 +23,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase/client';
 import { formatPrice, formatDate } from '@/lib/utils/formatting';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ProofOfDeliveryModal } from '@/components/admin/ProofOfDeliveryModal';
 
 interface OrderItem {
   product_id: string;
@@ -58,6 +59,8 @@ interface Order {
   payment_method: string;
   tracking_number: string | null;
   courier: string | null;
+  assigned_courier_id: string | null;
+  assigned_courier_name?: string | null;
   paid_at: string | null;
   shipped_at: string | null;
   delivered_at: string | null;
@@ -108,14 +111,29 @@ export default function OrderDetailPage() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isConfirmingPayment, setIsConfirmingPayment] = useState(false);
+  const [availableCouriers, setAvailableCouriers] = useState<{id: string, name: string}[]>([]);
+  const [selectedCourierId, setSelectedCourierId] = useState<string>('auto');
+  const [showProofModal, setShowProofModal] = useState(false);
+  const [showOverrideDialog, setShowOverrideDialog] = useState(false);
 
   const { toast } = useToast();
 
   useEffect(() => {
-    if (orderId && user) {
-      fetchOrder();
+    if (orderId) {
+      // Fetch exactly once on mount; fetchOrder manages session
+      fetchOrder(true);
+      fetchAvailableCouriers();
     }
-  }, [orderId, user]);
+  }, [orderId]);
+
+  const fetchAvailableCouriers = async () => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, name')
+      .eq('role', 'courier');
+    
+    if (data) setAvailableCouriers(data);
+  };
 
   // Auto-generate tracking number when status changes to 'shipped'
   useEffect(() => {
@@ -133,8 +151,9 @@ export default function OrderDetailPage() {
     } else if (newStatus !== 'shipped') {
       setTrackingNumber('');
       setCourier('');
+      setSelectedCourierId('auto');
     }
-  }, [newStatus, order?.id]);
+  }, [newStatus]); // removed order?.id to prevent resets on data refresh
 
   // Debug: Log orderId
   useEffect(() => {
@@ -192,9 +211,8 @@ export default function OrderDetailPage() {
 
       const data = await response.json();
       setOrder(data);
-      // Only reset newStatus if this is an initial load (resetNewStatus = true)
-      // Always set to empty string so user must explicitly select a new status
-      if (resetNewStatus) {
+      // Only reset newStatus if this is an initial load AND it's currently empty
+      if (resetNewStatus && !newStatus) {
         setNewStatus('');
       }
     } catch (err) {
@@ -205,7 +223,7 @@ export default function OrderDetailPage() {
     }
   };
 
-  const handleStatusUpdate = async () => {
+  const handleStatusUpdate = async (isManualOverride: boolean = false) => {
     if (!order || !newStatus) return;
 
     // Validation: Ensure newStatus is different from current order status
@@ -222,6 +240,34 @@ export default function OrderDetailPage() {
       }
       if (!courier.trim()) {
         toast({ title: 'Error', description: 'Courier is required for shipped status', variant: 'destructive' });
+        return;
+      }
+    }
+
+    // NEW: Check for proof of delivery before updating
+    if (newStatus === 'delivered' && !isManualOverride) {
+      setIsUpdating(true); // show generic loading briefly
+      try {
+        const { data: proofData, error: proofError } = await supabase
+          .from('courier_deliveries')
+          .select('proof_image_url, status')
+          .eq('order_id', orderId)
+          .maybeSingle();
+        
+        if (proofError) throw proofError;
+        
+        if (!proofData || proofData.status !== 'delivered' || !proofData.proof_image_url) {
+           setIsUpdating(false);
+           setShowConfirmDialog(false); // Close standard dialog if open
+           setShowOverrideDialog(true);
+           return;
+        }
+      } catch (err) {
+        console.error('Failed to check courier proof:', err);
+        // On error, let admin proceed with override check anyway to avoid blocking
+        setIsUpdating(false);
+        setShowConfirmDialog(false);
+        setShowOverrideDialog(true);
         return;
       }
     }
@@ -261,6 +307,8 @@ export default function OrderDetailPage() {
         tracking_number: trackingNumber.trim() || null,
         courier: courier.trim() || null,
         notes: notes.trim() || null,
+        courier_id: selectedCourierId === 'auto' ? null : selectedCourierId,
+        isManualOverride
       };
       console.log('Order update request', { url: requestUrl, method: 'PUT', hasToken: !!session.access_token, body: requestBody });
 
@@ -329,13 +377,19 @@ export default function OrderDetailPage() {
       
       // Reset the form after successful update
       setShowConfirmDialog(false);
+      setShowOverrideDialog(false);
       setNotes('');
       setTrackingNumber('');
       setCourier('');
+      setSelectedCourierId('auto');
       // Reset newStatus to empty string to clear selection
       setNewStatus('');
       
-      toast({ title: 'Success', description: `Order status updated to ${appliedStatus}` });
+      toast({ 
+        title: 'Success', 
+        description: `Order status updated to ${appliedStatus}`,
+        variant: 'success'
+      });
     } catch (err) {
       console.error('Failed to update status', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to update order status';
@@ -407,7 +461,11 @@ export default function OrderDetailPage() {
       // Refresh order data
       await fetchOrder(false);
       
-      toast({ title: 'Success!', description: 'Payment confirmed successfully' });
+      toast({ 
+        title: 'Success!', 
+        description: 'Payment confirmed successfully',
+        variant: 'success'
+      });
       
     } catch (err) {
       console.error('Failed to confirm payment', err);
@@ -597,7 +655,14 @@ export default function OrderDetailPage() {
                         </p>
                       )}
                       {history.notes && (
-                        <p className="text-sm text-muted-foreground mt-1 italic">{history.notes}</p>
+                        <div className="mt-1">
+                          <p className="text-sm text-muted-foreground italic">{history.notes}</p>
+                          {history.notes.includes('Manually confirmed') && (
+                            <Badge variant="destructive" className="mt-2 text-[10px] px-2 py-0.5 opacity-80 border-red-500/50 inline-flex items-center gap-1 font-semibold">
+                              🔴 Manually Confirmed by Admin
+                            </Badge>
+                          )}
+                        </div>
                       )}
                       {index === 0 && availableStatuses.length > 0 && (
                         <p className="text-xs text-muted-foreground mt-2 italic">
@@ -675,6 +740,25 @@ export default function OrderDetailPage() {
                   <Label className="text-muted-foreground">Tracking Number</Label>
                   <p className="font-mono text-sm">{order.tracking_number}</p>
                   {order.courier && <p className="text-xs text-muted-foreground">{order.courier}</p>}
+                </div>
+              )}
+              {order.assigned_courier_name && (
+                <div>
+                  <Label className="text-muted-foreground">Assigned Courier</Label>
+                  <p className="font-medium text-sm">{order.assigned_courier_name}</p>
+                </div>
+              )}
+              {order.status === 'delivered' && (
+                <div className="pt-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-full"
+                    onClick={() => setShowProofModal(true)}
+                  >
+                    <ImageIcon className="w-4 h-4 mr-2" />
+                    View Proof of Delivery
+                  </Button>
                 </div>
               )}
               {order.delivered_at && (
@@ -799,9 +883,9 @@ export default function OrderDetailPage() {
                       };
                       const isSelected = newStatus === status;
                       return (
-                        <label 
+                        <div 
                           key={status} 
-                          htmlFor={status}
+                          onClick={() => setNewStatus(status)}
                           className={`flex items-start space-x-3 p-3 rounded-lg border-2 transition-all cursor-pointer ${
                             isSelected 
                               ? 'bg-blue-500/20 border-blue-500 shadow-md' 
@@ -809,7 +893,7 @@ export default function OrderDetailPage() {
                           }`}
                         >
                           <RadioGroupItem value={status} id={status} className="mt-0.5" />
-                          <div className="flex-1">
+                          <div className="flex-1 pointer-events-none">
                             <span className={`capitalize ${isSelected ? 'font-bold text-blue-600 dark:text-blue-400' : 'font-medium'}`}>
                               {status}
                               {isSelected && ' ✓'}
@@ -820,50 +904,78 @@ export default function OrderDetailPage() {
                               </span>
                             )}
                           </div>
-                        </label>
+                        </div>
                       );
                     })}
                   </RadioGroup>
+                  {!newStatus && (
+                    <p className="text-[10px] font-medium text-destructive mt-2 animate-pulse flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" />
+                      Please select a new status from the list above
+                    </p>
+                  )}
+                  {newStatus === 'shipped' && (
+                    <div className="space-y-4 pt-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="courier">Courier Service *</Label>
+                        <Select value={courier} onValueChange={setCourier}>
+                          <SelectTrigger id="courier">
+                            <SelectValue placeholder="Select courier service" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {COURIERS.map((c) => (
+                              <SelectItem key={c} value={c}>{c}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="tracking">Tracking Number *</Label>
+                        <Input
+                          id="tracking"
+                          value={trackingNumber}
+                          onChange={(e) => setTrackingNumber(e.target.value)}
+                          placeholder="Auto-generated tracking number"
+                          minLength={3}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Auto-generated. You can edit if needed.
+                        </p>
+                      </div>
+
+                      <div className="space-y-2 pt-2 border-t">
+                        <Label htmlFor="manual-courier" className="flex items-center gap-2">
+                          <User className="w-4 h-4" />
+                          Assign Specific Courier (Optional)
+                        </Label>
+                        <Select value={selectedCourierId} onValueChange={setSelectedCourierId}>
+                          <SelectTrigger id="manual-courier">
+                            <SelectValue placeholder="Automatic Assignment (Least Loaded)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="auto">Automatic Assignment (Default)</SelectItem>
+                            {availableCouriers.map((c) => (
+                              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[10px] text-muted-foreground">
+                          If unselected, the system will auto-assign based on courier workload.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                {newStatus === 'shipped' && (
-                  <>
-                    <div>
-                      <Label htmlFor="courier">Courier *</Label>
-                      <Select value={courier} onValueChange={setCourier}>
-                        <SelectTrigger id="courier">
-                          <SelectValue placeholder="Select courier" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {COURIERS.map((c) => (
-                            <SelectItem key={c} value={c}>{c}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="tracking">Tracking Number *</Label>
-                      <Input
-                        id="tracking"
-                        value={trackingNumber}
-                        onChange={(e) => setTrackingNumber(e.target.value)}
-                        placeholder="Auto-generated tracking number"
-                        minLength={3}
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Auto-generated. You can edit if needed.
-                      </p>
-                    </div>
-                  </>
-                )}
-
-                <div>
-                  <Label htmlFor="notes">Notes (Optional)</Label>
+                <div className="mt-4">
+                  <Label htmlFor="status-notes">Status Update Notes (Optional)</Label>
                   <Textarea
-                    id="notes"
+                    id="status-notes"
+                    className="mt-1"
+                    placeholder="Add any internal remarks about this status change..."
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Add notes about this status change..."
                     rows={3}
                   />
                 </div>
@@ -883,8 +995,14 @@ export default function OrderDetailPage() {
                     Clear
                   </Button>
                   <Button
-                    onClick={() => setShowConfirmDialog(true)}
-                    disabled={isUpdating || newStatus === order.status}
+                    onClick={() => {
+                      if (!newStatus) {
+                        toast({ title: 'Selection Required', description: 'Please choose a new status from the list above.', variant: 'destructive' });
+                        return;
+                      }
+                      setShowConfirmDialog(true);
+                    }}
+                    disabled={isUpdating || !newStatus || newStatus === order.status}
                     className="flex-1"
                   >
                     {isUpdating ? (
@@ -948,7 +1066,7 @@ export default function OrderDetailPage() {
                 >
                   Cancel
                 </Button>
-                <Button onClick={handleStatusUpdate} disabled={isUpdating} className="flex-1">
+                <Button onClick={() => handleStatusUpdate(false)} disabled={isUpdating} className="flex-1">
                   {isUpdating ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -963,6 +1081,62 @@ export default function OrderDetailPage() {
           </Card>
         </div>
       )}
+
+      {/* Override Warning Dialog */}
+      {showOverrideDialog && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm p-4">
+          <Card className="w-full max-w-md bg-card border-2 border-destructive/50 shadow-2xl shadow-destructive/20 animate-in zoom-in-95 duration-200">
+            <CardHeader className="flex flex-row items-start gap-4 space-y-0 pb-2">
+              <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5 text-destructive" />
+              </div>
+              <div>
+                <CardTitle className="text-destructive font-bold text-lg">⚠️ No Proof of Delivery Yet</CardTitle>
+                <CardDescription className="font-medium text-destructive/80 mt-1">Manual Override Required</CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="pl-14 space-y-6">
+                <p className="text-sm">
+                  The assigned courier has not uploaded proof of delivery for this order. Are you sure you want to manually confirm delivery? This action will be securely logged as an admin override.
+                </p>
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowOverrideDialog(false)}
+                    disabled={isUpdating}
+                    className="flex-1 font-medium bg-transparent"
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={() => handleStatusUpdate(true)} 
+                    disabled={isUpdating} 
+                    variant="destructive"
+                    className="flex-1 font-bold shadow-sm flex items-center justify-center gap-2"
+                  >
+                    {isUpdating ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Overriding...
+                      </>
+                    ) : (
+                      'Confirm Override'
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Proof of Delivery Modal */}
+      <ProofOfDeliveryModal
+        isOpen={showProofModal}
+        onOpenChange={setShowProofModal}
+        orderId={order.id}
+      />
     </div>
   );
 }

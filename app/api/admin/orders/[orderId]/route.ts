@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getClient } from '@/lib/supabase/admin';
 import { sendOrderStatusEmail } from '@/lib/emails/order-emails';
 import { createNotification } from '@/lib/notifications/service';
+import { assignCourier } from '@/lib/courier';
 
 /**
  * GET /api/admin/orders/[orderId]
@@ -60,7 +61,8 @@ export async function GET(
       .from('orders')
       .select(`
         *,
-        shipping_address:addresses!shipping_address_id(*)
+        shipping_address:addresses!shipping_address_id(*),
+        assigned_courier:profiles!courier_id(name)
       `)
       .eq('id', orderId)
       .single();
@@ -118,6 +120,7 @@ export async function GET(
       payment_method: order.payment_method,
       tracking_number: order.tracking_number,
       courier: order.courier,
+      assigned_courier_name: (order.assigned_courier as any)?.name || null,
       paid_at: order.paid_at,
       shipped_at: order.shipped_at,
       delivered_at: order.delivered_at,
@@ -209,9 +212,9 @@ export async function PUT(
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
-    const { status, tracking_number, courier, notes } = body;
+    const { status, tracking_number, courier, notes, courier_id: manualCourierId, isManualOverride } = body;
     
-    console.log('[PUT] Update data:', { status, tracking_number, courier, notes });
+    console.log('[PUT] Update data:', { status, tracking_number, courier, notes, isManualOverride });
 
     // Validate status
     const validStatuses = ['pending', 'paid', 'processing', 'shipped', 'delivered', 'cancelled', 'duplicate'];
@@ -318,7 +321,9 @@ export async function PUT(
           old_status: currentStatus,
           new_status: status,
           changed_by: user.id,
-          notes: notes?.trim() || null,
+          notes: (status === 'delivered' && isManualOverride) 
+            ? 'Manually confirmed as delivered by admin (no courier proof uploaded)' 
+            : (notes?.trim() || null),
           tracking_number: status === 'shipped' ? tracking_number?.trim() : null,
           courier: status === 'shipped' ? courier?.trim() : null,
           changed_at: new Date().toISOString(),
@@ -327,12 +332,44 @@ export async function PUT(
       console.error('[PUT] Failed to log status history (non-critical):', e);
     }
 
+    // NEW: Handle courier assignment when shipped
+    if (status === 'shipped') {
+      try {
+        console.log('[PUT] Triggering courier assignment');
+        await assignCourier(orderId, manualCourierId);
+      } catch (e) {
+        console.error('[PUT] Courier assignment failed:', e);
+        // We don't block the status update if courier assignment fails, 
+        // but we log it. In a real system you might want to return a warning.
+      }
+    }
+
+    // NEW: Handle manual override courier_deliveries table update
+    if (status === 'delivered' && isManualOverride) {
+      try {
+        console.log('[PUT] Manual delivery override: updating courier_deliveries');
+        await supabaseAdmin
+          .from('courier_deliveries')
+          .update({
+            status: 'proof_pending',
+            admin_overridden: true,
+            admin_overridden_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('order_id', orderId)
+          .lt('status', 'delivered'); // Only update if not already delivered/completed
+      } catch (e) {
+        console.error('[PUT] Manual delivery override courier table update failed:', e);
+      }
+    }
+
     // Fetch updated order with full details
     const { data: order, error: orderFetchError } = await supabaseAdmin
       .from('orders')
       .select(`
         *,
-        shipping_address:addresses!shipping_address_id(*)
+        shipping_address:addresses!shipping_address_id(*),
+        assigned_courier:profiles!courier_id(name)
       `)
       .eq('id', orderId)
       .single();
@@ -385,6 +422,7 @@ export async function PUT(
       payment_method: order.payment_method,
       tracking_number: order.tracking_number,
       courier: order.courier,
+      assigned_courier_name: (order.assigned_courier as any)?.name || null,
       paid_at: order.paid_at,
       shipped_at: order.shipped_at,
       delivered_at: order.delivered_at,
@@ -432,7 +470,18 @@ export async function PUT(
         type: getStatusType(status),
         link: `/profile/orders/${order.id}`,
         targetRole: 'customer',
-      }).catch(err => console.error('Failed to trigger customer notification:', err));
+      }).catch((err: any) => console.error('Failed to trigger customer notification:', err));
+
+      if (status === 'delivered' && isManualOverride && order.courier_id) {
+         createNotification({
+           userId: order.courier_id,
+           title: 'Delivery Confirmed by Admin',
+           message: `Order #${order.id.slice(0, 8).toUpperCase()} has been manually confirmed as delivered by the admin. Please ensure proof of delivery is submitted.`,
+           type: 'warning',
+           link: `/courier/dashboard`,
+           targetRole: 'courier'
+         }).catch((err: any) => console.error('Failed to trigger courier notification:', err));
+      }
     }
 
     return NextResponse.json(responseData);

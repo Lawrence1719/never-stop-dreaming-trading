@@ -46,6 +46,7 @@ interface Order {
   orderStatus: string;
   paymentStatus: string;
   date: string;
+  courier?: string | null;
 }
 
 export default function OrdersPage() {
@@ -590,6 +591,7 @@ export default function OrdersPage() {
                   <TableHead>Items</TableHead>
                   <TableHead>Amount</TableHead>
                   <TableHead>Order Status</TableHead>
+                  <TableHead>Courier</TableHead>
                   <TableHead>Payment</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead className="w-[50px]">Actions</TableHead>
@@ -657,6 +659,18 @@ export default function OrdersPage() {
                         onClick={() => window.location.href = `/admin/orders/${order.orderId}`}
                       >
                         <StatusBadge status={order.orderStatus} />
+                      </TableCell>
+                      <TableCell
+                        className="cursor-pointer"
+                        onClick={() => window.location.href = `/admin/orders/${order.orderId}`}
+                      >
+                        {order.courier ? (
+                          <Badge variant="outline" className="font-normal">
+                            {order.courier}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground italic">Auto-assign</span>
+                        )}
                       </TableCell>
                       <TableCell
                         className="cursor-pointer"

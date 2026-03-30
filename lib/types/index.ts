@@ -135,6 +135,10 @@ export interface Order {
   rating?: number | null;
   reviewText?: string | null;
   ratedAt?: string | null;
+  courierName?: string | null;
+  courierPhone?: string | null;
+  proofImageUrl?: string | null;
+  deliveryNotes?: string | null;
 }
 
 export interface Profile {
@@ -142,7 +146,7 @@ export interface Profile {
   name: string;
   email: string | null;
   phone: string | null;
-  role: 'admin' | 'customer';
+  role: 'admin' | 'customer' | 'courier';
   created_at: string;
 }
 
@@ -154,7 +158,7 @@ export interface User {
   memberSince: string;
   defaultAddressId?: string;
   addresses: Address[];
-  role?: 'admin' | 'customer';
+  role?: 'admin' | 'customer' | 'courier';
 }
 
 export interface Review {
@@ -188,6 +192,11 @@ export interface TrackingData {
   location: string;
   estimatedDelivery: string;
   updates: TrackingUpdate[];
+  courierName?: string | null;
+  courierPhone?: string | null;
+  proofImageUrl?: string | null;
+  deliveryNotes?: string | null;
+  deliveredAt?: string | null;
 }
 
 export interface Notification {

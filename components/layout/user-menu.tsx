@@ -74,7 +74,10 @@ export function UserMenu() {
         variant: "success",
       });
       
-      if (isProtectedRoute) {
+      if (user.role === 'courier') {
+        // Couriers must NEVER go to the public homepage on logout
+        router.push('/login');
+      } else if (isProtectedRoute) {
         // Direct to home if on a private page
         router.push('/');
       } else {

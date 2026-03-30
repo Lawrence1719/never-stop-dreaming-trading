@@ -40,7 +40,9 @@ export async function GET(request: NextRequest) {
       .select(`
         *,
         shipping_address:addresses!shipping_address_id(*),
-        reviews(id, rating, comment, created_at)
+        reviews(id, rating, comment, created_at),
+        courier_profile:profiles!courier_id(name, phone),
+        courier_deliveries(proof_image_url, delivery_notes, delivered_at)
       `)
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
@@ -128,6 +130,10 @@ export async function GET(request: NextRequest) {
         rating: row.reviews?.[0]?.rating || null,
         reviewText: row.reviews?.[0]?.comment || null,
         ratedAt: row.reviews?.[0]?.created_at || null,
+        courierName: (row.courier_profile as any)?.name || null,
+        courierPhone: (row.courier_profile as any)?.phone || null,
+        proofImageUrl: (row.courier_deliveries?.[0] as any)?.proof_image_url || null,
+        deliveryNotes: (row.courier_deliveries?.[0] as any)?.delivery_notes || null,
       };
     });
 

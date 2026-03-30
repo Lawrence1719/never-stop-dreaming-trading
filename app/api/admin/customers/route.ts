@@ -198,7 +198,7 @@ export async function POST(request: NextRequest) {
       .join(' ');
 
     const normalizedEmail = email.trim().toLowerCase();
-    const normalizedRole = role === 'admin' ? 'admin' : 'customer';
+    const normalizedRole = role === 'admin' ? 'admin' : role === 'courier' ? 'courier' : 'customer';
 
     // Password validation (min 6 chars to match registration)
     if (password.length < 6) {

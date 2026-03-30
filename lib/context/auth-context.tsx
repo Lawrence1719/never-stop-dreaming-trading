@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode, useRef } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode, useRef, useMemo } from "react";
 import { User, Profile } from "@/lib/types";
 import { supabase } from "@/lib/supabase/client";
 import type { Session } from "@supabase/supabase-js";
@@ -70,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             phone: userMetadata.phone || "",
             memberSince: new Date().toISOString(),
             addresses: [],
-            role: (userMetadata.role as 'admin' | 'customer') || 'customer',
+            role: (userMetadata.role as 'admin' | 'customer' | 'courier') || 'customer',
           };
           setUser(userData);
           cachedUserIdRef.current = session.user.id;
@@ -108,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           phone: userMetadata.phone || "",
           memberSince: new Date().toISOString(),
           addresses: [],
-          role: (userMetadata.role as 'admin' | 'customer') || 'customer',
+          role: (userMetadata.role as 'admin' | 'customer' | 'courier') || 'customer',
         };
         setUser(userData);
         cachedUserIdRef.current = session.user.id;
@@ -138,7 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         phone: userMetadata.phone || "",
         memberSince: new Date().toISOString(),
         addresses: [],
-        role: (userMetadata.role as 'admin' | 'customer') || 'customer',
+        role: (userMetadata.role as 'admin' | 'customer' | 'courier') || 'customer',
       };
       setUser(userData);
       cachedUserIdRef.current = session.user.id;
@@ -157,7 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       phone: (userMetadata.phone as string) || "",
       memberSince: new Date().toISOString(),
       addresses: [],
-      role: (userMetadata.role as 'admin' | 'customer') || 'customer',
+      role: (userMetadata.role as 'admin' | 'customer' | 'courier') || 'customer',
     };
   };
 
@@ -492,8 +492,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const authValue = useMemo(() => ({
+    user,
+    isLoading,
+    login,
+    logout,
+    register,
+    updateProfile,
+    requestPasswordReset,
+    requestCustomerPasswordReset,
+    changePassword,
+    resendConfirmationEmail
+  }), [user, isLoading]);
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout, register, updateProfile, requestPasswordReset, requestCustomerPasswordReset, changePassword, resendConfirmationEmail }}>
+    <AuthContext.Provider value={authValue}>
       {children}
     </AuthContext.Provider>
   );
