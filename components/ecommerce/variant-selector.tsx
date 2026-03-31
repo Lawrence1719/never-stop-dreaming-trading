@@ -40,7 +40,7 @@ export function VariantSelector({
     );
   }
 
-  const current = selectedVariant || variants[0];
+  const current = selectedVariant;
 
   return (
     <div className="space-y-2">
@@ -48,13 +48,17 @@ export function VariantSelector({
       <div className="relative">
         <Button
           variant="outline"
-          className="w-full justify-between"
+          className={`w-full justify-between ${!current ? "border-dashed border-primary/40 bg-primary/5" : ""}`}
           onClick={() => setIsOpen(!isOpen)}
         >
-          <div className="flex items-center gap-2">
-            <span>{current.variant_label}</span>
-            <Badge variant="secondary">{formatPrice(Number(current.price))}</Badge>
-          </div>
+          {current ? (
+            <div className="flex items-center gap-2">
+              <span>{current.variant_label}</span>
+              <Badge variant="secondary">{formatPrice(Number(current.price))}</Badge>
+            </div>
+          ) : (
+            <span className="text-muted-foreground italic">-- Select an option --</span>
+          )}
           <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
         </Button>
 
@@ -68,7 +72,7 @@ export function VariantSelector({
                   setIsOpen(false);
                 }}
                 className={`w-full px-4 py-3 text-left text-sm hover:bg-muted transition-colors border-b last:border-b-0 ${
-                  variant.id === current.id ? "bg-muted font-medium" : ""
+                  variant.id === current?.id ? "bg-muted font-medium" : ""
                 } ${variant.stock === 0 ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
                 disabled={variant.stock === 0}
               >

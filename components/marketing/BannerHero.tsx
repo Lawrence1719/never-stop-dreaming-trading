@@ -35,7 +35,7 @@ export function BannerHero() {
 
   if (isLoading) {
     return (
-      <div className="w-full h-[400px] bg-muted animate-pulse rounded-lg max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 my-8" />
+      <div className="w-full h-[400px] bg-slate-200 dark:bg-slate-700 animate-pulse rounded-lg max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 my-8" />
     );
   }
 

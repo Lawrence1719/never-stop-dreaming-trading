@@ -202,7 +202,7 @@ export default function Home() {
           {isTestimonialsLoading ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[...Array(3)].map((_, i) => (
-                <div key={i} className="bg-muted animate-pulse h-40 rounded-lg" />
+                <div key={i} className="bg-slate-200 dark:bg-slate-700 animate-pulse h-40 rounded-lg" />
               ))}
             </div>
           ) : testimonialsError ? (

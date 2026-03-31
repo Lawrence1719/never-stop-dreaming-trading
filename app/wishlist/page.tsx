@@ -99,7 +99,7 @@ export default function WishlistPage() {
             <h1 className="text-3xl font-bold">My Wishlist</h1>
             <p className="text-muted-foreground mt-2">
               {isLoading ? (
-                <span className="inline-block h-4 w-24 bg-muted rounded animate-pulse" />
+                <span className="inline-block h-4 w-24 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
               ) : (
                 `${wishlist.length} ${wishlist.length === 1 ? "item" : "items"}`
               )}

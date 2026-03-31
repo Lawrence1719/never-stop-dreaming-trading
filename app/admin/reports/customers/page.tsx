@@ -99,7 +99,7 @@ export default function CustomersReportPage() {
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="h-8 w-24 bg-muted rounded animate-pulse" />
+              <div className="h-8 w-24 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
             ) : (
               <>
                 <div className="text-2xl font-bold">{data ? data.summary.totalCustomers : 0}</div>
@@ -115,7 +115,7 @@ export default function CustomersReportPage() {
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="h-8 w-24 bg-muted rounded animate-pulse" />
+              <div className="h-8 w-24 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
             ) : (
               <>
                 <div className="text-2xl font-bold">
@@ -135,7 +135,7 @@ export default function CustomersReportPage() {
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="h-8 w-24 bg-muted rounded animate-pulse" />
+              <div className="h-8 w-24 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
             ) : (
               <>
                 <div className="text-2xl font-bold">
@@ -153,7 +153,7 @@ export default function CustomersReportPage() {
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="h-8 w-24 bg-muted rounded animate-pulse" />
+              <div className="h-8 w-24 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
             ) : (
               <>
                 <div className="text-2xl font-bold">

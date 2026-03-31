@@ -12,7 +12,7 @@ import { Loader2, Package, History, LogOut, User, Bell, LayoutDashboard } from '
 import { useToast } from '@/hooks/use-toast';
 
 export default function CourierDashboard() {
-  const { user, signOut } = useAuth();
+  const { user, logout } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
   
@@ -55,7 +55,7 @@ export default function CourierDashboard() {
   };
 
   const handleLogout = async () => {
-    await signOut();
+    await logout();
     router.push('/login');
   };
 

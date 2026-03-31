@@ -194,10 +194,10 @@ async function getSalesByCategory(range: Range = 'all', supabase?: SupabaseClien
       const revenue = Number(row.revenue);
       grandTotal += revenue;
       return {
-        category: row.category,
+        category: row.category || 'Uncategorized',
         revenue: Number(revenue.toFixed(2)),
         percent: Number(row.percent),
-        sales: Number(row.sales) // included for convenience
+        orders: Number(row.sales) // Map sales (units) to orders for UI naming consistency
       };
     });
 

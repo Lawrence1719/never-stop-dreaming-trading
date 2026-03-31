@@ -97,7 +97,7 @@ export default function InventoryReportPage() {
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="h-8 w-24 bg-muted rounded animate-pulse" />
+              <div className="h-8 w-24 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
             ) : (
               <>
                 <div className="text-2xl font-bold">{data ? data.summary.totalProducts : 0}</div>
@@ -113,7 +113,7 @@ export default function InventoryReportPage() {
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="h-8 w-24 bg-muted rounded animate-pulse" />
+              <div className="h-8 w-24 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
             ) : (
               <>
                 <div className="text-2xl font-bold text-green-600">{data ? data.summary.inStock : 0}</div>
@@ -129,7 +129,7 @@ export default function InventoryReportPage() {
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="h-8 w-24 bg-muted rounded animate-pulse" />
+              <div className="h-8 w-24 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
             ) : (
               <>
                 <div className="text-2xl font-bold text-yellow-600">{data ? data.summary.lowStock : 0}</div>
@@ -145,7 +145,7 @@ export default function InventoryReportPage() {
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="h-8 w-24 bg-muted rounded animate-pulse" />
+              <div className="h-8 w-24 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
             ) : (
               <>
                 <div className="text-2xl font-bold text-red-600">{data ? data.summary.outOfStock : 0}</div>

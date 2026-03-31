@@ -113,7 +113,7 @@ export default function OrdersPage() {
           {isLoading ? (
             <div className="space-y-4">
               {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="bg-card border border-border rounded-lg p-6 animate-pulse">
+                <div key={i} className="bg-slate-200 dark:bg-slate-700 border border-border rounded-lg p-6 animate-pulse">
                   <div className="flex items-center justify-between mb-6">
                     <div className="space-y-2">
                       <div className="h-5 bg-muted rounded w-32" />

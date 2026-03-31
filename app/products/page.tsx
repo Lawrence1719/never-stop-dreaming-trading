@@ -178,7 +178,7 @@ export default function ProductsPage() {
             <h1 className="text-3xl font-bold">All Products</h1>
             <p className="text-muted-foreground mt-2">
               {isLoadingProducts ? (
-                <span className="inline-block h-4 w-32 bg-muted rounded animate-pulse" />
+                <span className="inline-block h-4 w-32 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
               ) : (
                 `${filteredProducts.length} ${filteredProducts.length === 1 ? "product" : "products"} found`
               )}

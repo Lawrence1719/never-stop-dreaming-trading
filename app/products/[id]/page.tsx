@@ -21,8 +21,9 @@ import { useWishlist } from "@/lib/context/wishlist-context";
 import { useToast } from "@/hooks/use-toast";
 import { Product, ProductVariant } from "@/lib/types";
 import { formatPrice } from "@/lib/utils/formatting";
-import { Heart, Share2, ChevronLeft, Users, Shield, ShoppingCart } from 'lucide-react';
+import { Heart, Share2, ChevronLeft, Users, Shield, ShoppingCart, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
+import { VariantConfirmationModal } from "@/components/ecommerce/variant-confirmation-modal";
 
 export default function ProductDetailPage() {
   const { id } = useParams();
@@ -112,10 +113,14 @@ export default function ProductDetailPage() {
           };
           setProduct(mapped);
           
-          // Set first active variant as selected
+          // Set first active variant as selected only if there's only one
           const activeVariants = data.product_variants?.filter((v: any) => v.is_active) || [];
           if (activeVariants.length > 0) {
-            setSelectedVariant(activeVariants[0]);
+            if (activeVariants.length === 1) {
+              setSelectedVariant(activeVariants[0]);
+            } else {
+              setSelectedVariant(null);
+            }
             setVariants(activeVariants);
           }
         }
@@ -205,6 +210,11 @@ export default function ProductDetailPage() {
   const { toast } = useToast();
   const { settings } = useSettings();
 
+  // Confirmation Modal and Validation State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalActionType, setModalActionType] = useState<'add' | 'buy'>('add');
+  const [showVariantError, setShowVariantError] = useState(false);
+
   // Show sticky cart on mobile after scrolling past product details
   useEffect(() => {
     const handleScroll = () => {
@@ -228,36 +238,36 @@ export default function ProductDetailPage() {
         <main className="flex-1">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             {/* Breadcrumb Skeleton */}
-            <div className="h-6 w-32 bg-muted rounded mb-8 animate-pulse" />
+            <div className="h-6 w-32 bg-slate-200 dark:bg-slate-700 rounded mb-8 animate-pulse" />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
               {/* Image Skeleton */}
               <div className="space-y-4">
-                <div className="bg-muted rounded-lg overflow-hidden h-[400px] w-full animate-pulse" />
+                <div className="bg-slate-200 dark:bg-slate-700 rounded-lg overflow-hidden h-[400px] w-full animate-pulse" />
                 <div className="grid grid-cols-4 gap-2">
                   {[...Array(4)].map((_, i) => (
-                    <div key={i} className="bg-muted rounded-lg h-20 w-full animate-pulse" />
+                    <div key={i} className="bg-slate-200 dark:bg-slate-700 rounded-lg h-20 w-full animate-pulse" />
                   ))}
                 </div>
               </div>
               {/* Details Skeleton */}
               <div className="space-y-4">
-                <div className="h-8 w-2/3 bg-muted rounded animate-pulse" />
-                <div className="h-6 w-1/2 bg-muted rounded animate-pulse" />
-                <div className="h-4 w-1/3 bg-muted rounded animate-pulse" />
-                <div className="h-10 w-full bg-muted rounded animate-pulse" />
-                <div className="h-12 w-full bg-muted rounded animate-pulse" />
+                <div className="h-8 w-2/3 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+                <div className="h-6 w-1/2 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+                <div className="h-4 w-1/3 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+                <div className="h-10 w-full bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+                <div className="h-12 w-full bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
                 <div className="flex gap-2 mt-4">
-                  <div className="h-10 w-24 bg-muted rounded animate-pulse" />
-                  <div className="h-10 w-24 bg-muted rounded animate-pulse" />
+                  <div className="h-10 w-24 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+                  <div className="h-10 w-24 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
                 </div>
               </div>
             </div>
             {/* Specifications Skeleton */}
             <div className="border-t border-border pt-6">
-              <div className="h-6 w-32 bg-muted rounded mb-3 animate-pulse" />
+              <div className="h-6 w-32 bg-slate-200 dark:bg-slate-700 rounded mb-3 animate-pulse" />
               <div className="space-y-2">
                 {[...Array(3)].map((_, i) => (
-                  <div key={i} className="h-4 w-1/4 bg-muted rounded animate-pulse" />
+                  <div key={i} className="h-4 w-1/4 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
                 ))}
               </div>
             </div>
@@ -312,37 +322,40 @@ export default function ProductDetailPage() {
 
   const handleAddToCart = () => {
     if (variants.length > 0 && !selectedVariant) {
-      toast({
-        title: "Select a variant",
-        description: "Please choose a variant before adding to cart",
-        variant: "warning",
-      });
+      setShowVariantError(true);
       return;
     }
     
-    // Add product with selected variant info
-    addItem(product, quantity, selectedVariant || undefined);
-    toast({
-      title: "Added to cart",
-      description: `${quantity} ${quantity === 1 ? 'item' : 'items'} added successfully${selectedVariant ? ` (${selectedVariant.variant_label})` : ''}`,
-      variant: "success",
-    });
-    setQuantity(1);
+    setModalActionType('add');
+    setIsModalOpen(true);
   };
 
   const handleBuyNow = () => {
     if (variants.length > 0 && !selectedVariant) {
-      toast({
-        title: "Select a variant",
-        description: "Please choose a variant before checkout",
-        variant: "warning",
-      });
+      setShowVariantError(true);
       return;
     }
     
-    // For Buy Now, go directly to checkout without adding to cart
-    // The checkout page will handle adding the item
-    router.push(`/checkout?product=${product.id}&quantity=${quantity}${selectedVariant ? `&variant=${selectedVariant.id}` : ''}`);
+    setModalActionType('buy');
+    setIsModalOpen(true);
+  };
+
+  const handleConfirmedAction = () => {
+    if (!selectedVariant && variants.length > 0) return;
+
+    if (modalActionType === 'add') {
+      addItem(product as Product, quantity, selectedVariant || undefined);
+      toast({
+        title: "Added to cart",
+        description: `${quantity} ${quantity === 1 ? 'item' : 'items'} added successfully${selectedVariant ? ` (${selectedVariant.variant_label})` : ''}`,
+        variant: "success",
+      });
+      setQuantity(1);
+    } else {
+      router.push(`/checkout?product=${product?.id}&quantity=${quantity}${selectedVariant ? `&variant=${selectedVariant.id}` : ''}`);
+    }
+    
+    setIsModalOpen(false);
   };
 
   const handleWishlist = () => {
@@ -457,7 +470,10 @@ export default function ProductDetailPage() {
                   <VariantSelector 
                     variants={variants}
                     selectedVariant={selectedVariant || undefined}
-                    onVariantChange={setSelectedVariant}
+                    onVariantChange={(v) => {
+                      setSelectedVariant(v);
+                      setShowVariantError(false);
+                    }}
                   />
                 )}
 
@@ -549,6 +565,14 @@ export default function ProductDetailPage() {
                   onQuantityChange={setQuantity}
                   max={selectedVariant?.stock || product.stock}
                 />
+
+                {/* Variant Selection Validation Error */}
+                {showVariantError && (
+                  <div className="flex items-center gap-2 p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-700 animate-in fade-in slide-in-from-top-1">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <p className="text-xs font-bold uppercase tracking-wide">Please select a variant before continuing</p>
+                  </div>
+                )}
 
                 {/* Primary CTAs */}
                 <div className="flex gap-3">
@@ -660,11 +684,28 @@ export default function ProductDetailPage() {
       {/* Sticky Add to Cart (Mobile Only) */}
       {product && (
         <StickyAddToCart
-          product={product as any}
+          product={{
+            ...product,
+            price: selectedVariant?.price ?? product.price,
+            stock: selectedVariant?.stock ?? product.stock,
+          } as any}
           quantity={quantity}
           onQuantityChange={setQuantity}
           onAddToCart={handleAddToCart}
           isVisible={showStickyCart}
+        />
+      )}
+
+      {/* Confirmation Modal */}
+      {product && selectedVariant && (
+        <VariantConfirmationModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onConfirm={handleConfirmedAction}
+          product={product}
+          variant={selectedVariant}
+          quantity={quantity}
+          actionType={modalActionType}
         />
       )}
     </div>

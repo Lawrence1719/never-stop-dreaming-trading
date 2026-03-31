@@ -1,66 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getClient } from '@/lib/supabase/admin';
-import { createClient } from '@supabase/supabase-js';
+import { createServerClient } from '@/lib/supabase/server';
 
-async function verifyAdmin(request: NextRequest) {
-  const authHeader = request.headers.get('authorization') || '';
-  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
-
-  if (!token) {
-    return { error: 'Unauthorized - No token provided', status: 401, user: null, isSuperAdmin: false };
-  }
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-
-  if (!supabaseUrl || !supabaseAnonKey) {
-    console.error('Missing Supabase credentials:', {
-      hasUrl: !!supabaseUrl,
-      hasAnonKey: !!supabaseAnonKey,
-    });
-    return { error: 'Server configuration error', status: 500, user: null, isSuperAdmin: false };
-  }
-
-  // Create client with user's token for auth check
-  const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
-  });
-
+async function verifyAdmin() {
+  const supabase = await createServerClient();
+  
   const {
     data: { user },
     error: userError,
-  } = await supabaseUser.auth.getUser();
+  } = await supabase.auth.getUser();
 
   if (userError || !user) {
-    console.error('Auth error:', userError?.message || 'No user found');
-    return { error: 'Unauthorized - Invalid token', status: 401, user: null, isSuperAdmin: false };
+    return { error: 'Unauthorized', status: 401, user: null, isSuperAdmin: false };
   }
 
-  const { data: profile, error: profileError } = await supabaseUser
+  const { data: profile } = await supabase
     .from('profiles')
     .select('role')
     .eq('id', user.id)
     .single();
 
-  if (profileError) {
-    console.error('Failed to load profile for customers', profileError);
-    return { error: 'Unable to verify user role', status: 500, user: null, isSuperAdmin: false };
-  }
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
-  // Check if user is super admin via env var or has admin role in database
-  const superAdminEmail = process.env.SUPER_ADMIN_EMAIL || '';
-  const isSuperAdmin = !!(superAdminEmail && user.email === superAdminEmail);
-  const isAdmin = profile?.role === 'admin' || isSuperAdmin;
-
-  if (!isAdmin) {
+  if (profile?.role !== 'admin') {
     return { error: 'Forbidden', status: 403, user: null, isSuperAdmin: false };
   }
+
+  const superAdminEmail = process.env.SUPER_ADMIN_EMAIL || '';
+  const isSuperAdmin = !!(superAdminEmail && user.email === superAdminEmail);
 
   return { error: null, status: 200, user, isSuperAdmin, superAdminEmail };
 }
 
 export async function GET(request: NextRequest) {
-  const authResult = await verifyAdmin(request);
+  const authResult = await verifyAdmin();
   if (authResult.error || !authResult.user) {
     return NextResponse.json({ error: authResult.error }, { status: authResult.status });
   }
@@ -177,7 +151,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const authResult = await verifyAdmin(request);
+  const authResult = await verifyAdmin();
   if (authResult.error || !authResult.user) {
     return NextResponse.json({ error: authResult.error }, { status: authResult.status });
   }

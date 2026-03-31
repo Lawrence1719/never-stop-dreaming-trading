@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useRef } from 'react';
 import Link from 'next/link';
-import { ArrowDown, ArrowUp, DollarSign, ShoppingCart, Users, TrendingUp, Loader2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, ShoppingCart, Users, TrendingUp, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/lib/context/auth-context';
 import { supabase } from '@/lib/supabase/client';
 import { formatPrice } from '@/lib/utils/formatting';
+import { DashboardDetailModal, type DashboardMetric } from '@/components/admin/dashboard/DashboardDetailModal';
 
 type DashboardRange = 'day' | 'week' | 'month';
 
@@ -60,6 +61,10 @@ type DashboardResponse = {
 
 const COLORS = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b'];
 
+const PesoIcon = ({ className }: { className?: string }) => (
+  <span className={className + " font-bold flex items-center justify-center text-xl"}>₱</span>
+);
+
 export default function AdminDashboard() {
   const { user } = useAuth();
   const [dateRange, setDateRange] = useState<DashboardRange>('week');
@@ -68,6 +73,13 @@ export default function AdminDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [activeMetric, setActiveMetric] = useState<'orders' | 'revenue'>('revenue');
   const previousDateRangeRef = useRef<DashboardRange>('week');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalMetric, setModalMetric] = useState<DashboardMetric | null>(null);
+
+  const openModal = (metric: DashboardMetric) => {
+    setModalMetric(metric);
+    setIsModalOpen(true);
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -135,7 +147,8 @@ export default function AdminDashboard() {
         value: formatPrice(data.stats.totals.revenue ?? 0),
         change: `${data.stats.changes.revenue.change.toFixed(2)}%`,
         direction: data.stats.changes.revenue.direction,
-        icon: DollarSign,
+        icon: PesoIcon,
+        metric: 'revenue' as DashboardMetric,
       },
       {
         title: 'Total Orders',
@@ -143,6 +156,7 @@ export default function AdminDashboard() {
         change: `${data.stats.changes.orders.change.toFixed(2)}%`,
         direction: data.stats.changes.orders.direction,
         icon: ShoppingCart,
+        metric: 'orders' as DashboardMetric,
       },
       {
         title: 'Total Customers',
@@ -150,6 +164,7 @@ export default function AdminDashboard() {
         change: `${data.stats.changes.customers.change.toFixed(2)}%`,
         direction: data.stats.changes.customers.direction,
         icon: Users,
+        metric: 'customers' as DashboardMetric,
       },
       {
         title: 'Avg Order Value',
@@ -157,6 +172,7 @@ export default function AdminDashboard() {
         change: `${data.stats.changes.averageOrderValue.change.toFixed(2)}%`,
         direction: data.stats.changes.averageOrderValue.direction,
         icon: TrendingUp,
+        metric: 'aov' as DashboardMetric,
       },
     ];
   }, [data]);
@@ -233,7 +249,11 @@ export default function AdminDashboard() {
               const isPositive = stat.direction === 'up';
               const isNeutral = stat.direction === 'neutral';
               return (
-                <Card key={idx}>
+                <Card 
+                  key={idx} 
+                  className="cursor-pointer hover:shadow-md hover:border-primary/50 transition-all duration-200"
+                  onClick={() => openModal(stat.metric)}
+                >
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
                     <Icon className="h-4 w-4 text-muted-foreground" />
@@ -302,7 +322,10 @@ export default function AdminDashboard() {
               </button>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent 
+            className="cursor-pointer hover:opacity-90 transition-opacity"
+            onClick={() => openModal('sales_overview')}
+          >
             {salesData.length === 0 ? (
               <div className="text-center text-sm text-muted-foreground">{isLoading ? 'Loading chart...' : 'No sales data for the selected range.'}</div>
             ) : (
@@ -365,7 +388,10 @@ export default function AdminDashboard() {
             <CardTitle>Sales by Category</CardTitle>
             <CardDescription>Distribution breakdown</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent 
+            className="cursor-pointer hover:opacity-90 transition-opacity"
+            onClick={() => openModal('sales_by_category')}
+          >
             {categoryData.length === 0 ? (
               <div className="text-center text-sm text-muted-foreground">{isLoading ? 'Loading breakdown...' : 'No category data available.'}</div>
             ) : (
@@ -470,6 +496,14 @@ export default function AdminDashboard() {
           </Table>
         </CardContent>
       </Card>
+
+      <DashboardDetailModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        metric={modalMetric}
+        data={data}
+        dateRange={dateRange}
+      />
     </div>
   );
 }

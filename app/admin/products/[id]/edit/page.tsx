@@ -110,12 +110,12 @@ export default function EditProductPage() {
               <ArrowLeft className="h-5 w-5" />
             </Button>
           </Link>
-          <div className="h-8 bg-muted rounded w-32 animate-pulse" />
+          <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded w-32 animate-pulse" />
         </div>
         <Card>
           <CardContent className="space-y-4 pt-6">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="h-4 bg-muted rounded w-full animate-pulse" />
+              <div key={i} className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-full animate-pulse" />
             ))}
           </CardContent>
         </Card>

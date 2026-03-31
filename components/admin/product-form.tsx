@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { CATEGORY_TREE, MAIN_CATEGORIES } from "@/lib/data/categories";
+import { MAIN_CATEGORIES } from "@/lib/data/categories";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,17 +47,8 @@ export function ProductForm({
   submitText = "Save Product",
   isLoading = false,
 }: ProductFormProps) {
-  // Parse initial category if provided (format: "Main → Sub")
-  const parseCategory = (categoryString?: string) => {
-    if (!categoryString) return { main: "", sub: "" };
-    const parts = categoryString.split(" → ");
-    return {
-      main: parts[0] || "",
-      sub: parts[1] || "",
-    };
-  };
-
-  const initialCategory = parseCategory(initialData?.category);
+  // Use the category directly
+  const initialCategory = initialData?.category || "";
 
   // Form state
   const [formData, setFormData] = useState<ProductFormData>({
@@ -73,8 +64,7 @@ export function ProductForm({
   });
 
   // Category selection state
-  const [mainCategory, setMainCategory] = useState<string>(initialCategory.main);
-  const [subcategory, setSubcategory] = useState<string>(initialCategory.sub);
+  const [mainCategory, setMainCategory] = useState<string>(initialCategory);
 
   // Image upload & gallery state
   const [isUploadingImage, setIsUploadingImage] = useState(false);
@@ -83,30 +73,22 @@ export function ProductForm({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Validation errors
-  const [errors, setErrors] = useState<Partial<Record<keyof ProductFormData | "mainCategory" | "subcategory" | "imageFile", string>>>({});
+  const [errors, setErrors] = useState<Partial<Record<keyof ProductFormData | "mainCategory" | "imageFile", string>>>({});
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  // Available subcategories based on selected main category
-  const availableSubcategories = mainCategory ? CATEGORY_TREE[mainCategory] || [] : [];
-
-  // Update category field when main/sub selection changes
+  // Update category field when main selection changes
   useEffect(() => {
     if (mainCategory) {
-      const categoryString = subcategory 
-        ? `${mainCategory} → ${subcategory}`
-        : mainCategory;
-        
       setFormData((prev) => ({
         ...prev,
-        category: categoryString,
+        category: mainCategory,
       }));
       
       // Clear category errors
       setErrors((prev) => {
         const newErrors = { ...prev };
         delete newErrors.mainCategory;
-        delete newErrors.subcategory;
         delete newErrors.category;
         return newErrors;
       });
@@ -116,12 +98,11 @@ export function ProductForm({
         category: "",
       }));
     }
-  }, [mainCategory, subcategory]);
+  }, [mainCategory]);
 
   // Handle main category change
   const handleMainCategoryChange = (value: string) => {
     setMainCategory(value);
-    setSubcategory(""); // Reset subcategory when main category changes
   };
 
   // Handle input changes
@@ -318,16 +299,13 @@ export function ProductForm({
   // Generate random SKU - Removed as SKU is now at variant level
 
   // Validate form
-  const validateForm = (): Partial<Record<keyof ProductFormData | "mainCategory" | "subcategory", string>> | null => {
-    const newErrors: Partial<Record<keyof ProductFormData | "mainCategory" | "subcategory", string>> = {};
+  const validateForm = (): Partial<Record<keyof ProductFormData | "mainCategory", string>> | null => {
+    const newErrors: Partial<Record<keyof ProductFormData | "mainCategory", string>> = {};
 
     // Required fields
     if (!formData.name.trim()) newErrors.name = "Product name is required";
     if (!formData.description.trim()) newErrors.description = "Description is required";
-    if (!mainCategory) newErrors.mainCategory = "Main category is required";
-    if (!subcategory && availableSubcategories.length > 0) {
-      newErrors.subcategory = "Subcategory is required";
-    }
+    if (!mainCategory) newErrors.mainCategory = "Category is required";
 
     // URL validation (optional field)
     if (formData.image_url && !isValidUrl(formData.image_url)) {
@@ -430,24 +408,21 @@ export function ProductForm({
 
 
 
-      {/* Cascading Category Selection */}
+      {/* Category Selection */}
       <div className="space-y-4 p-4 border border-border rounded-lg bg-muted/30">
         <div className="flex items-center gap-2 mb-2">
-          <h3 className="text-sm font-semibold">Category Selection</h3>
+          <h3 className="text-sm font-semibold">Category</h3>
           <span className="text-destructive">*</span>
         </div>
 
-        {/* Main Category Dropdown */}
+        {/* Category Dropdown */}
         <div className="space-y-2">
-          <Label htmlFor="mainCategory" className="text-sm font-medium">
-            Main Category
-          </Label>
           <SearchableSelect
             options={MAIN_CATEGORIES.map((cat) => ({ value: cat, label: cat }))}
             value={mainCategory}
             onValueChange={handleMainCategoryChange}
-            placeholder="-- Select Main Category --"
-            searchPlaceholder="Search main category..."
+            placeholder="-- Select Category --"
+            searchPlaceholder="Search category..."
             triggerClassName={errors.mainCategory ? "border-destructive bg-background" : "bg-background"}
           />
           {errors.mainCategory && (
@@ -458,35 +433,11 @@ export function ProductForm({
           )}
         </div>
 
-        {/* Subcategory Dropdown */}
-        <div className="space-y-2">
-          <Label htmlFor="subcategory" className="text-sm font-medium">
-            Subcategory
-          </Label>
-          <SearchableSelect
-            options={availableSubcategories.map((sub) => ({ value: sub, label: sub }))}
-            value={subcategory}
-            onValueChange={setSubcategory}
-            disabled={!mainCategory || availableSubcategories.length === 0}
-            placeholder={mainCategory
-              ? availableSubcategories.length === 0 ? "-- No Subcategories Found --" : "-- Select Subcategory --"
-              : "-- Select Main Category First --"}
-            searchPlaceholder="Search subcategory..."
-            triggerClassName={errors.subcategory ? "border-destructive bg-background" : "bg-background"}
-          />
-          {errors.subcategory && (
-            <p className="text-sm text-destructive flex items-center gap-1">
-              <AlertCircle className="w-4 h-4" />
-              {errors.subcategory}
-            </p>
-          )}
-        </div>
-
         {/* Selected Category Display */}
         {formData.category && (
           <div className="mt-3 p-3 bg-primary/10 border border-primary/20 rounded-md">
             <p className="text-sm font-medium text-primary">
-              Selected Category: <span className="font-bold">{formData.category}</span>
+              Category: <span className="font-bold">{formData.category}</span>
             </p>
           </div>
         )}
