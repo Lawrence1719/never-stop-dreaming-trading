@@ -300,13 +300,15 @@ export default function ProductDetailPage() {
               >
                 Browse Products
               </Link>
-              <button
-                onClick={() => router.back()}
-                className="inline-flex items-center gap-2 border border-input px-6 py-2 rounded-lg hover:bg-accent transition-colors"
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Go Back
-              </button>
+              <Link
+              href="/products"
+              className="group flex items-center gap-2 text-muted-foreground hover:text-primary transition-all font-bold text-sm mb-8"
+            >
+              <div className="w-8 h-8 rounded-full border border-border flex items-center justify-center group-hover:border-primary/30 group-hover:bg-primary/5">
+                <ChevronLeft className="w-4 h-4" />
+              </div>
+              Back to Products
+            </Link>
             </div>
           </div>
         </main>
@@ -320,6 +322,19 @@ export default function ProductDetailPage() {
   const discount = product.compareAtPrice && product.price
     ? Math.round(((product.compareAtPrice - product.price) / product.compareAtPrice) * 100)
     : null;
+
+  const priceDisplay = selectedVariant 
+    ? formatPrice(selectedVariant.price)
+    : (() => {
+        const activeVariants = variants.filter(v => v.is_active);
+        if (activeVariants.length === 0) return formatPrice(product.price || 0);
+        const prices = activeVariants.map(v => v.price);
+        const minPrice = Math.min(...prices);
+        const maxPrice = Math.max(...prices);
+        return minPrice === maxPrice 
+          ? formatPrice(minPrice) 
+          : `${formatPrice(minPrice)} — ${formatPrice(maxPrice)}`;
+      })();
 
   const handleAddToCart = () => {
     if (variants.length > 0 && !selectedVariant) {
@@ -398,13 +413,13 @@ export default function ProductDetailPage() {
       <main className="flex-1">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Breadcrumb */}
-          <button
-            onClick={() => router.back()}
-            className="flex items-center gap-1 text-primary hover:underline mb-8"
-          >
-            <ChevronLeft className="w-4 h-4" />
-            Back
-          </button>
+            <Link
+              href="/products"
+              className="flex items-center gap-2 text-primary font-bold hover:underline"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              Back to Products
+            </Link>
 
           <div className="grid grid-cols-1 lg:grid-cols-[60%_40%] gap-8 lg:gap-12 mb-16 pb-8">
             {/* Images - Larger on desktop (60%) */}
@@ -461,20 +476,7 @@ export default function ProductDetailPage() {
                 <div className="bg-primary/5 border border-primary/10 rounded-lg p-5 space-y-2">
                   <div className="flex items-baseline gap-3">
                     <span className="text-3xl md:text-4xl font-bold text-primary">
-                      {selectedVariant ? (
-                        formatPrice(selectedVariant.price)
-                      ) : (
-                        (() => {
-                          const activeVariants = variants.filter(v => v.is_active);
-                          if (activeVariants.length === 0) return formatPrice(product.price || 0);
-                          const prices = activeVariants.map(v => v.price);
-                          const minPrice = Math.min(...prices);
-                          const maxPrice = Math.max(...prices);
-                          return minPrice === maxPrice 
-                            ? formatPrice(minPrice) 
-                            : `${formatPrice(minPrice)} — ${formatPrice(maxPrice)}`;
-                        })()
-                      )}
+                      {priceDisplay}
                     </span>
                     {product.compareAtPrice && (
                       <>
@@ -601,38 +603,43 @@ export default function ProductDetailPage() {
                 )}
 
                 {/* Primary CTAs */}
-                <div className="flex gap-3">
-                  {/* Add to Cart */}
+                {selectedVariant && selectedVariant.stock === 0 ? (
                   <button
-                    onClick={handleAddToCart}
-                    disabled={variants.length > 0 && selectedVariant?.stock === 0}
-                    className={`flex-1 px-6 py-4 rounded-lg active:scale-[0.98] transition-all font-semibold text-lg shadow-lg flex items-center justify-center gap-2 ${
-                      !selectedVariant && variants.length > 0
-                        ? "bg-slate-200 text-slate-500 cursor-not-allowed shadow-none"
-                        : selectedVariant?.stock === 0
-                        ? "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none"
-                        : "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-xl hover:shadow-primary/20"
-                    }`}
+                    disabled
+                    className="w-full px-4 py-3 sm:px-6 sm:py-4 rounded-lg font-semibold text-base sm:text-lg bg-slate-100 text-slate-400 cursor-not-allowed shadow-none flex items-center justify-center gap-2"
                   >
-                    <ShoppingCart className="w-5 h-5" />
-                    Add to Cart
+                    Out of Stock
                   </button>
+                ) : (
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    {/* Add to Cart */}
+                    <button
+                      onClick={handleAddToCart}
+                      disabled={variants.length > 0 && !selectedVariant}
+                      className={`flex-1 px-4 py-3 sm:px-6 sm:py-4 rounded-lg active:scale-[0.98] transition-all font-semibold text-base sm:text-lg flex items-center justify-center gap-2 ${
+                        variants.length > 0 && !selectedVariant
+                          ? "bg-slate-200 text-slate-500 cursor-not-allowed"
+                          : "border-2 border-primary text-primary hover:bg-primary/5 shadow-sm"
+                      }`}
+                    >
+                      <ShoppingCart className="w-5 h-5 shrink-0" />
+                      <span className="whitespace-nowrap">Add to Cart</span>
+                    </button>
 
-                  {/* Buy Now */}
-                  <button
-                    onClick={handleBuyNow}
-                    disabled={variants.length > 0 && selectedVariant?.stock === 0}
-                    className={`flex-1 px-6 py-4 rounded-lg active:scale-[0.98] transition-all font-semibold text-lg shadow-lg flex items-center justify-center gap-2 ${
-                      !selectedVariant && variants.length > 0
-                        ? "bg-slate-200 text-slate-500 cursor-not-allowed shadow-none"
-                        : selectedVariant?.stock === 0
-                        ? "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none"
-                        : "bg-accent text-accent-foreground hover:bg-accent/90 hover:shadow-xl hover:shadow-accent/20"
-                    }`}
-                  >
-                    💳 Buy Now
-                  </button>
-                </div>
+                    {/* Buy Now */}
+                    <button
+                      onClick={handleBuyNow}
+                      disabled={variants.length > 0 && !selectedVariant}
+                      className={`flex-1 px-4 py-3 sm:px-6 sm:py-4 rounded-lg active:scale-[0.98] transition-all font-semibold text-base sm:text-lg flex items-center justify-center gap-2 ${
+                        variants.length > 0 && !selectedVariant
+                          ? "bg-slate-200 text-slate-500 cursor-not-allowed"
+                          : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg hover:shadow-xl hover:shadow-primary/20"
+                      }`}
+                    >
+                      <span className="whitespace-nowrap">💳 Buy Now</span>
+                    </button>
+                  </div>
+                )}
 
                 {/* Secondary Actions */}
                 <div className="flex gap-3">
@@ -725,8 +732,9 @@ export default function ProductDetailPage() {
           product={{
             ...product,
             price: selectedVariant?.price ?? product.price,
-            stock: selectedVariant?.stock ?? product.stock,
+            stock: variants.length > 0 && !selectedVariant ? null : (selectedVariant?.stock ?? product.stock),
           } as any}
+          priceDisplay={priceDisplay}
           quantity={quantity}
           onQuantityChange={setQuantity}
           onAddToCart={handleAddToCart}

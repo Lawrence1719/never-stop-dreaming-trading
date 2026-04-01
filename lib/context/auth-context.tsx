@@ -16,6 +16,8 @@ interface AuthContextType {
   requestCustomerPasswordReset: () => Promise<{ error: Error | null }>;
   changePassword: (newPassword: string) => Promise<{ error: Error | null }>;
   resendConfirmationEmail: (email: string) => Promise<{ error: Error | null }>;
+  updatePreferences: (preferences: User['notification_preferences']) => Promise<{ error: Error | null }>;
+  restoreAccount: () => Promise<{ error: Error | null }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -86,6 +88,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             memberSince: newProfile.created_at,
             addresses: [],
             role: newProfile.role,
+            notification_preferences: newProfile.notification_preferences,
+            deleted_at: newProfile.deleted_at,
           };
           setUser(userData);
           cachedUserIdRef.current = session.user.id;
@@ -124,6 +128,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           memberSince: profile.created_at,
           addresses: [],
           role: profile.role,
+          notification_preferences: profile.notification_preferences,
+          deleted_at: profile.deleted_at,
         };
         setUser(userData);
         cachedUserIdRef.current = session.user.id;
@@ -492,6 +498,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const updatePreferences = async (preferences: User['notification_preferences']) => {
+    if (!user) return { error: new Error("User not authenticated") };
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ notification_preferences: preferences })
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      // Update local state immediately
+      setUser({
+        ...user,
+        notification_preferences: preferences
+      });
+
+      return { error: null };
+    } catch (error: any) {
+      console.error("Failed to update preferences:", error);
+      return { error };
+    }
+  };
+
+  const restoreAccount = async () => {
+    if (!user) return { error: new Error("User not authenticated") };
+
+    try {
+      const response = await fetch('/api/profile/restore', { method: 'POST' });
+      const result = await response.json();
+
+      if (!response.ok) throw new Error(result.error || "Failed to restore account");
+
+      // Update local state immediately
+      setUser({
+        ...user,
+        deleted_at: null
+      });
+
+      return { error: null };
+    } catch (error: any) {
+      console.error("Failed to restore account:", error);
+      return { error };
+    }
+  };
+
   const authValue = useMemo(() => ({
     user,
     isLoading,
@@ -502,7 +554,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     requestPasswordReset,
     requestCustomerPasswordReset,
     changePassword,
-    resendConfirmationEmail
+    resendConfirmationEmail,
+    updatePreferences,
+    restoreAccount
   }), [user, isLoading]);
 
   return (

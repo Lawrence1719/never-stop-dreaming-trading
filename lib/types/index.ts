@@ -147,6 +147,13 @@ export interface Profile {
   email: string | null;
   phone: string | null;
   role: 'admin' | 'customer' | 'courier';
+  notification_preferences?: {
+    emailNotifications: boolean;
+    orderUpdates: boolean;
+    marketingEmails: boolean;
+    newsletter: boolean;
+  };
+  deleted_at?: string | null;
   created_at: string;
 }
 
@@ -159,6 +166,13 @@ export interface User {
   defaultAddressId?: string;
   addresses: Address[];
   role?: 'admin' | 'customer' | 'courier';
+  notification_preferences?: {
+    emailNotifications: boolean;
+    orderUpdates: boolean;
+    marketingEmails: boolean;
+    newsletter: boolean;
+  };
+  deleted_at?: string | null;
 }
 
 export interface Review {

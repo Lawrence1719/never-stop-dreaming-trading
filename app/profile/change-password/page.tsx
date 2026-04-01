@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from 'next/navigation';
+import Link from "next/link";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { useAuth } from "@/lib/context/auth-context";
@@ -73,13 +74,13 @@ export default function ChangePasswordPage() {
 
       <main className="flex-1">
         <div className="max-w-md mx-auto px-4 py-12">
-          <button
-            onClick={() => router.back()}
+          <Link
+            href="/profile"
             className="flex items-center gap-1 text-primary hover:underline mb-8"
           >
             <ChevronLeft className="w-4 h-4" />
-            Back
-          </button>
+            Back to Profile
+          </Link>
 
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold mb-2 text-foreground">Change Password</h1>

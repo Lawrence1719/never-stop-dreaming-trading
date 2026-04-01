@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
         title: 'Order Received!',
         message: 'Order Received! We are processing your order.',
         type: 'success',
-        link: `/profile/orders/${createdOrder.id}`,
+        link: `/orders/${createdOrder.id}`,
         targetRole: 'customer',
       }).catch(err => console.error('Failed to notify customer of new order:', err));
 

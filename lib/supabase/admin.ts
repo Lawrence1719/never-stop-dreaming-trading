@@ -299,8 +299,11 @@ async function getGrowthRate(metric: GrowthMetric, range: Range = 'week', supaba
   }
 }
 
+import { formatOrderNumber } from '@/lib/utils/formatting';
+
 type RecentOrder = {
   id: string
+  orderNumber: string
   total: number
   status: string
   created_at: string
@@ -317,6 +320,17 @@ async function getRecentOrders(limit = 5, supabase?: SupabaseClient) {
     .limit(limit)
 
   if (error) throw error
+
+  // Build a global sequence map to format order ID as #NSD-xxxxx
+  const { data: allOrderIds } = await sb
+    .from('orders')
+    .select('id')
+    .order('created_at', { ascending: true })
+
+  const sequenceMap = new Map<string, number>()
+  ;(allOrderIds || []).forEach((row: { id: string }, idx: number) => {
+    sequenceMap.set(row.id, idx + 1)
+  })
 
   const orders = data || []
   const userIds = Array.from(new Set(orders.map((order) => order.user_id).filter(Boolean))) as string[]
@@ -336,6 +350,7 @@ async function getRecentOrders(limit = 5, supabase?: SupabaseClient) {
 
   const recentOrders: RecentOrder[] = orders.map((order: any) => ({
     id: order.id,
+    orderNumber: formatOrderNumber(sequenceMap.get(order.id) || 0),
     total: Number(order.total || 0),
     status: order.status,
     created_at: order.created_at,

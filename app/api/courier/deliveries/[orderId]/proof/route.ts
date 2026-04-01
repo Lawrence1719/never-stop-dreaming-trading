@@ -146,7 +146,7 @@ export async function POST(
         title: 'Order Delivered!',
         message: 'Your order has been delivered. Please confirm receipt.',
         type: 'success',
-        link: `/profile/orders/${orderId}`,
+        link: `/orders/${orderId}`,
         targetRole: 'customer'
       });
     }

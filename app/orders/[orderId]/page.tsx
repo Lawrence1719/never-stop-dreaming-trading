@@ -124,6 +124,16 @@ export default function OrderDetailsPage({ params }: { params: Promise<{ orderId
     fetchOrder();
   }, [fetchOrder]);
 
+  // Support deep linking to review modal
+  useEffect(() => {
+    if (order && order.status === 'delivered' && !order.hasRated) {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('review') === 'true') {
+        setShowRatingModal(true);
+      }
+    }
+  }, [order]);
+
   const handleRatingSuccess = (rating: number, reviewText: string) => {
     setOrder(prev => prev ? { ...prev, hasRated: true, rating, reviewText, ratedAt: new Date().toISOString() } : null);
   };

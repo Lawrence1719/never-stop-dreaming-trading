@@ -12,13 +12,14 @@ interface StickyAddToCartProps {
     id: string;
     name: string;
     price: number;
-    stock: number;
+    stock: number | null;
     reorder_threshold?: number;
   };
   quantity: number;
   onQuantityChange: (qty: number) => void;
   onAddToCart: () => void;
   isVisible: boolean;
+  priceDisplay?: string;
 }
 
 export function StickyAddToCart({
@@ -27,6 +28,7 @@ export function StickyAddToCart({
   onQuantityChange,
   onAddToCart,
   isVisible,
+  priceDisplay,
 }: StickyAddToCartProps) {
   if (!isVisible) return null;
 
@@ -40,8 +42,8 @@ export function StickyAddToCart({
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold truncate">{product.name}</p>
             <div className="flex items-center gap-2 mt-1">
-              <span className="text-lg font-bold text-primary">{formatPrice(product.price)}</span>
-              {max > 0 ? (
+              <span className="text-lg font-bold text-primary">{priceDisplay || formatPrice(product.price)}</span>
+              {max === null ? null : max > 0 ? (
                 <StockIndicator 
                   stock={max} 
                   reorderThreshold={product.reorder_threshold}
@@ -58,7 +60,7 @@ export function StickyAddToCart({
 
           {/* Quantity & Add Button */}
           <div className="flex items-center gap-2 flex-shrink-0">
-            {max > 0 && (
+            {max !== null && max > 0 && (
               <div className="flex flex-col items-center gap-1">
                 <div className="flex items-center gap-1 border border-border rounded-lg p-1">
                   <button
@@ -85,20 +87,24 @@ export function StickyAddToCart({
             )}
             <button
               onClick={onAddToCart}
-              disabled={max === 0}
+              disabled={max === null || max === 0}
               className={`px-6 py-3 rounded-lg transition-all font-semibold flex items-center gap-2 shadow-lg justify-center ${
-                max === 0 
-                  ? "bg-muted text-muted-foreground border border-border cursor-not-allowed min-w-[140px]" 
-                  : "bg-primary text-primary-foreground hover:bg-primary/90 active:scale-95 min-w-[124px]"
+                max === null
+                  ? "bg-slate-200 text-slate-500 cursor-not-allowed"
+                  : max === 0 
+                  ? "bg-muted text-muted-foreground border border-border cursor-not-allowed" 
+                  : "bg-primary text-primary-foreground hover:bg-primary/90 active:scale-95"
               }`}
             >
-              {max > 0 ? (
+              {max === null ? (
+                <span className="text-sm whitespace-nowrap">Select option</span>
+              ) : max > 0 ? (
                 <>
-                  <ShoppingCart className="w-5 h-5" />
-                  <span>Add</span>
+                  <ShoppingCart className="w-5 h-5 shrink-0" />
+                  <span className="whitespace-nowrap">Add to Cart</span>
                 </>
               ) : (
-                <span>Out of Stock</span>
+                <span className="whitespace-nowrap">Out of Stock</span>
               )}
             </button>
           </div>

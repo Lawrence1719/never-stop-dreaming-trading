@@ -33,7 +33,7 @@ import {
 import { StatusBadge } from '@/components/admin/status-badge';
 import { supabase } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { formatPrice, formatDate } from '@/lib/utils/formatting';
+import { formatPrice, formatDate, formatOrderNumber } from '@/lib/utils/formatting';
 import { OrdersExportModal, ExportMode } from '@/components/admin/orders/OrdersExportModal';
 
 interface Order {
@@ -376,11 +376,22 @@ export default function OrdersPage() {
       if (error) throw error;
       if (!data) return;
 
+      // Build global sequence map for exporting standard #NSD-xxxxx order IDs
+      const { data: allOrderIds } = await supabase
+        .from('orders')
+        .select('id')
+        .order('created_at', { ascending: true });
+
+      const sequenceMap = new Map<string, number>();
+      (allOrderIds || []).forEach((row: { id: string }, idx: number) => {
+        sequenceMap.set(row.id, idx + 1);
+      });
+
       const formattedData = data.map(order => {
         const profile = order.profiles as any;
         const itemsCount = (order.order_items as any[] || []).reduce((sum, item) => sum + (item.quantity || 1), 0);
         return {
-          id: `#${order.id.slice(0, 8).toUpperCase()}`,
+          id: formatOrderNumber(sequenceMap.get(order.id) || 0),
           orderId: order.id,
           customer: profile?.name || 'Guest',
           email: profile?.email || '',

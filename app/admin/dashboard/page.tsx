@@ -51,6 +51,7 @@ type DashboardResponse = {
   };
   recentOrders: Array<{
     id: string;
+    orderNumber?: string;
     status: string;
     total: number;
     created_at: string;
@@ -464,7 +465,7 @@ export default function AdminDashboard() {
               ) : (
                 recentOrders.map((order) => (
                   <TableRow key={order.id}>
-                    <TableCell className="font-medium">{order.id}</TableCell>
+                    <TableCell className="font-medium">{order.orderNumber || order.id}</TableCell>
                     <TableCell>{order.customer_name ?? 'Guest'}</TableCell>
                     <TableCell>{formatPrice(order.total)}</TableCell>
                     <TableCell>

@@ -1,4 +1,4 @@
-  "use client";
+"use client";
 
   import { useState, useEffect } from "react";
   import { useRouter } from 'next/navigation';
@@ -183,13 +183,13 @@
 
         <main className="flex-1">
           <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <button
-              onClick={() => router.back()}
+            <Link
+              href="/profile"
               className="flex items-center gap-1 text-primary hover:underline mb-8"
             >
               <ChevronLeft className="w-4 h-4" />
-              Back
-            </button>
+              Back to Profile
+            </Link>
 
             <h1 className="text-3xl font-bold mb-8">Edit Profile</h1>
 
@@ -213,12 +213,12 @@
               <div>
                 <label className="block text-sm font-medium mb-2">Email Address</label>
                 {!isChangingEmail ? (
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-col sm:flex-row gap-3">
                     <input
                       type="email"
                       value={user.email}
                       disabled
-                      className="flex-1 px-4 py-2 bg-input border border-border rounded-lg opacity-50"
+                      className="flex-1 w-full px-4 py-2 bg-input border border-border rounded-lg opacity-50 min-w-0"
                     />
                     <button
                       type="button"

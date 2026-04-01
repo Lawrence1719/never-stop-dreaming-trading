@@ -52,11 +52,12 @@ const menuItems: MenuItem[] = [
   },
   {
     label: 'Customers',
+    href: '/admin/customers',
     icon: Users,
-    submenu: [
+    /* submenu: [
       { label: 'All Customers', href: '/admin/customers', icon: Users },
       { label: 'Groups', href: '/admin/customer-groups', icon: FileText },
-    ],
+    ], */
   },
   {
     label: 'Notifications',

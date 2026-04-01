@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { getClient } from '@/lib/supabase/admin';
+import { formatOrderNumber } from '@/lib/utils/formatting';
 
 export async function GET(request: NextRequest) {
   try {
@@ -96,6 +97,17 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Build a global sequence map: order id → sequential position (1-based, oldest first)
+    const { data: allOrderIds } = await supabaseAdmin
+      .from('orders')
+      .select('id')
+      .order('created_at', { ascending: true });
+
+    const sequenceMap = new Map<string, number>();
+    (allOrderIds || []).forEach((row: { id: string }, idx: number) => {
+      sequenceMap.set(row.id, idx + 1);
+    });
+
     // Map the data to match the expected format
     const orders = (ordersData || [])
       .map((row: any) => {
@@ -112,7 +124,7 @@ export async function GET(request: NextRequest) {
         const paymentStatus = row.payment_status || 'pending';
         
         // Format order ID
-        const orderId = `#${row.id.slice(0, 8).toUpperCase()}`;
+        const orderId = formatOrderNumber(sequenceMap.get(row.id) || 0);
         
         // Preserve full ISO timestamp — formatting is done on the client
         const date = row.created_at;

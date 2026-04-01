@@ -47,13 +47,13 @@ export default function PaymentMethodsPage() {
       <main className="flex-1">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex items-center justify-between mb-8">
-            <button
-              onClick={() => router.back()}
+            <Link
+              href="/profile"
               className="flex items-center gap-1 text-primary hover:underline"
             >
               <ChevronLeft className="w-4 h-4" />
-              Back
-            </button>
+              Back to Profile
+            </Link>
           </div>
 
           <h1 className="text-3xl font-bold mb-8">Payment Methods</h1>

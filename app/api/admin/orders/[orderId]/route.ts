@@ -468,7 +468,7 @@ export async function PUT(
         title: getStatusTitle(status),
         message: getStatusMessage(status),
         type: getStatusType(status),
-        link: `/profile/orders/${order.id}`,
+        link: `/orders/${order.id}`,
         targetRole: 'customer',
       }).catch((err: any) => console.error('Failed to trigger customer notification:', err));
 

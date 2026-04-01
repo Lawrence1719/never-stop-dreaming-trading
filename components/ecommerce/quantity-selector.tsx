@@ -12,7 +12,7 @@ export function QuantitySelector({ quantity, onQuantityChange, max }: QuantitySe
   return (
     <div className="space-y-2">
       <label className="text-sm font-medium text-foreground">Quantity</label>
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <div className={`flex items-center gap-2 border border-border rounded-lg p-1 bg-card ${max === 0 ? "opacity-50 bg-muted" : ""}`}>
           <button
             onClick={() => onQuantityChange(Math.max(1, quantity - 1))}

@@ -24,6 +24,7 @@ import { useNotifications, Notification } from "@/hooks/use-notifications";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 
@@ -31,7 +32,7 @@ export default function NotificationsPage() {
   const router = useRouter();
   const [page, setPage] = useState(0);
   const [filter, setFilter] = useState<'all' | 'unread' | 'read'>('all');
-  const PAGE_SIZE = 15;
+  const PAGE_SIZE = 12;
 
   const { 
     notifications, 
@@ -60,6 +61,24 @@ export default function NotificationsPage() {
     }
   };
 
+  const getButtonLabel = (notification: Notification) => {
+    const type = notification.type;
+    const title = (notification.title || '').toLowerCase();
+    
+    if (type === 'order') {
+      if (title.includes('delivered')) return 'Review Order';
+      if (title.includes('shipped') || title.includes('out for delivery')) return 'Track Order';
+      if (title.includes('confirmed')) return 'View Order';
+      return 'View Details';
+    }
+    
+    if (type === 'stock') return 'View Product';
+    if (type === 'user') return 'View Profile';
+    if (type === 'success') return 'View Result';
+    
+    return 'View Details';
+  };
+
   const getTypeStyles = (type: Notification['type']) => {
     switch (type) {
       case 'success': return "border-green-500 bg-green-50 text-green-600";
@@ -76,15 +95,15 @@ export default function NotificationsPage() {
       <Navbar />
 
       <main className="flex-1 bg-muted/20 pb-20">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Back Button matching Edit Profile style */}
-          <button
-            onClick={() => router.back()}
+          <Link
+            href="/profile"
             className="flex items-center gap-1 text-primary hover:underline mb-8 font-semibold text-sm"
           >
             <ChevronLeft className="w-4 h-4" />
-            Back
-          </button>
+            Back to Profile
+          </Link>
 
           {/* Header Section */}
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 mb-8">
@@ -97,6 +116,7 @@ export default function NotificationsPage() {
                   <Button 
                       variant="outline" 
                       size="sm" 
+                      type="button"
                       onClick={markAllAsRead} 
                       className="h-10 rounded-full px-5 font-bold gap-2 hover:bg-primary/5 hover:text-primary border-dashed transition-all"
                   >
@@ -115,6 +135,7 @@ export default function NotificationsPage() {
                       <Button
                           variant={filter === 'all' ? "secondary" : "ghost"}
                           size="sm"
+                          type="button"
                           onClick={() => { setFilter('all'); setPage(0); }}
                           className={cn("rounded-full h-9 text-xs font-bold px-5 transition-all text-white bg-[#003B95]", filter === 'all' && "shadow-sm shadow-black bg-primary")}
                       >
@@ -123,6 +144,7 @@ export default function NotificationsPage() {
                       <Button
                           variant={filter === 'unread' ? "secondary" : "ghost"}
                           size="sm"
+                          type="button"
                           onClick={() => { setFilter('unread'); setPage(0); }}
                           className={cn("rounded-full h-9 text-xs font-bold px-5 transition-all", filter === 'unread' && "shadow-sm")}
                       >
@@ -131,6 +153,7 @@ export default function NotificationsPage() {
                       <Button
                           variant={filter === 'read' ? "secondary" : "ghost"}
                           size="sm"
+                          type="button"
                           onClick={() => { setFilter('read'); setPage(0); }}
                           className={cn("rounded-full h-9 text-xs font-bold px-5 transition-all", filter === 'read' && "shadow-sm")}
                       >
@@ -146,14 +169,15 @@ export default function NotificationsPage() {
             </CardHeader>
 
             <CardContent className="p-0 animate-in fade-in duration-500">
-               {loading ? (
-                  <div className="divide-y divide-border/5">
-                      {Array.from({ length: 4 }).map((_, i) => (
-                          <div key={i} className="p-6 sm:p-8 flex items-start gap-6 animate-pulse">
+                {loading ? (
+                  <div className="p-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      {Array.from({ length: 6 }).map((_, i) => (
+                          <div key={i} className="p-6 flex items-start gap-4 sm:gap-6 animate-pulse rounded-2xl border border-border/20 bg-muted/10">
                               <div className="w-12 h-12 bg-muted/30 rounded-2xl shrink-0" />
                               <div className="flex-1 space-y-3">
-                                  <div className="h-4 bg-muted/30 rounded-full w-1/3" />
-                                  <div className="h-3 bg-muted/20 rounded-full w-2/3" />
+                                  <div className="h-4 bg-muted/30 rounded-full w-2/3" />
+                                  <div className="h-3 bg-muted/20 rounded-full w-full" />
+                                  <div className="h-3 bg-muted/20 rounded-full w-4/5" />
                               </div>
                           </div>
                       ))}
@@ -168,7 +192,7 @@ export default function NotificationsPage() {
                       <p className="text-muted-foreground mt-2 max-w-[200px] leading-relaxed">You don't have any notifications at the moment.</p>
                   </div>
                ) : (
-                  <div className="divide-y divide-border/5">
+                  <div className="p-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
                       {notifications.map((notification) => {
                           const typeStyles = getTypeStyles(notification.type);
                           const borderColor = typeStyles.split(' ')[0];
@@ -180,60 +204,81 @@ export default function NotificationsPage() {
                                   key={notification.id}
                                   onClick={() => {
                                       if (!notification.is_read) markAsRead(notification.id);
-                                      if (notification.link) router.push(notification.link);
+                                      if (notification.link) {
+                                          let finalLink = notification.link;
+                                          
+                                          // Fix 1: Correct common path errors (broken /profile/orders/ links)
+                                          if (finalLink.includes('/profile/orders/')) {
+                                              finalLink = finalLink.replace('/profile/orders/', '/orders/');
+                                          }
+
+                                          // Fix 2: Functional Deep link to review for delivered orders
+                                          if (notification.type === 'order' && notification.title.toLowerCase().includes('delivered')) {
+                                              const separator = finalLink.includes('?') ? '&' : '?';
+                                              finalLink = `${finalLink}${separator}review=true`;
+                                          }
+                                          router.push(finalLink);
+                                      }
                                   }}
                                   className={cn(
-                                      "group relative p-6 sm:p-8 flex items-start gap-4 sm:gap-6 transition-all duration-300 cursor-pointer border-l-[6px]",
-                                      borderColor,
-                                      !notification.is_read ? "bg-primary/[0.02] border-primary" : "border-transparent hover:bg-muted/30"
+                                      "group relative p-4 sm:p-6 flex items-start gap-3 sm:gap-6 transition-all duration-300 cursor-pointer rounded-2xl border overflow-hidden",
+                                      !notification.is_read ? cn("border-l-4 shadow-sm bg-primary/[0.02]", borderColor) : "border-border/40 bg-card hover:bg-muted/30 hover:border-primary/30 hover:shadow-md"
                                   )}
                               >
                                   <div className={cn(
-                                      "w-12 h-12 rounded-2xl shrink-0 flex items-center justify-center shadow-lg transition-transform group-hover:scale-110 duration-500",
+                                      "w-10 h-10 sm:w-12 sm:h-12 rounded-2xl shrink-0 flex items-center justify-center shadow-md transition-transform group-hover:scale-110 duration-500",
                                       iconBgColor,
                                       iconTextColor
                                   )}>
                                       {getIcon(notification.type)}
                                   </div>
-                                  <div className="flex-1 min-w-0">
-                                      <div className="flex items-start justify-between gap-4">
-                                          <div className="space-y-0.5">
-                                              <h4 className={cn(
-                                                  "text-base font-bold transition-colors",
-                                                  !notification.is_read ? "text-foreground" : "text-muted-foreground/80"
-                                              )}>
-                                                  {notification.title}
-                                              </h4>
-                                              <p className={cn(
-                                                  "text-sm leading-relaxed max-w-2xl line-clamp-2",
-                                                  !notification.is_read ? "text-foreground/70" : "text-muted-foreground/60"
-                                              )}>
-                                                  {notification.message}
-                                              </p>
-                                          </div>
-                                          <div className="flex items-center gap-2">
-                                               {!notification.is_read && <div className="w-2.5 h-2.5 rounded-full bg-primary shadow-[0_0_12px_rgba(59,130,246,0.6)] animate-pulse" />}
-                                               <Button 
+                                  
+                                  <div className="flex-1 min-w-0 flex flex-col justify-center">
+                                      {/* Row 1: Title and Unread Dot */}
+                                      <div className="flex justify-between items-center gap-2">
+                                          <h4 className={cn(
+                                              "text-sm sm:text-base font-bold truncate",
+                                              !notification.is_read ? "text-foreground" : "text-muted-foreground/80"
+                                          )}>
+                                              {notification.title}
+                                          </h4>
+                                          <div className="flex items-center gap-2 shrink-0">
+                                              {!notification.is_read && <div className="w-2.5 h-2.5 rounded-full bg-primary shadow-[0_0_8px_rgba(59,130,246,0.6)] animate-pulse" />}
+                                              <Button 
                                                   variant="ghost" 
                                                   size="icon" 
-                                                  className="h-8 w-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 hover:text-destructive"
+                                                  className="h-6 w-6 sm:h-8 sm:w-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 hover:text-destructive hidden sm:flex"
                                                   onClick={(e) => {
                                                       e.stopPropagation();
                                                       deleteNotification(notification.id);
                                                   }}
-                                               >
-                                                  <X className="h-4 w-4" />
-                                               </Button>
+                                              >
+                                                  <X className="h-3 w-3 sm:h-4 sm:w-4" />
+                                              </Button>
                                           </div>
                                       </div>
-                                      <div className="flex items-center gap-4 mt-3">
-                                          <span className="text-[11px] font-bold text-muted-foreground/40 uppercase tracking-widest">
+
+                                      {/* Row 2: Message */}
+                                      <p className={cn(
+                                          "text-xs sm:text-sm mt-1 sm:mt-0.5 leading-snug whitespace-normal line-clamp-2",
+                                          !notification.is_read ? "text-foreground/80" : "text-muted-foreground/60"
+                                      )}>
+                                          {notification.message}
+                                      </p>
+
+                                      {/* Row 3: Timestamp & Action */}
+                                      <div className="flex justify-between items-center mt-2 sm:mt-3">
+                                          <span className="text-[11px] sm:text-xs font-medium text-muted-foreground">
                                               {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
                                           </span>
-                                          {notification.link && <Badge variant="secondary" className="rounded-full px-3 py-0 h-5 text-[9px] font-bold uppercase tracking-tighter">View Details</Badge>}
+                                          {notification.link && (
+                                              <Badge className="bg-primary/10 text-primary hover:bg-primary/20 border-none px-3 py-1 text-[10px] sm:text-xs font-semibold whitespace-nowrap">
+                                                  {getButtonLabel(notification)}
+                                              </Badge>
+                                          )}
                                       </div>
                                   </div>
-                                  {notification.link && <ChevronRight className="self-center h-5 w-5 text-muted-foreground/20 group-hover:translate-x-1 group-hover:text-primary transition-all" />}
+                                  {notification.link && <ChevronRight className="hidden sm:block self-center h-5 w-5 text-muted-foreground/20 group-hover:translate-x-1 group-hover:text-primary transition-all" />}
                               </div>
                           );
                       })}
@@ -245,10 +290,10 @@ export default function NotificationsPage() {
               <div className="bg-muted/5 border-t border-border/10 p-6 flex items-center justify-between">
                   <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-30">Page {page + 1}/{totalPages}</p>
                   <div className="flex items-center gap-3">
-                      <Button variant="ghost" className="h-10 rounded-full px-6 font-bold text-xs" disabled={page === 0} onClick={() => setPage(p => p - 1)}>
+                      <Button type="button" variant="ghost" className="h-10 rounded-full px-6 font-bold text-xs" disabled={page === 0} onClick={() => setPage(p => p - 1)}>
                           <ChevronLeft className="w-4 h-4 mr-1" /> Previous
                       </Button>
-                      <Button variant="secondary" className="h-10 rounded-full px-6 font-bold text-xs shadow-sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>
+                      <Button type="button" variant="secondary" className="h-10 rounded-full px-6 font-bold text-xs shadow-sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>
                           Next <ChevronRight className="w-4 h-4 ml-1" />
                       </Button>
                   </div>

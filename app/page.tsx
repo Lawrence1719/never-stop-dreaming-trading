@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
+import { useAuth } from "@/lib/context/auth-context";
 import { ProductGrid } from "@/components/ecommerce/product-grid";
 import { Product } from "@/lib/types";
 import Link from "next/link";
@@ -13,6 +14,7 @@ import { ProminentSearchBar } from "@/components/layout/prominent-search-bar";
 import { NewsletterForm } from "@/components/marketing/NewsletterForm";
 
 export default function Home() {
+  const { user } = useAuth();
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -186,16 +188,20 @@ export default function Home() {
 
         {/* CTA Section */}
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <div className="bg-primary text-primary-foreground rounded-lg p-12 text-center">
-            <h2 className="text-3xl font-bold mb-4">Join Thousands of Happy Shoppers</h2>
+          <div className="bg-primary text-primary-foreground rounded-lg p-12 text-center shadow-xl">
+            <h2 className="text-3xl font-bold mb-4">
+              {user ? "Ready for Your Next Order?" : "Join Thousands of Happy Shoppers"}
+            </h2>
             <p className="text-lg mb-6 opacity-90">
-              Get exclusive access to the freshest deals and stay updated on our weekly stocks.
+              {user 
+                ? "Browse our latest arrivals and grab the freshest deals today." 
+                : "Get exclusive access to the freshest deals and stay updated on our weekly stocks."}
             </p>
             <Link
-              href="/register"
-              className="inline-block px-8 py-3 bg-primary-foreground text-primary rounded-lg hover:opacity-90 transition-opacity font-semibold"
+              href={user ? "/products" : "/register"}
+              className="inline-block px-8 py-3 bg-primary-foreground text-primary rounded-[2rem] hover:scale-105 transition-all font-bold shadow-md"
             >
-              Create Free Account
+              {user ? "Shop Fresh Deals Now" : "Create Free Account"}
             </Link>
           </div>
         </section>

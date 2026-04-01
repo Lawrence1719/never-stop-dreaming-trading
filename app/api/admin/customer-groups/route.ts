@@ -56,7 +56,8 @@ export async function GET(request: NextRequest) {
       customerStats[order.user_id].totalSpent += Number(order.total || 0);
       customerStats[order.user_id].orderCount += 1;
       const orderDate = new Date(order.created_at);
-      if (!customerStats[order.user_id].lastOrderDate || orderDate > new Date(customerStats[order.user_id].lastOrderDate)) {
+      const currentLastOrder = customerStats[order.user_id].lastOrderDate;
+      if (!currentLastOrder || orderDate > new Date(currentLastOrder)) {
         customerStats[order.user_id].lastOrderDate = order.created_at;
       }
     });
@@ -64,9 +65,7 @@ export async function GET(request: NextRequest) {
     // Calculate groups
     const now = new Date();
     const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    const vipCustomers: string[] = [];
     const regularCustomers: string[] = [];
     const newCustomers: string[] = [];
     const inactiveCustomers: string[] = [];
@@ -75,39 +74,30 @@ export async function GET(request: NextRequest) {
       const stats = customerStats[profile.id] || { totalSpent: 0, orderCount: 0, lastOrderDate: null };
       const joinDate = new Date(profile.created_at);
       const lastOrderDate = stats.lastOrderDate ? new Date(stats.lastOrderDate) : null;
+      const ageDays = (now.getTime() - joinDate.getTime()) / (1000 * 60 * 60 * 24);
 
-      // VIP: High-value customers (spent > ₱25,000)
-      if (stats.totalSpent > 25000) {
-        vipCustomers.push(profile.id);
+      // Rule Priority: Inactive -> Regular -> New
+      
+      // Inactive: No orders in 90 days. Must have previously placed at least 1 order.
+      if (stats.orderCount > 0 && lastOrderDate && lastOrderDate < ninetyDaysAgo) {
+        inactiveCustomers.push(profile.id);
       }
-      // Regular: Active customers with orders
-      else if (stats.orderCount > 0) {
+      // Regular: Active customers. Has placed at least 1 order, account older than 30 days.
+      else if (stats.orderCount > 0 && ageDays > 30) {
         regularCustomers.push(profile.id);
       }
-      // New: Recently joined (within 30 days)
-      if (joinDate > thirtyDaysAgo) {
+      // New: Recently joined within last 30 days. Regardless of order history.
+      else if (ageDays <= 30) {
         newCustomers.push(profile.id);
-      }
-      // Inactive: No orders in 90 days
-      if (!lastOrderDate || lastOrderDate < ninetyDaysAgo) {
-        inactiveCustomers.push(profile.id);
       }
     });
 
     // Build groups
     const groups = [
       {
-        id: 'vip',
-        name: 'VIP',
-        description: 'High-value customers',
-        customers: vipCustomers.length,
-        discount: '15%',
-        status: 'active',
-      },
-      {
         id: 'regular',
         name: 'Regular',
-        description: 'Active customers',
+        description: 'Active customers over 30 days',
         customers: regularCustomers.length,
         discount: '5%',
         status: 'active',
@@ -115,7 +105,7 @@ export async function GET(request: NextRequest) {
       {
         id: 'new',
         name: 'New',
-        description: 'Recently joined',
+        description: 'Joined within 30 days',
         customers: newCustomers.length,
         discount: '10%',
         status: 'active',
@@ -123,7 +113,7 @@ export async function GET(request: NextRequest) {
       {
         id: 'inactive',
         name: 'Inactive',
-        description: 'No orders in 90 days',
+        description: 'No orders in last 90 days',
         customers: inactiveCustomers.length,
         discount: '0%',
         status: inactiveCustomers.length > 0 ? 'active' : 'inactive',
