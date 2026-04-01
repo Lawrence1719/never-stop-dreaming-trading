@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ArrowDown, ArrowUp, ShoppingCart, Users, TrendingUp, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/lib/context/auth-context';
@@ -60,7 +60,7 @@ type DashboardResponse = {
   }>;
 };
 
-const COLORS = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b'];
+const COLORS = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'];
 
 const PesoIcon = ({ className }: { className?: string }) => (
   <span className={className + " font-bold flex items-center justify-center text-xl"}>₱</span>
@@ -76,6 +76,16 @@ export default function AdminDashboard() {
   const previousDateRangeRef = useRef<DashboardRange>('week');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMetric, setModalMetric] = useState<DashboardMetric | null>(null);
+  const [legendPosition, setLegendPosition] = useState<'right' | 'bottom'>('right');
+
+  useEffect(() => {
+    const handleResize = () => {
+      setLegendPosition(window.innerWidth < 1024 ? 'bottom' : 'right');
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const openModal = (metric: DashboardMetric) => {
     setModalMetric(metric);
@@ -92,19 +102,19 @@ export default function AdminDashboard() {
         });
         if (!res.ok) {
           const payload = await res.json().catch(() => ({}));
-          const errorMessage = 
-            payload.error || 
-            payload.message || 
+          const errorMessage =
+            payload.error ||
+            payload.message ||
             `HTTP ${res.status}: ${res.statusText}` ||
             'Failed to load dashboard data';
-          
+
           console.error('Dashboard API error detail:', {
             status: res.status,
             statusText: res.statusText,
             errorMessage: errorMessage,
             payload: JSON.stringify(payload) // Ensure payload is logged as string if object logging fails
           });
-          
+
           throw new Error(errorMessage);
         }
         const payload: DashboardResponse = await res.json();
@@ -181,7 +191,7 @@ export default function AdminDashboard() {
   const salesData = data?.salesOverview.series ?? [];
   const categoryData =
     data?.salesByCategory.breakdown.map((item) => ({
-      name: item.category,
+      name: item.category === 'Uncategorized' ? 'Other' : item.category,
       value: item.percent,
       revenue: item.revenue,
     })) ?? [];
@@ -195,9 +205,9 @@ export default function AdminDashboard() {
             <div className="flex items-center gap-2 text-destructive">
               <span className="font-semibold">Error Loading Dashboard:</span>
               <span>{error}</span>
-              <Button 
-                variant="outline" 
-                size="sm" 
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => setDateRange(prev => prev)} // Trigger reload
                 className="ml-auto"
               >
@@ -221,7 +231,7 @@ export default function AdminDashboard() {
           )}
         </div>
         <div className="flex gap-2">
-        {['day', 'week', 'month'].map((range) => (
+          {['day', 'week', 'month'].map((range) => (
             <Button
               key={range}
               variant={dateRange === range ? 'default' : 'outline'}
@@ -246,50 +256,49 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {stats
           ? stats.map((stat, idx) => {
-              const Icon = stat.icon;
-              const isPositive = stat.direction === 'up';
-              const isNeutral = stat.direction === 'neutral';
-              return (
-                <Card 
-                  key={idx} 
-                  className="cursor-pointer hover:shadow-md hover:border-primary/50 transition-all duration-200"
-                  onClick={() => openModal(stat.metric)}
-                >
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
-                    <Icon className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{stat.value}</div>
-                    <p
-                      className={`text-xs flex items-center gap-1 mt-1 ${
-                        isNeutral ? 'text-muted-foreground' : isPositive ? 'text-green-600' : 'text-red-600'
-                      }`}
-                    >
-                      {isNeutral ? (
-                        <TrendingUp className="h-3 w-3" />
-                      ) : isPositive ? (
-                        <ArrowUp className="h-3 w-3" />
-                      ) : (
-                        <ArrowDown className="h-3 w-3" />
-                      )}
-                      {stat.change} from last period
-                    </p>
-                  </CardContent>
-                </Card>
-              );
-            })
-          : Array.from({ length: 4 }).map((_, idx) => (
-              <Card key={`placeholder-${idx}`} className="animate-pulse">
-                <CardHeader className="pb-2">
-                  <div className="h-4 w-24 bg-muted rounded" />
+            const Icon = stat.icon;
+            const isPositive = stat.direction === 'up';
+            const isNeutral = stat.direction === 'neutral';
+            return (
+              <Card
+                key={idx}
+                className="cursor-pointer hover:shadow-md hover:border-primary/50 transition-all duration-200"
+                onClick={() => openModal(stat.metric)}
+              >
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
+                  <Icon className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="h-6 w-32 bg-muted rounded mb-2" />
-                  <div className="h-4 w-20 bg-muted rounded" />
+                  <div className="text-2xl font-bold">{stat.value}</div>
+                  <p
+                    className={`text-xs flex items-center gap-1 mt-1 ${isNeutral ? 'text-muted-foreground' : isPositive ? 'text-green-600' : 'text-red-600'
+                      }`}
+                  >
+                    {isNeutral ? (
+                      <TrendingUp className="h-3 w-3" />
+                    ) : isPositive ? (
+                      <ArrowUp className="h-3 w-3" />
+                    ) : (
+                      <ArrowDown className="h-3 w-3" />
+                    )}
+                    {stat.change} from last period
+                  </p>
                 </CardContent>
               </Card>
-            ))}
+            );
+          })
+          : Array.from({ length: 4 }).map((_, idx) => (
+            <Card key={`placeholder-${idx}`} className="animate-pulse">
+              <CardHeader className="pb-2">
+                <div className="h-4 w-24 bg-muted rounded" />
+              </CardHeader>
+              <CardContent>
+                <div className="h-6 w-32 bg-muted rounded mb-2" />
+                <div className="h-4 w-20 bg-muted rounded" />
+              </CardContent>
+            </Card>
+          ))}
       </div>
 
       {/* Charts */}
@@ -303,27 +312,25 @@ export default function AdminDashboard() {
             <div className="flex bg-muted p-1 rounded-lg self-start sm:self-center">
               <button
                 onClick={() => setActiveMetric('orders')}
-                className={`px-3 py-1 text-sm font-medium rounded-md transition-all duration-200 ${
-                  activeMetric === 'orders'
+                className={`px-3 py-1 text-sm font-medium rounded-md transition-all duration-200 ${activeMetric === 'orders'
                     ? 'bg-blue-500 text-white shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
-                }`}
+                  }`}
               >
                 Orders
               </button>
               <button
                 onClick={() => setActiveMetric('revenue')}
-                className={`px-3 py-1 text-sm font-medium rounded-md transition-all duration-200 ${
-                  activeMetric === 'revenue'
+                className={`px-3 py-1 text-sm font-medium rounded-md transition-all duration-200 ${activeMetric === 'revenue'
                     ? 'bg-green-600 text-white shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
-                }`}
+                  }`}
               >
                 Revenue
               </button>
             </div>
           </CardHeader>
-          <CardContent 
+          <CardContent
             className="cursor-pointer hover:opacity-90 transition-opacity"
             onClick={() => openModal('sales_overview')}
           >
@@ -333,15 +340,15 @@ export default function AdminDashboard() {
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={salesData} margin={{ top: 10, right: 10, left: -10, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgb(var(--color-border))" />
-                  <XAxis 
-                    dataKey="period" 
-                    stroke="rgb(var(--color-muted-foreground))" 
+                  <XAxis
+                    dataKey="period"
+                    stroke="rgb(var(--color-muted-foreground))"
                     fontSize={12}
                     tickLine={false}
                     axisLine={false}
                   />
-                  <YAxis 
-                    stroke="rgb(var(--color-muted-foreground))" 
+                  <YAxis
+                    stroke="rgb(var(--color-muted-foreground))"
                     fontSize={12}
                     tickLine={false}
                     axisLine={false}
@@ -358,21 +365,21 @@ export default function AdminDashboard() {
                     formatter={(value: any) => [activeMetric === 'revenue' ? formatPrice(value) : value, activeMetric === 'revenue' ? 'Revenue' : 'Orders']}
                   />
                   {activeMetric === 'orders' ? (
-                    <Line 
-                      type="monotone" 
-                      dataKey="orders" 
-                      stroke="#3b82f6" 
-                      strokeWidth={3} 
+                    <Line
+                      type="monotone"
+                      dataKey="orders"
+                      stroke="#3b82f6"
+                      strokeWidth={3}
                       dot={{ r: 4, fill: '#3b82f6' }}
                       activeDot={{ r: 6 }}
                       animationDuration={1000}
                     />
                   ) : (
-                    <Line 
-                      type="monotone" 
-                      dataKey="revenue" 
-                      stroke="#10b981" 
-                      strokeWidth={3} 
+                    <Line
+                      type="monotone"
+                      dataKey="revenue"
+                      stroke="#10b981"
+                      strokeWidth={3}
                       dot={{ r: 4, fill: '#10b981' }}
                       activeDot={{ r: 6 }}
                       animationDuration={1000}
@@ -389,30 +396,54 @@ export default function AdminDashboard() {
             <CardTitle>Sales by Category</CardTitle>
             <CardDescription>Distribution breakdown</CardDescription>
           </CardHeader>
-          <CardContent 
+          <CardContent
             className="cursor-pointer hover:opacity-90 transition-opacity"
             onClick={() => openModal('sales_by_category')}
           >
             {categoryData.length === 0 ? (
               <div className="text-center text-sm text-muted-foreground">{isLoading ? 'Loading breakdown...' : 'No category data available.'}</div>
             ) : (
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
+              <ResponsiveContainer width="100%" height={legendPosition === 'bottom' ? 500 : 400}>
+                <PieChart margin={{ left: 25, right: 10 }}>
                   <Pie
                     data={categoryData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, value }) => `${name}: ${value}%`}
-                    outerRadius={80}
-                    fill="#8884d8"
+                    cx={legendPosition === 'right' ? "42%" : "50%"}
+                    cy={legendPosition === 'right' ? "50%" : "45%"}
+                    innerRadius={70}
+                    outerRadius={100}
+                    paddingAngle={5}
                     dataKey="value"
+                    stroke="none"
                   >
                     {categoryData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'hsl(var(--card))',
+                      borderColor: 'hsl(var(--border))',
+                      color: 'hsl(var(--foreground))',
+                      borderRadius: '12px',
+                      fontSize: '13px',
+                      boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'
+                    }}
+                    formatter={(value: any, name: any, props: any) => [
+                      `${value}% (${formatPrice(props.payload.revenue)})`,
+                      'Share'
+                    ]}
+                  />
+                  <Legend
+                    layout={legendPosition === 'right' ? "vertical" : "horizontal"}
+                    verticalAlign={legendPosition === 'right' ? "middle" : "bottom"}
+                    align={legendPosition === 'right' ? "right" : "center"}
+                    iconType="circle"
+                    formatter={(value, entry: any) => (
+                      <span className="text-[12px] text-muted-foreground font-semibold inline-block whitespace-nowrap">
+                        {value}: <span className="text-foreground ml-1">{entry.payload.value}%</span> <span className="text-[10px] ml-1 opacity-70">({formatPrice(entry.payload.revenue)})</span>
+                      </span>
+                    )}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             )}
@@ -474,14 +505,14 @@ export default function AdminDashboard() {
                           order.status === 'completed' || order.status === 'shipped'
                             ? 'default'
                             : order.status === 'processing'
-                            ? 'secondary'
-                            : order.status === 'pending'
-                            ? 'outline'
-                            : order.status === 'paid'
-                            ? 'secondary'
-                            : order.status === 'cancelled'
-                            ? 'destructive'
-                            : 'outline'
+                              ? 'secondary'
+                              : order.status === 'pending'
+                                ? 'outline'
+                                : order.status === 'paid'
+                                  ? 'secondary'
+                                  : order.status === 'cancelled'
+                                    ? 'destructive'
+                                    : 'outline'
                         }
                       >
                         {order.status}
