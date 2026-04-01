@@ -9,7 +9,8 @@ import { ArrowRight, AlertCircle } from 'lucide-react';
 import { MAIN_CATEGORIES } from '@/lib/data/categories';
 import { BannerHero } from '@/components/marketing/BannerHero';
 import { supabase } from '@/lib/supabase/client';
-import { NewsletterForm } from '@/components/marketing/NewsletterForm';
+import { ProminentSearchBar } from "@/components/layout/prominent-search-bar";
+import { NewsletterForm } from "@/components/marketing/NewsletterForm";
 
 export default function Home() {
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
@@ -136,6 +137,10 @@ export default function Home() {
 
       <main className="flex-1">
         <BannerHero />
+        
+        <div className="mt-[-16px] mb-8 relative z-10">
+          <ProminentSearchBar placeholder="Search daily essentials..." />
+        </div>
 
         {/* Featured Products */}
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">

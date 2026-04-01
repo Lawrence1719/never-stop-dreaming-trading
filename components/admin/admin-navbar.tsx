@@ -16,6 +16,7 @@ import { useTheme } from 'next-themes';
 import { useAuth } from '@/lib/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
 import { NotificationBell } from '@/components/layout/notification-bell';
+import AdminSearchBar from './AdminSearchBar';
 
 export default function AdminNavbar({
   onSidebarToggle,
@@ -120,10 +121,7 @@ export default function AdminNavbar({
           )}
         </Button>
         <div className="hidden md:flex items-center flex-1 max-w-xs">
-          <Input
-            placeholder="Search..."
-            className="bg-muted border-muted-foreground/20"
-          />
+          <AdminSearchBar />
         </div>
       </div>
 

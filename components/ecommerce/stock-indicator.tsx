@@ -2,12 +2,22 @@ import { Badge } from "@/components/ui/badge";
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
 
 interface StockIndicatorProps {
-  stock: number;
+  stock: number | null;
   reorderThreshold?: number;
   showDetailed?: boolean;
 }
 
 export function StockIndicator({ stock, reorderThreshold = 10, showDetailed = true }: StockIndicatorProps) {
+  if (stock === null) {
+    return (
+      <div className="flex items-center gap-2 py-1">
+        <span className="text-sm text-muted-foreground font-medium animate-pulse">
+          Select a size/weight option to check availability
+        </span>
+      </div>
+    );
+  }
+
   if (stock === 0) {
     return (
       <div className="flex items-center gap-2">
@@ -23,27 +33,19 @@ export function StockIndicator({ stock, reorderThreshold = 10, showDetailed = tr
   } else if (stock <= reorderThreshold) {
     return (
       <div className="flex items-center gap-2">
-        <Badge variant="destructive" className="flex items-center gap-1">
+        <Badge variant="destructive" className="flex items-center gap-1 bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200">
           <AlertCircle className="w-3 h-3" />
-          Only {stock} left
+          Limited Stock ({stock} units)
         </Badge>
         {showDetailed && (
           <span className="text-sm text-muted-foreground">Order soon to avoid missing out</span>
         )}
       </div>
     );
-  } else if (stock < 50) {
-    return (
-      <div className="flex items-center gap-2">
-        <Badge variant="outline" className="flex items-center gap-1">
-          Limited Stock ({stock} units)
-        </Badge>
-      </div>
-    );
   } else {
     return (
       <div className="flex items-center gap-2">
-        <Badge variant="secondary" className="flex items-center gap-1 bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+        <Badge variant="secondary" className="flex items-center gap-1 bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 border-green-200">
           <CheckCircle2 className="w-3 h-3" />
           In Stock
         </Badge>

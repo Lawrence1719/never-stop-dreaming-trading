@@ -27,6 +27,14 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    // Get query parameters
+    const { searchParams } = new URL(request.url);
+    const status = searchParams.get('status') || '';
+    const search = searchParams.get('search') || '';
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const limit = parseInt(searchParams.get('limit') || '10', 10);
+    const offset = (page - 1) * limit;
+
     // Verify the user
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
 
@@ -34,63 +42,109 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Fetch orders for this user with shipping address via JOIN
-    const { data: ordersData, error } = await supabaseClient
+    // 1. Fetch total counts per status for the badges
+    const { data: countData, error: countError } = await supabaseClient
+      .from('orders')
+      .select('status')
+      .eq('user_id', user.id);
+
+    if (countError) throw countError;
+
+    const statusCounts = (countData || []).reduce((acc: any, order: any) => {
+      const s = order.status === 'completed' ? 'delivered' : order.status === 'paid' ? 'processing' : order.status;
+      acc[s] = (acc[s] || 0) + 1;
+      acc['all'] = (acc['all'] || 0) + 1;
+      return acc;
+    }, { all: 0, pending: 0, processing: 0, shipped: 0, delivered: 0, cancelled: 0 });
+
+    // 2. Build the main query for orders
+    let query = supabaseClient
       .from('orders')
       .select(`
         *,
         shipping_address:addresses!shipping_address_id(*),
         reviews(id, rating, comment, created_at),
         courier_profile:profiles!courier_id(name, phone),
-        courier_deliveries(proof_image_url, delivery_notes, delivered_at)
-      `)
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
+        courier_deliveries(proof_image_url, delivery_notes, delivered_at),
+        order_items(
+          *,
+          product_variants:variant_id(variant_label),
+          products:product_id(name, image_url)
+        )
+      `, { count: 'exact' })
+      .eq('user_id', user.id);
 
-    if (error) {
-      console.error('Failed to fetch orders', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    // Apply status filter
+    if (status && status !== 'all') {
+      if (status === 'processing') {
+        query = query.in('status', ['processing', 'paid']);
+      } else if (status === 'delivered') {
+        query = query.in('status', ['delivered', 'completed']);
+      } else {
+        query = query.eq('status', status);
+      }
+    }
+
+    // Apply search filter
+    if (search) {
+      query = query.ilike('id', `%${search}%`);
+    }
+
+    // Apply ordering and pagination
+    const { data: ordersData, error: ordersError, count: totalCount } = await query
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (ordersError) {
+      console.error('Failed to fetch orders', ordersError);
+      return NextResponse.json({ error: ordersError.message }, { status: 500 });
     }
 
     // Map database orders to frontend Order format
     const orders = (ordersData || []).map((row: any) => {
-      // Parse items from JSONB
-      const items = Array.isArray(row.items) ? row.items : [];
+      // Parse items from JSONB and joined table
+      const jsonItems = Array.isArray(row.items) ? row.items : [];
+      const dbItems = Array.isArray(row.order_items) ? row.order_items : [];
       
-      // Get shipping address from JOINed addresses table or fallback to JSONB (for legacy data)
+      const orderItems = (dbItems.length > 0 ? dbItems : jsonItems).map((item: any) => {
+        const variantLabel = item.product_variants?.variant_label || item.variant_label || item.variantLabel || null;
+        
+        // Use p.name, or fall back to item.name if it's not the generic "PRODUCT" placeholder
+        let productName = item.products?.name || item.name;
+        if (!productName || productName.toUpperCase() === 'PRODUCT') {
+          productName = 'Product no longer available';
+        }
+
+        const productImage = item.products?.image_url || item.image || item.image_url || null;
+        
+        return {
+          productId: item.product_id || item.productId || '',
+          variantId: item.variant_id || item.variantId || null,
+          variantLabel,
+          name: productName,
+          price: Number(item.price) || 0,
+          quantity: item.quantity || 1,
+          image: productImage,
+        };
+      });
+
+      // Get shipping address details
       const addressRecord = row.shipping_address && typeof row.shipping_address === 'object' && !Array.isArray(row.shipping_address)
         ? row.shipping_address
         : null;
       
-      // Fallback: Try to parse from JSONB column if JOIN didn't return data (legacy orders)
       const shippingAddressData = addressRecord || 
         (typeof row.shipping_address === 'string' ? JSON.parse(row.shipping_address) : row.shipping_address) || 
         {};
       
-      // Calculate subtotal from items
-      const subtotal = items.reduce((sum: number, item: any) => {
+      const subtotal = orderItems.reduce((sum: number, item: any) => {
         return sum + (Number(item.price) || 0) * (item.quantity || 1);
       }, 0);
       
-      // Calculate shipping (total - subtotal, or 0 if not available)
       const shipping = Math.max(0, Number(row.total) - subtotal);
-      
-      // Generate order number from ID
-      const orderNumber = `ORD-${row.id.slice(0, 8).toUpperCase()}`;
-      
-      // Format date
+      const orderNumber = `ORD-${row.id.slice(0, 10).toUpperCase()}`;
       const date = new Date(row.created_at).toISOString();
       
-      // Map items to OrderItem format
-      const orderItems = items.map((item: any) => ({
-        productId: item.product_id || item.productId || '',
-        name: item.name || 'Product',
-        price: Number(item.price) || 0,
-        quantity: item.quantity || 1,
-        image: item.image || item.image_url || '/placeholder.svg',
-      }));
-
-      // Map shipping address to Address format (from normalized addresses table or legacy JSONB)
       const shippingAddress = {
         id: addressRecord?.id || '',
         label: 'Shipping Address',
@@ -103,8 +157,6 @@ export async function GET(request: NextRequest) {
         default: addressRecord?.is_default || false,
       };
 
-      // Extract shipping method (stored separately, not in address table)
-      // For now, default to standard. This could be stored in orders table in future
       const shippingMethod = shippingAddressData.shipping_method || 'standard';
       const shippingMethodDisplay = shippingMethod === 'express' 
         ? 'Express Shipping (2-3 business days)'
@@ -137,10 +189,18 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    return NextResponse.json({ data: orders });
+    return NextResponse.json({ 
+      data: orders,
+      pagination: {
+        total: totalCount || 0,
+        page,
+        limit,
+        totalPages: Math.ceil((totalCount || 0) / limit)
+      },
+      statusCounts
+    });
   } catch (error) {
     console.error('Failed to load orders', error);
     return NextResponse.json({ error: 'Failed to load orders' }, { status: 500 });
   }
 }
-

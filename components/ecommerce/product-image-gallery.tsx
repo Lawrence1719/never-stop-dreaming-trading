@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { ZoomIn, ZoomOut, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ProductImage } from "@/components/shared/ProductImage";
+import { cn } from "@/lib/utils";
 
 interface ProductImageGalleryProps {
   images: string[];
@@ -15,7 +17,7 @@ export function ProductImageGallery({ images, productName }: ProductImageGallery
   const [touchStart, setTouchStart] = useState<number | null>(null);
 
   // If no images, show placeholder
-  const displayImages = images && images.length > 0 ? images : ["/placeholder.svg"];
+  const displayImages = images && images.length > 0 ? images : [null];
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     // Zoom on hover logic
@@ -64,12 +66,13 @@ export function ProductImageGallery({ images, productName }: ProductImageGallery
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
         >
-          <img
+          <ProductImage
             src={displayImages[selectedIndex]}
             alt={productName}
-            className={`w-full h-full object-cover transition-transform duration-200 ease-out ${
+            className={`transition-transform duration-200 ease-out ${
               isZoomed ? 'scale-[2.5]' : 'scale-100'
             }`}
+            containerClassName={cn("w-full h-full", isZoomed ? "overflow-visible" : "overflow-hidden")}
             style={{
               transformOrigin: isZoomed ? `${zoomPosition.x}% ${zoomPosition.y}%` : 'center',
             }}
@@ -133,10 +136,10 @@ export function ProductImageGallery({ images, productName }: ProductImageGallery
                   : "border-border hover:border-primary/50"
               }`}
             >
-              <img
+              <ProductImage
                 src={image}
                 alt={`${productName} view ${index + 1}`}
-                className="w-full h-full object-cover"
+                className="w-full h-full"
               />
             </button>
           ))}

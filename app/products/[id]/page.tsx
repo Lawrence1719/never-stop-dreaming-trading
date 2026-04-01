@@ -214,6 +214,7 @@ export default function ProductDetailPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalActionType, setModalActionType] = useState<'add' | 'buy'>('add');
   const [showVariantError, setShowVariantError] = useState(false);
+  const [validationMessage, setValidationMessage] = useState("Please select a size/weight option first");
 
   // Show sticky cart on mobile after scrolling past product details
   useEffect(() => {
@@ -322,6 +323,13 @@ export default function ProductDetailPage() {
 
   const handleAddToCart = () => {
     if (variants.length > 0 && !selectedVariant) {
+      setValidationMessage("Please select a size/weight option first");
+      setShowVariantError(true);
+      return;
+    }
+
+    if (selectedVariant?.stock === 0) {
+      setValidationMessage("This option is currently out of stock");
       setShowVariantError(true);
       return;
     }
@@ -332,6 +340,13 @@ export default function ProductDetailPage() {
 
   const handleBuyNow = () => {
     if (variants.length > 0 && !selectedVariant) {
+      setValidationMessage("Please select a size/weight option first");
+      setShowVariantError(true);
+      return;
+    }
+
+    if (selectedVariant?.stock === 0) {
+      setValidationMessage("This option is currently out of stock");
       setShowVariantError(true);
       return;
     }
@@ -408,16 +423,19 @@ export default function ProductDetailPage() {
                       {/* Compact IoT dot indicator */}
                       {['Meat','Frozen goods','Dairy','Ice cream','Cold beverages','Refrigerated & Frozen'].includes(product.category) && (
                         (() => {
-                          const status = product.iot?.status || 'unknown';
-                          const colorClass =
-                            status === 'online' ? 'bg-emerald-500' : status === 'offline' ? 'bg-rose-500' : status === 'error' ? 'bg-amber-500' : 'bg-slate-400';
-                          return <span className={`w-3 h-3 rounded-full ${colorClass}`} aria-hidden="true" />;
+                          // Grey if no variant selected, Green if in stock, Red if out of stock
+                          const colorClass = !selectedVariant 
+                            ? 'bg-slate-400' 
+                            : selectedVariant.stock > 0 
+                              ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' 
+                              : 'bg-rose-500';
+                          return <span className={`w-3 h-3 rounded-full transition-all duration-300 ${colorClass}`} aria-hidden="true" />;
                         })()
                       )}
                     </div>
                     {/* Product Badges */}
                     <ProductBadges
-                      stock={selectedVariant?.stock ?? product.stock ?? 0}
+                      stock={selectedVariant ? selectedVariant.stock : null}
                       reorderThreshold={product.reorder_threshold}
                       featured={product.featured}
                       purchaseCount={product.reviewCount * 10}
@@ -440,27 +458,35 @@ export default function ProductDetailPage() {
                 </div>
 
                 {/* Pricing Panel - Prominent */}
-                <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 space-y-2">
+                <div className="bg-primary/5 border border-primary/10 rounded-lg p-5 space-y-2">
                   <div className="flex items-baseline gap-3">
                     <span className="text-3xl md:text-4xl font-bold text-primary">
-                      {formatPrice(selectedVariant?.price ?? product.price ?? 0)}
+                      {selectedVariant ? (
+                        formatPrice(selectedVariant.price)
+                      ) : (
+                        (() => {
+                          const activeVariants = variants.filter(v => v.is_active);
+                          if (activeVariants.length === 0) return formatPrice(product.price || 0);
+                          const prices = activeVariants.map(v => v.price);
+                          const minPrice = Math.min(...prices);
+                          const maxPrice = Math.max(...prices);
+                          return minPrice === maxPrice 
+                            ? formatPrice(minPrice) 
+                            : `${formatPrice(minPrice)} — ${formatPrice(maxPrice)}`;
+                        })()
+                      )}
                     </span>
                     {product.compareAtPrice && (
                       <>
                         <span className="text-lg text-muted-foreground line-through">
                           {formatPrice(product.compareAtPrice)}
                         </span>
-                        {((product.compareAtPrice - (selectedVariant?.price ?? product.price ?? 0)) / product.compareAtPrice * 100) > 0 && (
-                          <span className="text-sm font-bold text-accent bg-accent/20 px-2 py-1 rounded">
-                            Save {Math.round(((product.compareAtPrice - (selectedVariant?.price ?? product.price ?? 0)) / product.compareAtPrice) * 100)}%
-                          </span>
-                        )}
                       </>
                     )}
                   </div>
-                  {product.compareAtPrice && (
+                  {product.compareAtPrice && selectedVariant && (
                     <p className="text-sm text-muted-foreground">
-                      Save {formatPrice(product.compareAtPrice - (selectedVariant?.price ?? product.price ?? 0))} vs regular price
+                      Save {formatPrice(product.compareAtPrice - selectedVariant.price)} vs regular price
                     </p>
                   )}
                 </div>
@@ -480,7 +506,7 @@ export default function ProductDetailPage() {
                 {/* Stock Status Card */}
                 <div className="bg-secondary/10 border border-border rounded-lg p-4">
                   <StockIndicator 
-                    stock={selectedVariant?.stock ?? product.stock ?? 0} 
+                    stock={selectedVariant ? selectedVariant.stock : null} 
                     reorderThreshold={product.reorder_threshold}
                     showDetailed={true}
                   />
@@ -563,14 +589,14 @@ export default function ProductDetailPage() {
                 <QuantitySelector
                   quantity={quantity}
                   onQuantityChange={setQuantity}
-                  max={selectedVariant?.stock || product.stock}
+                  max={selectedVariant ? selectedVariant.stock : undefined}
                 />
 
                 {/* Variant Selection Validation Error */}
                 {showVariantError && (
                   <div className="flex items-center gap-2 p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-700 animate-in fade-in slide-in-from-top-1">
                     <AlertCircle className="w-4 h-4 shrink-0" />
-                    <p className="text-xs font-bold uppercase tracking-wide">Please select a variant before continuing</p>
+                    <p className="text-xs font-bold uppercase tracking-wide">{validationMessage}</p>
                   </div>
                 )}
 
@@ -579,8 +605,14 @@ export default function ProductDetailPage() {
                   {/* Add to Cart */}
                   <button
                     onClick={handleAddToCart}
-                    disabled={(selectedVariant?.stock || product.stock) === 0}
-                    className="flex-1 px-6 py-4 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 active:scale-[0.98] transition-all font-semibold text-lg shadow-lg hover:shadow-xl hover:shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-2"
+                    disabled={variants.length > 0 && selectedVariant?.stock === 0}
+                    className={`flex-1 px-6 py-4 rounded-lg active:scale-[0.98] transition-all font-semibold text-lg shadow-lg flex items-center justify-center gap-2 ${
+                      !selectedVariant && variants.length > 0
+                        ? "bg-slate-200 text-slate-500 cursor-not-allowed shadow-none"
+                        : selectedVariant?.stock === 0
+                        ? "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none"
+                        : "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-xl hover:shadow-primary/20"
+                    }`}
                   >
                     <ShoppingCart className="w-5 h-5" />
                     Add to Cart
@@ -589,8 +621,14 @@ export default function ProductDetailPage() {
                   {/* Buy Now */}
                   <button
                     onClick={handleBuyNow}
-                    disabled={(selectedVariant?.stock || product.stock) === 0}
-                    className="flex-1 px-6 py-4 bg-accent text-accent-foreground rounded-lg hover:bg-accent/90 active:scale-[0.98] transition-all font-semibold text-lg shadow-lg hover:shadow-xl hover:shadow-accent/20 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-2"
+                    disabled={variants.length > 0 && selectedVariant?.stock === 0}
+                    className={`flex-1 px-6 py-4 rounded-lg active:scale-[0.98] transition-all font-semibold text-lg shadow-lg flex items-center justify-center gap-2 ${
+                      !selectedVariant && variants.length > 0
+                        ? "bg-slate-200 text-slate-500 cursor-not-allowed shadow-none"
+                        : selectedVariant?.stock === 0
+                        ? "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none"
+                        : "bg-accent text-accent-foreground hover:bg-accent/90 hover:shadow-xl hover:shadow-accent/20"
+                    }`}
                   >
                     💳 Buy Now
                   </button>

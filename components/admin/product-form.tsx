@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { MAIN_CATEGORIES } from "@/lib/data/categories";
+// Removed: import { MAIN_CATEGORIES } from "@/lib/data/categories";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -63,6 +63,10 @@ export function ProductForm({
     is_active: initialData?.is_active ?? true,
   });
 
+  // Categories from DB
+  const [dbCategories, setDbCategories] = useState<any[]>([]);
+  const [isLoadingCategories, setIsLoadingCategories] = useState(false);
+
   // Category selection state
   const [mainCategory, setMainCategory] = useState<string>(initialCategory);
 
@@ -76,6 +80,32 @@ export function ProductForm({
   const [errors, setErrors] = useState<Partial<Record<keyof ProductFormData | "mainCategory" | "imageFile", string>>>({});
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
+
+  // Fetch categories from DB
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        setIsLoadingCategories(true);
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch('/api/admin/categories', {
+          headers: {
+            'Authorization': `Bearer ${session?.access_token}`
+          }
+        });
+        const result = await res.json();
+        if (res.ok) {
+          // Only show active categories
+          setDbCategories((result.data || []).filter((cat: any) => cat.is_active));
+        }
+      } catch (err) {
+        console.error('Failed to fetch categories:', err);
+      } finally {
+        setIsLoadingCategories(false);
+      }
+    };
+
+    fetchCategories();
+  }, []);
 
   // Update category field when main selection changes
   useEffect(() => {
@@ -418,12 +448,13 @@ export function ProductForm({
         {/* Category Dropdown */}
         <div className="space-y-2">
           <SearchableSelect
-            options={MAIN_CATEGORIES.map((cat) => ({ value: cat, label: cat }))}
+            options={dbCategories.map((cat) => ({ value: cat.name, label: cat.name }))}
             value={mainCategory}
             onValueChange={handleMainCategoryChange}
-            placeholder="-- Select Category --"
+            placeholder={isLoadingCategories ? "Loading categories..." : "-- Select Category --"}
             searchPlaceholder="Search category..."
             triggerClassName={errors.mainCategory ? "border-destructive bg-background" : "bg-background"}
+            disabled={isLoadingCategories}
           />
           {errors.mainCategory && (
             <p className="text-sm text-destructive flex items-center gap-1">

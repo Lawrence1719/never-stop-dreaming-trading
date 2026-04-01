@@ -5,6 +5,7 @@ import { AuthProvider } from "@/lib/context/auth-context";
 import { CartProvider } from "@/lib/context/cart-context";
 import { WishlistProvider } from "@/lib/context/wishlist-context";
 import { ShippingProvider } from "@/lib/context/shipping-context";
+import { SearchProvider } from "@/lib/context/search-context";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
@@ -15,15 +16,17 @@ export function Providers({ children }: { children: ReactNode }) {
     <NextThemesProvider attribute="class" defaultTheme="system" enableSystem>
       <AuthProvider>
         <CartProvider>
-          <ShippingProvider>
-            <WishlistProvider>
-              <MaintenanceGuard>
-                {children}
-              </MaintenanceGuard>
-              <Toaster />
-              <SonnerToaster position="top-right" closeButton richColors />
-            </WishlistProvider>
-          </ShippingProvider>
+          <SearchProvider>
+            <ShippingProvider>
+              <WishlistProvider>
+                <MaintenanceGuard>
+                  {children}
+                </MaintenanceGuard>
+                <Toaster />
+                <SonnerToaster position="top-right" closeButton richColors />
+              </WishlistProvider>
+            </ShippingProvider>
+          </SearchProvider>
         </CartProvider>
       </AuthProvider>
     </NextThemesProvider>

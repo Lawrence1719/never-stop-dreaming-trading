@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { ArrowLeft, Package, Truck, CheckCircle, XCircle, Clock, Loader2, Copy, Mail, Phone, MapPin, AlertCircle, Image as ImageIcon, User, AlertTriangle } from 'lucide-react';
+import { ProductImage } from '@/components/shared/ProductImage';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -549,10 +550,9 @@ export default function OrderDetailPage() {
                   <div key={index} className="flex gap-4 pb-4 border-b last:border-0 last:pb-0">
                     <div className="w-16 h-16 bg-muted rounded-lg flex items-center justify-center overflow-hidden shrink-0">
                       {item.image ? (
-                        <img 
+                        <ProductImage 
                           src={item.image.startsWith('http') ? item.image : supabase.storage.from('product_images').getPublicUrl(item.image).data.publicUrl} 
                           alt={item.name} 
-                          className="w-full h-full object-cover rounded-lg" 
                         />
                       ) : (
                         <Package className="w-8 h-8 text-muted-foreground" />
@@ -656,11 +656,30 @@ export default function OrderDetailPage() {
                       )}
                       {history.notes && (
                         <div className="mt-1">
-                          <p className="text-sm text-muted-foreground italic">{history.notes}</p>
-                          {history.notes.includes('Manually confirmed') && (
-                            <Badge variant="destructive" className="mt-2 text-[10px] px-2 py-0.5 opacity-80 border-red-500/50 inline-flex items-center gap-1 font-semibold">
-                              🔴 Manually Confirmed by Admin
-                            </Badge>
+                          {history.new_status === 'cancelled' && history.notes.startsWith('Cancellation reason:') ? (
+                            <div className="bg-rose-50 dark:bg-rose-900/10 border border-rose-100 dark:border-rose-900/20 p-3 rounded-xl mt-2 text-sm">
+                              <p className="font-bold text-rose-700 dark:text-rose-400 flex items-center gap-2 mb-1">
+                                <span>📝</span> Reason for Cancellation
+                              </p>
+                              <p className="text-muted-foreground italic">
+                                &ldquo;{history.notes.split('Cancellation reason: ')[1]?.split('.')[0]}&rdquo;
+                              </p>
+                              {history.notes.includes('Customer note:') && (
+                                <div className="mt-2 pt-2 border-t border-rose-200/50 dark:border-rose-800/50">
+                                  <p className="text-xs font-bold text-rose-600/70 dark:text-rose-500/70 uppercase tracking-widest mb-1">Customer Note</p>
+                                  <p className="text-muted-foreground">{history.notes.split('Customer note: ')[1]}</p>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <>
+                              <p className="text-sm text-muted-foreground italic">{history.notes}</p>
+                              {history.notes.includes('Manually confirmed') && (
+                                <Badge variant="destructive" className="mt-2 text-[10px] px-2 py-0.5 opacity-80 border-red-500/50 inline-flex items-center gap-1 font-semibold">
+                                  🔴 Manually Confirmed by Admin
+                                </Badge>
+                              )}
+                            </>
                           )}
                         </div>
                       )}

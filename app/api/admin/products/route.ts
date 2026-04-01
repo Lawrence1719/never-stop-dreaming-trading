@@ -128,6 +128,7 @@ export async function GET(request: NextRequest) {
             : `${formatPrice(minPrice)} – ${formatPrice(maxPrice)}`
           : 'N/A',
         status: row.is_active ? 'active' : 'inactive',
+        image_url: row.image_url,
       };
     });
 

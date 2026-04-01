@@ -7,6 +7,7 @@ import { useCart } from "@/lib/context/cart-context";
 import { useWishlist } from "@/lib/context/wishlist-context";
 import { useAuth } from "@/lib/context/auth-context";
 import { useSettings } from "@/lib/hooks/use-settings";
+import { useSearch } from "@/lib/context/search-context";
 import { SearchModal } from "./search-modal";
 import { UserMenu } from "./user-menu";
 import { ThemeToggle } from "./theme-toggle";
@@ -19,7 +20,7 @@ interface NavbarProps {
 }
 
 export function Navbar({ minimal = false }: NavbarProps) {
-  const [searchOpen, setSearchOpen] = useState(false);
+  const { isOpen: searchOpen, openSearch, closeSearch } = useSearch();
   const { cart } = useCart();
   const { wishlist } = useWishlist();
   const { user } = useAuth();
@@ -69,8 +70,8 @@ export function Navbar({ minimal = false }: NavbarProps) {
                 <>
                   {/* Search */}
                   <button
-                    onClick={() => setSearchOpen(true)}
-                    className="p-2 rounded-md hover:bg-secondary/10 transition-colors hidden sm:flex items-center justify-center"
+                    onClick={() => openSearch()}
+                    className="p-2 rounded-md hover:bg-secondary/10 transition-colors hidden md:flex items-center justify-center"
                     aria-label="Search"
                   >
                     <Search className="w-5 h-5" />
@@ -128,7 +129,7 @@ export function Navbar({ minimal = false }: NavbarProps) {
         </div>
       </nav>
 
-      <SearchModal isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
+      <SearchModal isOpen={searchOpen} onClose={closeSearch} />
     </>
   );
 }

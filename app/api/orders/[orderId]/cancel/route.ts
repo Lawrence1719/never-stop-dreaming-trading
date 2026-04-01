@@ -50,9 +50,10 @@ export async function POST(
       }, { status: 400 });
     }
 
+    const { reason, note } = await request.json().catch(() => ({}));
     const oldStatus = order.status;
 
-    // 4. Perform cancellation updates
+    // Perform cancellation updates
     // Update order status
     const { error: updateError } = await supabaseAdmin
       .from('orders')
@@ -64,7 +65,9 @@ export async function POST(
 
     if (updateError) throw updateError;
 
-    // Log status history
+    // Log status history with the provided reason
+    const formattedNote = `Cancellation reason: ${reason || 'Not specified'}.${note ? ` Customer note: ${note}` : ''}`;
+    
     await supabaseAdmin
       .from('order_status_history')
       .insert({
@@ -72,7 +75,7 @@ export async function POST(
         old_status: oldStatus,
         new_status: 'cancelled',
         changed_by: user.id,
-        notes: 'Order cancelled by customer',
+        notes: formattedNote,
         changed_at: new Date().toISOString()
       });
 

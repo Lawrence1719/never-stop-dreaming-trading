@@ -7,6 +7,7 @@ import { formatPrice } from "@/lib/utils/formatting";
 import { useCart } from "@/lib/context/cart-context";
 import { QuantitySelector } from "./quantity-selector";
 import { useToast } from "@/hooks/use-toast";
+import { ProductImage } from "@/components/shared/ProductImage";
 
 interface CartItemProps {
   product: Product;
@@ -19,11 +20,11 @@ export function CartItem({ product, quantity }: CartItemProps) {
 
   return (
     <div className="flex gap-4 pb-4 border-b border-border">
-      <Link href={`/products/${product.id}`} className="shrink-0">
-        <img
-          src={product.images[0] || "/placeholder.svg"}
+      <Link href={`/products/${product.id}`} className="shrink-0 rounded-lg overflow-hidden border border-border/50">
+        <ProductImage
+          src={product.images?.[0]}
           alt={product.name}
-          className="w-24 h-24 object-cover rounded-lg"
+          className="w-24 h-24"
         />
       </Link>
 

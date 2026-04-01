@@ -105,20 +105,58 @@ export default function EditProductPage() {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
-          <Link href="/admin/products">
+          <Link href={`/admin/products/${productId}`}>
             <Button variant="ghost" size="icon">
               <ArrowLeft className="h-5 w-5" />
             </Button>
           </Link>
-          <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded w-32 animate-pulse" />
+          <div>
+            <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded w-48 animate-pulse" />
+            <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-64 mt-2 animate-pulse" />
+          </div>
         </div>
-        <Card>
-          <CardContent className="space-y-4 pt-6">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-full animate-pulse" />
-            ))}
-          </CardContent>
-        </Card>
+
+        <div className="space-y-6">
+          {/* Product Name */}
+          <div className="space-y-2">
+            <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-24 animate-pulse" />
+            <div className="h-10 bg-slate-200 dark:bg-slate-700 rounded w-full animate-pulse" />
+          </div>
+
+          {/* Description */}
+          <div className="space-y-2">
+            <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-24 animate-pulse" />
+            <div className="h-32 bg-slate-200 dark:bg-slate-700 rounded w-full animate-pulse" />
+          </div>
+
+          {/* Category */}
+          <div className="space-y-4 p-4 border border-border rounded-lg bg-muted/30">
+            <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-20 animate-pulse" />
+            <div className="h-10 bg-slate-200 dark:bg-slate-700 rounded w-full animate-pulse" />
+          </div>
+
+          {/* Gallery */}
+          <div className="space-y-4">
+            <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-32 animate-pulse" />
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              {Array.from({ length: 1 }).map((_, i) => (
+                <div key={i} className="aspect-square bg-slate-200 dark:bg-slate-700 rounded-lg animate-pulse" />
+              ))}
+            </div>
+          </div>
+
+          {/* Status */}
+          <div className="flex items-center space-x-2">
+            <div className="h-4 w-4 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+            <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-64 animate-pulse" />
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center gap-3 pt-4 border-t border-border">
+            <div className="h-10 bg-slate-200 dark:bg-slate-700 rounded w-24 animate-pulse" />
+            <div className="h-10 bg-slate-200 dark:bg-slate-700 rounded w-32 animate-pulse" />
+          </div>
+        </div>
       </div>
     );
   }

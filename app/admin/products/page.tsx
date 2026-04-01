@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { supabase } from '@/lib/supabase/client';
 import { MAIN_CATEGORIES } from '@/lib/data/categories';
+import { ProductImage } from '@/components/shared/ProductImage';
 
 interface Product {
   id: string;
@@ -44,6 +45,7 @@ interface Product {
   total_stock: number;
   price_range: string;
   status: 'active' | 'inactive';
+  image_url: string | null;
 }
 
 export default function ProductsPage() {
@@ -247,6 +249,7 @@ export default function ProductsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[80px]">Image</TableHead>
                   <TableHead>Product Name</TableHead>
                   <TableHead>Category</TableHead>
                   <TableHead>Variants</TableHead>
@@ -278,6 +281,14 @@ export default function ProductsPage() {
                 ) : (
                   products.map((product) => (
                     <TableRow key={product.id}>
+                      <TableCell>
+                        <div className="w-12 h-12 rounded-lg overflow-hidden border border-border/50 bg-muted shrink-0">
+                          <ProductImage 
+                            src={product.image_url} // Assuming image_url is available or fetched
+                            alt={product.name}
+                          />
+                        </div>
+                      </TableCell>
                       <TableCell className="font-medium">{product.name}</TableCell>
                       <TableCell>{product.category}</TableCell>
                       <TableCell>

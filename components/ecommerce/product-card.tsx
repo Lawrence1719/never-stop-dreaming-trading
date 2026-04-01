@@ -8,6 +8,7 @@ import { useWishlist } from "@/lib/context/wishlist-context";
 import { useAuth } from "@/lib/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { ProductImage } from "@/components/shared/ProductImage";
 
 interface ProductCardProps {
   product: Product;
@@ -64,10 +65,10 @@ export function ProductCard({ product }: ProductCardProps) {
     <Link href={`/products/${product.id}`}>
       <div className="group cursor-pointer flex flex-col h-full">
         <div className="relative bg-muted rounded-lg overflow-hidden mb-4">
-          <img
-            src={product.images?.[0] || "/placeholder.svg"}
+          <ProductImage
+            src={product.images?.[0]}
             alt={product.name}
-            className="w-full aspect-square object-cover group-hover:scale-110 transition-transform duration-300"
+            className="w-full aspect-square group-hover:scale-110"
           />
           {/* IoT status badge for refrigerated / frozen categories */}
           {(() => {

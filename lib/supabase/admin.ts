@@ -346,6 +346,96 @@ async function getRecentOrders(limit = 5, supabase?: SupabaseClient) {
   return { orders: recentOrders }
 }
 
+async function getCategories(supabase?: SupabaseClient) {
+  const sb = getClient(supabase)
+  const { data, error } = await sb
+    .from('categories')
+    .select('*')
+    .order('sort_order', { ascending: true })
+    .order('name', { ascending: true })
+
+  if (error) throw error
+  return { categories: data || [] }
+}
+
+async function createCategory(data: any, supabase?: SupabaseClient) {
+  const sb = getClient(supabase)
+  const { data: category, error } = await sb
+    .from('categories')
+    .insert(data)
+    .select('*')
+    .single()
+
+  if (error) throw error
+  return { category }
+}
+
+async function updateCategory(id: string, data: any, supabase?: SupabaseClient) {
+  const sb = getClient(supabase)
+  
+  // If name is changing, we need to update all products using the old name
+  if (data.name) {
+    const { data: oldCategory, error: getError } = await sb
+      .from('categories')
+      .select('name')
+      .eq('id', id)
+      .single()
+
+    if (getError) throw getError
+
+    if (oldCategory.name !== data.name) {
+      const { error: updateProductsError } = await sb
+        .from('products')
+        .update({ category: data.name })
+        .eq('category', oldCategory.name)
+
+      if (updateProductsError) throw updateProductsError
+    }
+  }
+
+  const { data: category, error } = await sb
+    .from('categories')
+    .update(data)
+    .eq('id', id)
+    .select('*')
+    .single()
+
+  if (error) throw error
+  return { category }
+}
+
+async function deleteCategory(id: string, supabase?: SupabaseClient) {
+  const sb = getClient(supabase)
+  
+  // First, check if any product is still using this category name
+  const { data: category, error: getError } = await sb
+    .from('categories')
+    .select('name')
+    .eq('id', id)
+    .single()
+
+  if (getError) throw getError
+  
+  const { count, error: countError } = await sb
+    .from('products')
+    .select('id', { count: 'exact', head: true })
+    .eq('category', category.name)
+
+  if (countError) throw countError
+  
+  if (count && count > 0) {
+    throw new Error(`Cannot delete category "${category.name}" because it is currently assigned to ${count} products.`)
+  }
+
+  const { error } = await sb
+    .from('categories')
+    .delete()
+    .eq('id', id)
+
+  if (error) throw error
+  return { success: true }
+}
+
 export {
   getClient,
   getDateRange,
@@ -357,6 +447,10 @@ export {
   getSalesByCategory,
   getGrowthRate,
   getRecentOrders,
+  getCategories,
+  createCategory,
+  updateCategory,
+  deleteCategory,
 }
 
 export type { Range, GrowthMetric, RecentOrder }

@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Edit, Trash2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, AlertCircle, ImageIcon } from 'lucide-react';
+import { ProductImage } from '@/components/shared/ProductImage';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,6 +22,8 @@ interface Product {
   sale_price: number | null;
   stock: number;
   is_active: boolean;
+  image_url: string | null;
+  images?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -108,21 +111,95 @@ export default function ViewProductPage() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <Link href="/admin/products">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-          </Link>
-          <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded w-32 animate-pulse" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Link href="/admin/products">
+              <Button variant="ghost" size="icon">
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+            </Link>
+            <div>
+              <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded w-48 animate-pulse" />
+              <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-32 mt-2 animate-pulse" />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <div className="h-10 bg-slate-200 dark:bg-slate-700 rounded w-20 animate-pulse" />
+            <div className="h-10 bg-slate-200 dark:bg-slate-700 rounded w-20 animate-pulse" />
+          </div>
         </div>
-        <Card>
-          <CardContent className="space-y-4 pt-6">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-full animate-pulse" />
-            ))}
-          </CardContent>
-        </Card>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Main Content Skeleton */}
+          <div className="lg:col-span-2 space-y-6">
+            <Card>
+              <CardHeader>
+                <div className="h-6 bg-slate-200 dark:bg-slate-700 rounded w-1/4 animate-pulse" />
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="space-y-2">
+                    <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-20 animate-pulse" />
+                    <div className="h-5 bg-slate-200 dark:bg-slate-700 rounded w-full animate-pulse" />
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="h-6 bg-slate-200 dark:bg-slate-700 rounded w-1/4 animate-pulse" />
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-20 animate-pulse" />
+                  <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded w-32 animate-pulse" />
+                </div>
+                <div className="space-y-2">
+                  <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-20 animate-pulse" />
+                  <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded w-24 animate-pulse" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Sidebar Skeleton */}
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <div className="h-6 bg-slate-200 dark:bg-slate-700 rounded w-1/2 animate-pulse" />
+              </CardHeader>
+              <CardContent>
+                <div className="h-5 bg-slate-200 dark:bg-slate-700 rounded w-full animate-pulse" />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="h-6 bg-slate-200 dark:bg-slate-700 rounded w-1/2 animate-pulse" />
+              </CardHeader>
+              <CardContent>
+                <div className="h-6 bg-slate-200 dark:bg-slate-700 rounded w-20 animate-pulse" />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="h-6 bg-slate-200 dark:bg-slate-700 rounded w-1/2 animate-pulse" />
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-16 animate-pulse" />
+                  <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-full animate-pulse" />
+                </div>
+                <div className="space-y-2">
+                  <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-16 animate-pulse" />
+                  <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-full animate-pulse" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
     );
   }
@@ -267,6 +344,23 @@ export default function ViewProductPage() {
         {/* Sidebar */}
         <div className="space-y-6">
           {/* Category & Status */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ImageIcon className="w-4 h-4 text-muted-foreground" />
+                Product Image
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="aspect-square rounded-lg overflow-hidden border border-border/50 bg-muted shadow-inner">
+                <ProductImage 
+                  src={product.image_url || (product.images && product.images[0])} 
+                  alt={product.name} 
+                />
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Category</CardTitle>

@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { TrendingUp, Sparkles, Clock } from 'lucide-react';
 
 interface ProductBadgesProps {
-  stock: number;
+  stock: number | null;
   reorderThreshold?: number;
   featured?: boolean;
   purchaseCount?: number;
@@ -20,10 +20,10 @@ export function ProductBadges({
   isNew = false,
   createdAt,
 }: ProductBadgesProps) {
-  const badges: JSX.Element[] = [];
+  const badges: React.ReactNode[] = [];
 
   // Low Stock Badge
-  if (stock > 0 && stock <= reorderThreshold) {
+  if (stock !== null && stock > 0 && stock <= reorderThreshold) {
     badges.push(
       <Badge key="low-stock" variant="destructive" className="flex items-center gap-1">
         <Clock className="w-3 h-3" />
@@ -33,7 +33,7 @@ export function ProductBadges({
   }
 
   // Out of Stock
-  if (stock === 0) {
+  if (stock !== null && stock === 0) {
     badges.push(
       <Badge key="out-of-stock" variant="destructive" className="flex items-center gap-1">
         Out of Stock
@@ -71,7 +71,7 @@ export function ProductBadges({
   }
 
   // High Stock Badge (if stock is very high)
-  if (stock > 100) {
+  if (stock !== null && stock > 100) {
     badges.push(
       <Badge key="high-stock" variant="secondary" className="text-green-600 border-green-600">
         In Stock ({stock}+ units)
