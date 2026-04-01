@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useId } from 'react';
 import { RealtimeChannel, RealtimePostgresChangesFilter } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase/client';
 
@@ -26,6 +26,7 @@ export function useSupabaseRealtime<T>({
     baseBackoffMs = 1000,
 }: UseSupabaseRealtimeOptions<T>) {
     const [status, setStatus] = useState<ConnectionState>('INITIALIZING');
+    const instanceId = useId();
     const channelRef = useRef<RealtimeChannel | null>(null);
     const retryCountRef = useRef(0);
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -60,7 +61,8 @@ export function useSupabaseRealtime<T>({
             filterOptions.filter = filter;
         }
 
-        const channel = supabase.channel(channelName);
+        const cleanId = instanceId.replace(/[^a-zA-Z0-9]/g, '_');
+        const channel = supabase.channel(`${channelName}:${cleanId}`);
 
         channel
             .on(

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useId } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/context/auth-context';
 
@@ -24,6 +24,7 @@ export function useNotifications(
   } = {}
 ) {
   const { user } = useAuth();
+  const instanceId = useId();
   const { page = 0, limit = 10, filter = 'all', enabled = true } = options;
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -87,8 +88,10 @@ export function useNotifications(
   useEffect(() => {
     if (!user || !enabled) return;
 
+    // Clean up channel name by removing any characters that might be invalid
+    const cleanId = instanceId.replace(/[^a-zA-Z0-9]/g, '_');
     const channel = supabase
-      .channel(`notifications:${user.id}:${targetRole}`)
+      .channel(`notifications:${user.id}:${targetRole}:${cleanId}`)
       .on(
         'postgres_changes',
         {
