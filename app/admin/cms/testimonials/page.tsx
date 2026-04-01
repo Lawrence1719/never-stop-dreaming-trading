@@ -1,5 +1,7 @@
 'use client';
 
+import { formatDate } from '@/lib/utils/formatting';
+
 import { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Star, Loader2, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -383,7 +385,7 @@ export default function TestimonialsPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {testimonial.date ? new Date(testimonial.date).toLocaleDateString() : '—'}
+                        {testimonial.date ? formatDate(testimonial.date) : '—'}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2">

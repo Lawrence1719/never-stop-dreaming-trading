@@ -114,8 +114,8 @@ export async function GET(request: NextRequest) {
         // Format order ID
         const orderId = `#${row.id.slice(0, 8).toUpperCase()}`;
         
-        // Format date
-        const date = new Date(row.created_at).toISOString().split('T')[0];
+        // Preserve full ISO timestamp — formatting is done on the client
+        const date = row.created_at;
         
         // Format amount
         const amount = `₱${Number(row.total).toFixed(2)}`;

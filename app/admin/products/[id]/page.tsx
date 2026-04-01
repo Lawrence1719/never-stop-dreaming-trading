@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { supabase } from '@/lib/supabase/client';
-import { formatPrice } from '@/lib/utils/formatting';
+import { formatPrice, formatDateTime } from '@/lib/utils/formatting';
 
 interface Product {
   id: string;
@@ -389,14 +389,14 @@ export default function ViewProductPage() {
             <CardContent className="space-y-3 text-sm">
               <div>
                 <label className="text-muted-foreground">Created</label>
-                <p className="text-xs font-mono">
-                  {new Date(product.created_at).toLocaleString()}
+                <p className="text-xs">
+                  {formatDateTime(product.created_at)}
                 </p>
               </div>
               <div>
                 <label className="text-muted-foreground">Updated</label>
-                <p className="text-xs font-mono">
-                  {new Date(product.updated_at).toLocaleString()}
+                <p className="text-xs">
+                  {formatDateTime(product.updated_at)}
                 </p>
               </div>
             </CardContent>

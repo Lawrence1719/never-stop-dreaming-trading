@@ -16,7 +16,7 @@ import {
   ChevronLeft,
   ChevronRight
 } from "lucide-react";
-import { format } from "date-fns";
+import { formatDate } from "@/lib/utils/formatting";
 import { 
   Card, 
   CardContent, 
@@ -310,7 +310,7 @@ export default function AdminReviewsPage() {
                   </CardContent>
                   <CardFooter className="pt-4 border-t bg-muted/30 flex justify-between">
                     <div className="text-[10px] text-muted-foreground">
-                      {format(new Date(review.created_at), 'MMM dd, yyyy')}
+                      {formatDate(review.created_at)}
                     </div>
                     <div className="flex gap-2">
                       <Button 

@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/select';
 import { supabase } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { formatDate } from '@/lib/utils/formatting';
 
 interface CMSPage {
   id: string;
@@ -274,7 +275,7 @@ export default function PagesPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-sm">
-                        {new Date(page.updated_at).toLocaleDateString()}
+                        {formatDate(page.updated_at)}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">

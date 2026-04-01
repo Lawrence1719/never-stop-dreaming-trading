@@ -33,7 +33,7 @@ import {
 import { StatusBadge } from '@/components/admin/status-badge';
 import { supabase } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { formatPrice } from '@/lib/utils/formatting';
+import { formatPrice, formatDate } from '@/lib/utils/formatting';
 import { OrdersExportModal, ExportMode } from '@/components/admin/orders/OrdersExportModal';
 
 interface Order {
@@ -682,7 +682,7 @@ export default function OrdersPage() {
                         className="text-sm text-muted-foreground cursor-pointer"
                         onClick={() => window.location.href = `/admin/orders/${order.orderId}`}
                       >
-                        {order.date}
+                        {formatDate(order.date)}
                       </TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <DropdownMenu>

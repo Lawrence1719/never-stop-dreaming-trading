@@ -27,7 +27,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
+import { formatDateTime } from '@/lib/utils/formatting';
 import { supabase } from '@/lib/supabase/client';
 
 interface Campaign {
@@ -314,7 +314,7 @@ export default function NewslettersPage() {
                   <TableRow key={campaign.id}>
                     <TableCell className="font-medium">{campaign.subject}</TableCell>
                     <TableCell>
-                      {campaign.sent_at ? format(new Date(campaign.sent_at), 'yyyy-MM-dd HH:mm') : '-'}
+                      {campaign.sent_at ? formatDateTime(campaign.sent_at) : '-'}
                     </TableCell>
                     <TableCell>{campaign.recipients_count}</TableCell>
                     <TableCell>

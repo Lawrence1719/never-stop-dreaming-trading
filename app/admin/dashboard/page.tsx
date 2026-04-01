@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/lib/context/auth-context';
 import { supabase } from '@/lib/supabase/client';
-import { formatPrice } from '@/lib/utils/formatting';
+import { formatPrice, formatDateTime } from '@/lib/utils/formatting';
 import { DashboardDetailModal, type DashboardMetric } from '@/components/admin/dashboard/DashboardDetailModal';
 
 type DashboardRange = 'day' | 'week' | 'month';
@@ -487,7 +487,7 @@ export default function AdminDashboard() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {new Date(order.created_at).toLocaleString()}
+                      {formatDateTime(order.created_at)}
                     </TableCell>
                   </TableRow>
                 ))

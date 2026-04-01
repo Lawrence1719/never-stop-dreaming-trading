@@ -1,9 +1,8 @@
 import { getClient } from '@/lib/supabase/admin';
 import { transporter, defaultFrom } from './mailer';
 
-// Safely format price directly here since importing formatting might have issues if not in a server context, 
-// though it should be fine. Let's import it safely.
 import { formatPrice } from '@/lib/utils/formatting';
+import { formatOrderNumber } from '@/lib/utils/formatting';
 
 const getAppUrl = () => {
   return process.env.NEXT_PUBLIC_APP_URL || 
@@ -48,6 +47,13 @@ export async function sendOrderConfirmationEmail(orderId: string) {
       return;
     }
 
+    // Compute global sequence number for human-readable order number (#00047)
+    const { count: seqCount } = await supabaseAdmin
+      .from('orders')
+      .select('id', { count: 'exact', head: true })
+      .lte('created_at', order.created_at);
+    const displayOrderNumber = formatOrderNumber(seqCount ?? 0);
+
     const itemsHtml = order.items.map((item: any) => `
       <tr>
         <td style="${styles.td}">${item.name}</td>
@@ -63,7 +69,7 @@ export async function sendOrderConfirmationEmail(orderId: string) {
         </div>
         <h1 style="${styles.header}">Order Confirmed - Never Stop Dreaming Trading</h1>
         <div style="${styles.content}">
-          <p style="color: #f8fafc;">Thank you for your order! Your order <strong>#${order.id.slice(0, 8).toUpperCase()}</strong> has been successfully placed.</p>
+          <p style="color: #f8fafc;">Thank you for your order! Your order <strong>${displayOrderNumber}</strong> has been successfully placed.</p>
           
           <h3 style="color: #e2e8f0; margin-top: 20px;">Order Details</h3>
           <table style="${styles.table}">
@@ -132,15 +138,22 @@ export async function sendOrderStatusEmail(orderId: string) {
 
     if (!userEmail) return;
 
+    // Compute global sequence number for human-readable order number (#00047)
+    const { count: seqCount } = await supabaseAdmin
+      .from('orders')
+      .select('id', { count: 'exact', head: true })
+      .lte('created_at', order.created_at);
+    const displayOrderNumber = formatOrderNumber(seqCount ?? 0);
+
     let statusTitle = '';
     let statusMessage = '';
     
     if (order.status === 'shipped') {
       statusTitle = 'Your Order Has Shipped!';
-      statusMessage = `Great news! Your order <strong>#${order.id.slice(0, 8).toUpperCase()}</strong> is on its way.`;
+      statusMessage = `Great news! Your order <strong>${displayOrderNumber}</strong> is on its way.`;
     } else if (order.status === 'delivered') {
       statusTitle = 'Your Order Has Been Delivered!';
-      statusMessage = `Your order <strong>#${order.id.slice(0, 8).toUpperCase()}</strong> has arrived. We hope you love it!`;
+      statusMessage = `Your order <strong>${displayOrderNumber}</strong> has arrived. We hope you love it!`;
     } else {
       // Don't send emails for other status updates
       return; 

@@ -148,7 +148,7 @@ export default function OrderConfirmationPage({ params }: { params: Promise<{ or
               <div>
                 <p className="text-sm text-muted-foreground">Estimated Delivery</p>
                 <p className="font-medium">
-                  {getEstimatedDelivery().toLocaleDateString()}
+                  {formatDate(getEstimatedDelivery())}
                 </p>
               </div>
 

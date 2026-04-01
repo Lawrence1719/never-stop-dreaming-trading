@@ -20,7 +20,7 @@ import {
   TableHeader,
   TableRow
 } from '@/components/ui/table';
-import { formatPrice } from '@/lib/utils/formatting';
+import { formatPrice, formatDate, formatDateTime } from '@/lib/utils/formatting';
 import { FileText, Download, Calendar, Loader2 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -94,7 +94,7 @@ export function OrdersExportModal({ isOpen, onClose, mode, data = [], onExportCS
 
       doc.setFontSize(9);
       doc.setTextColor(107, 114, 128); // gray-500
-      doc.text(`Generated Date: ${new Date().toLocaleString()}`, pageWidth / 2, y, { align: 'center' });
+      doc.text(`Generated Date: ${formatDateTime(new Date())}`, pageWidth / 2, y, { align: 'center' });
       y += 12;
 
       // Summary Stats
@@ -243,7 +243,7 @@ export function OrdersExportModal({ isOpen, onClose, mode, data = [], onExportCS
                    <h2 className="text-xl font-bold text-blue-600">NSD Orders Report</h2>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs text-muted-foreground">Generated: {new Date().toLocaleDateString()}</p>
+                  <p className="text-xs text-muted-foreground">Generated: {formatDate(new Date())}</p>
                 </div>
               </div>
 
@@ -284,7 +284,7 @@ export function OrdersExportModal({ isOpen, onClose, mode, data = [], onExportCS
                         <TableCell>{order.customer}</TableCell>
                         <TableCell>{typeof order.amount === 'string' ? order.amount : formatPrice(order.amount)}</TableCell>
                         <TableCell className="capitalize">{order.orderStatus}</TableCell>
-                        <TableCell className="text-xs font-mono">{order.date}</TableCell>
+                        <TableCell className="text-xs">{formatDate(order.date)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

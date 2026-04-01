@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { formatOrderNumber } from '@/lib/utils/formatting';
 
 /**
  * GET /api/orders
@@ -100,6 +101,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: ordersError.message }, { status: 500 });
     }
 
+    // Build a global sequence map: order id → sequential position (1-based, oldest first)
+    // This is used to generate human-readable #00047 order numbers on the customer side.
+    // The admin panel uses its own separate display format and is not affected.
+    const { data: allOrderIds } = await supabaseClient
+      .from('orders')
+      .select('id')
+      .order('created_at', { ascending: true });
+
+    const sequenceMap = new Map<string, number>();
+    (allOrderIds || []).forEach((row: { id: string }, idx: number) => {
+      sequenceMap.set(row.id, idx + 1);
+    });
+
     // Map database orders to frontend Order format
     const orders = (ordersData || []).map((row: any) => {
       // Parse items from JSONB and joined table
@@ -142,7 +156,8 @@ export async function GET(request: NextRequest) {
       }, 0);
       
       const shipping = Math.max(0, Number(row.total) - subtotal);
-      const orderNumber = `ORD-${row.id.slice(0, 10).toUpperCase()}`;
+      const seq = sequenceMap.get(row.id) ?? 0;
+      const orderNumber = formatOrderNumber(seq);
       const date = new Date(row.created_at).toISOString();
       
       const shippingAddress = {

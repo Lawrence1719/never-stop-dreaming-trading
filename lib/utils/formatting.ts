@@ -10,12 +10,38 @@ export const formatPrice = (price: number): string => {
   return formatted.replace(/^PHP\s*/, "₱");
 };
 
+/**
+ * Formats a global sequence number into a human-readable order number.
+ * e.g. 47 → "#00047"
+ * Used ONLY on customer-facing pages. Admin panel uses the raw UUID prefix.
+ */
+export const formatOrderNumber = (seq: number): string =>
+  `#NSD-${String(seq).padStart(5, '0')}`;
+
 export const formatDate = (date: string | Date): string => {
   const d = new Date(date);
+  if (isNaN(d.getTime())) return '—';
   return new Intl.DateTimeFormat("en-US", {
     year: "numeric",
     month: "long",
     day: "numeric",
+  }).format(d);
+};
+
+/**
+ * Returns a full date + time string: "March 29, 2026, 3:45 PM"
+ * Use this wherever both the date and time are meaningful (e.g. admin logs, PDF headers).
+ */
+export const formatDateTime = (date: string | Date): string => {
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return '—';
+  return new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
   }).format(d);
 };
 
