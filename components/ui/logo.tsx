@@ -9,9 +9,12 @@ type LogoProps = {
   variant: 'square' | 'long';
   className?: string;
   priority?: boolean;
+  width?: number;
+  height?: number;
+  zoom?: number;
 };
 
-export function Logo({ variant, className, priority = false }: LogoProps) {
+export function Logo({ variant, className, priority = false, width: customWidth, height: customHeight, zoom }: LogoProps) {
   const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
@@ -26,21 +29,49 @@ export function Logo({ variant, className, priority = false }: LogoProps) {
     ? (isDark ? '/nsd_dark_logo.png' : '/nsd_light_logo.png')
     : (isDark ? '/nsd_dark_long_logo.png' : '/nsd_light_long_logo.png');
 
-  const width = variant === 'square' ? 150 : 400;
-  const height = variant === 'square' ? 150 : 120;
+  const intrinsicWidth = variant === 'square' ? 48 : 180;
+  const intrinsicHeight = variant === 'square' ? 48 : 45;
+  const width = customWidth ?? intrinsicWidth;
+  const height = customHeight ?? intrinsicHeight;
+  const scale = zoom ?? (variant === "square" ? 2.2 : 2.6);
+  const transformOrigin = "center";
+  const wrapperClassName = cn(
+    "relative inline-flex shrink-0 overflow-hidden",
+    variant === "square" ? "items-center justify-center" : "items-center justify-start",
+    className
+  );
 
-  const imgClass = variant === 'square'
-    ? 'h-[150px] w-[150px] object-contain'
-    : 'h-[120px] w-auto object-contain object-left';
+  if (!mounted) {
+    return (
+      <span
+        className={wrapperClassName}
+        style={{ width, height, backgroundColor: "transparent" }}
+        aria-label="Never Stop Dreaming"
+      />
+    );
+  }
 
   return (
-    <Image
-      src={src}
-      alt="Never Stop Dreaming"
-      width={width}
-      height={height}
-      className={cn(imgClass, className)}
-      priority={priority}
-    />
+    <span
+      className={wrapperClassName}
+      style={{ width, height, backgroundColor: "transparent" }}
+      aria-label="Never Stop Dreaming"
+    >
+      <Image
+        src={src}
+        alt="Never Stop Dreaming"
+        width={width}
+        height={height}
+        sizes={`${width}px`}
+        style={{
+          width,
+          height,
+          objectFit: "contain",
+          transform: `scale(${scale})`,
+          transformOrigin,
+        }}
+        priority={priority}
+      />
+    </span>
   );
 }

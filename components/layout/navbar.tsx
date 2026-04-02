@@ -37,9 +37,9 @@ export function Navbar({ minimal = false }: NavbarProps) {
           <div className="flex items-center justify-between h-16">
             {/* Left Side: Logo + Navigation */}
             <div className="flex items-center gap-8">
-              <Link href="/" className="flex items-center gap-1.5">
-                <Logo variant="square" priority />
-                <span className="font-bold text-lg hidden sm:inline">{storeName}</span>
+              <Link href="/" className="flex items-center gap-2 shrink-0">
+                <Logo variant="square" width={48} height={48} className="translate-y-1" priority />
+                <span className="font-bold text-lg hidden sm:inline whitespace-nowrap">{storeName}</span>
               </Link>
 
               {/* Desktop Navigation */}

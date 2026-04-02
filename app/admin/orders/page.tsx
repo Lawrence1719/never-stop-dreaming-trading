@@ -49,6 +49,18 @@ interface Order {
   courier?: string | null;
 }
 
+function renderEntityLabel(value: string) {
+  const match = value.match(/^(.*?)(\s\((?:Removed|Deleted Account)\))$/);
+  if (!match) return value;
+
+  return (
+    <>
+      {match[1]}
+      <span className="text-muted-foreground italic">{match[2]}</span>
+    </>
+  );
+}
+
 export default function OrdersPage() {
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
@@ -649,7 +661,7 @@ export default function OrdersPage() {
                         onClick={() => window.location.href = `/admin/orders/${order.orderId}`}
                       >
                         <div>
-                          <p className="font-medium">{order.customer}</p>
+                          <p className="font-medium">{renderEntityLabel(order.customer)}</p>
                           <p className="text-xs text-muted-foreground">{order.email}</p>
                         </div>
                       </TableCell>

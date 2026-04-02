@@ -12,6 +12,20 @@ interface OrderCardProps {
   order: Order;
 }
 
+function renderEntityLabel(value?: string) {
+  if (!value) return "Order Items";
+
+  const match = value.match(/^(.*?)(\s\((?:Removed|Deleted Account)\))$/);
+  if (!match) return value;
+
+  return (
+    <>
+      {match[1]}
+      <span className="text-muted-foreground italic">{match[2]}</span>
+    </>
+  );
+}
+
 const statusConfig = {
   pending: {
     label: "Pending",
@@ -92,7 +106,7 @@ export function OrderCard({ order }: OrderCardProps) {
         </div>
         <div className="flex-1 min-w-0">
           <h3 className="font-bold text-sm truncate text-foreground uppercase tracking-tight">
-            {firstItem?.name || "Order Items"}
+            {renderEntityLabel(firstItem?.name)}
           </h3>
           <p className="text-[10px] font-bold text-muted-foreground mt-0.5 uppercase opacity-60">
             {itemCount} {itemCount === 1 ? 'item' : 'items'} 

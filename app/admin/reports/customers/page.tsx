@@ -1,13 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Download, Users, TrendingUp, DollarSign } from 'lucide-react';
+import { Download, Users, TrendingUp, DollarSign, FileText, FileSpreadsheet } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { supabase } from '@/lib/supabase/client';
-import { exportToCSV } from '@/lib/utils/export';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { formatPrice } from '@/lib/utils/formatting';
 
 import { ExportReportModal } from '@/components/admin/reports/ExportReportModal';
@@ -34,11 +37,24 @@ interface CustomerReport {
   }>;
 }
 
+function renderEntityLabel(value: string) {
+  const match = value.match(/^(.*?)(\s\((?:Removed|Deleted Account)\))$/);
+  if (!match) return value;
+
+  return (
+    <>
+      {match[1]}
+      <span className="text-muted-foreground italic">{match[2]}</span>
+    </>
+  );
+}
+
 export default function CustomersReportPage() {
   const [data, setData] = useState<CustomerReport | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportFormat, setExportFormat] = useState<'pdf' | 'csv' | 'xlsx'>('pdf');
 
   useEffect(() => {
     async function fetchReport() {
@@ -65,7 +81,8 @@ export default function CustomersReportPage() {
     fetchReport();
   }, []);
 
-  const handleExport = () => {
+  const handleExport = (format: 'pdf' | 'csv' | 'xlsx') => {
+    setExportFormat(format);
     setIsExportModalOpen(true);
   };
 
@@ -79,10 +96,28 @@ export default function CustomersReportPage() {
           <h1 className="text-3xl font-bold tracking-tight">Customer Reports</h1>
           <p className="text-muted-foreground mt-1">Customer analytics, segments, and insights</p>
         </div>
-        <Button className="gap-2" onClick={handleExport} disabled={isLoading || !data}>
-          <Download className="h-4 w-4" />
-          Export Report
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button className="gap-2" disabled={isLoading || !data}>
+              <Download className="h-4 w-4" />
+              Export
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem onClick={() => handleExport('pdf')} className="cursor-pointer">
+              <FileText className="mr-2 h-4 w-4 text-red-500" />
+              <span>Export as PDF</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleExport('csv')} className="cursor-pointer">
+              <FileText className="mr-2 h-4 w-4 text-blue-500" />
+              <span>Export as CSV</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleExport('xlsx')} className="cursor-pointer">
+              <FileSpreadsheet className="mr-2 h-4 w-4 text-green-500" />
+              <span>Export as Excel</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {error && (
@@ -180,7 +215,6 @@ export default function CustomersReportPage() {
                 <TableHead>Email</TableHead>
                 <TableHead>Total Orders</TableHead>
                 <TableHead>Total Spent</TableHead>
-                <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -191,26 +225,20 @@ export default function CustomersReportPage() {
                     <TableCell><div className="h-4 bg-muted rounded w-32" /></TableCell>
                     <TableCell><div className="h-4 bg-muted rounded w-12" /></TableCell>
                     <TableCell><div className="h-4 bg-muted rounded w-20" /></TableCell>
-                    <TableCell><div className="h-4 bg-muted rounded w-16" /></TableCell>
                   </TableRow>
                 ))
               ) : data && data.topCustomers.length > 0 ? (
                 data.topCustomers.map((customer, idx) => (
                   <TableRow key={idx}>
-                    <TableCell className="font-medium">{customer.name}</TableCell>
+                    <TableCell className="font-medium">{renderEntityLabel(customer.name)}</TableCell>
                     <TableCell className="text-muted-foreground">{customer.email}</TableCell>
                     <TableCell>{customer.orders}</TableCell>
                     <TableCell className="text-green-600 font-medium">{formatAmount(customer.totalSpent)}</TableCell>
-                    <TableCell>
-                      <Badge variant={customer.status === 'VIP' ? 'default' : 'secondary'}>
-                        {customer.status}
-                      </Badge>
-                    </TableCell>
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
                     No customer data available
                   </TableCell>
                 </TableRow>
@@ -272,9 +300,9 @@ export default function CustomersReportPage() {
           onClose={() => setIsExportModalOpen(false)}
           reportType="customers"
           data={data}
+          initialFormat={exportFormat}
         />
       )}
     </div>
   );
 }
-

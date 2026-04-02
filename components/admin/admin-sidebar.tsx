@@ -283,13 +283,19 @@ export default function AdminSidebar({ isOpen, onClose }: { isOpen: boolean; onC
         )}
       >
         <div className={cn(
-          "h-16 border-b border-border flex items-center px-4 transition-all duration-300",
-          isOpen ? "justify-start" : "justify-center"
+          "border-b border-border flex px-4 transition-all duration-300",
+          isOpen ? "h-24 items-center justify-center" : "h-16 items-center justify-center"
         )}>
-          <Link href="/admin/dashboard" className="flex items-center overflow-hidden">
+          <Link
+            href="/admin/dashboard"
+            className={cn(
+              "overflow-hidden",
+              isOpen ? "flex flex-col items-center justify-center text-center" : "flex items-center justify-center"
+            )}
+          >
             <Logo variant="square" className="h-10 w-10 shrink-0" />
             {isOpen && (
-              <span className="ml-3 font-bold text-lg whitespace-nowrap opacity-100 transition-opacity duration-300 delay-100">
+              <span className="mt-2 font-bold text-lg whitespace-nowrap opacity-100 transition-opacity duration-300 delay-100">
                 Admin Panel
               </span>
             )}

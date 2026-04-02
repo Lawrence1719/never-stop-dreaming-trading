@@ -166,7 +166,11 @@ export async function DELETE(
     const supabaseAdmin = getClient();
     const { data: deleted, error } = await supabaseAdmin
       .from('products')
-      .delete()
+      .update({
+        is_active: false,
+        deleted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', id)
       .select()
       .single();
@@ -188,7 +192,7 @@ export async function DELETE(
       }
     }
 
-    return NextResponse.json({ message: 'Product deleted successfully' });
+    return NextResponse.json({ message: 'Product archived successfully' });
   } catch (error) {
     console.error('Failed to delete product', error);
     return NextResponse.json({ error: 'Failed to delete product' }, { status: 500 });

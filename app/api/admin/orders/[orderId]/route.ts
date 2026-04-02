@@ -93,14 +93,16 @@ export async function GET(
     if (order.user_id) {
       const { data: customerProfile } = await supabaseAdmin
         .from('profiles')
-        .select('name, phone')
+        .select('name, phone, deleted_at')
         .eq('id', order.user_id)
         .single();
 
       const { data: { user: authUser } } = await supabaseAdmin.auth.admin.getUserById(order.user_id);
 
       customerInfo = {
-        name: customerProfile?.name || 'Guest',
+        name: customerProfile?.deleted_at
+          ? `${customerProfile?.name || 'Guest'} (Deleted Account)`
+          : customerProfile?.name || 'Guest',
         email: authUser?.email || '',
         phone: customerProfile?.phone || '',
       };
@@ -499,7 +501,6 @@ export async function PUT(
     );
   }
 }
-
 
 
 

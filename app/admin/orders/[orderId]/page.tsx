@@ -72,6 +72,18 @@ interface Order {
   status_history: StatusHistory[];
 }
 
+function renderEntityLabel(value: string) {
+  const match = value.match(/^(.*?)(\s\((?:Removed|Deleted Account)\))$/);
+  if (!match) return value;
+
+  return (
+    <>
+      {match[1]}
+      <span className="text-muted-foreground italic">{match[2]}</span>
+    </>
+  );
+}
+
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
   pending: ['processing', 'cancelled'],
   paid: ['processing', 'cancelled'],
@@ -559,7 +571,7 @@ export default function OrderDetailPage() {
                       )}
                     </div>
                     <div className="flex-1">
-                      <p className="font-medium">{item.name}</p>
+                      <p className="font-medium">{renderEntityLabel(item.name)}</p>
                       <p className="text-sm text-muted-foreground">Quantity: {item.quantity}</p>
                     </div>
                     <div className="text-right">
@@ -706,7 +718,7 @@ export default function OrderDetailPage() {
             <CardContent className="space-y-4">
               <div>
                 <Label className="text-muted-foreground">Customer</Label>
-                <p className="font-medium">{order.customer.name}</p>
+                <p className="font-medium">{renderEntityLabel(order.customer.name)}</p>
                 <p className="text-sm text-muted-foreground">{order.customer.email}</p>
               </div>
               <div>
@@ -1286,4 +1298,3 @@ function OrderDetailsSkeleton() {
     </div>
   );
 }
-

@@ -63,6 +63,7 @@ export async function GET(request: NextRequest) {
         category,
         image_url,
         is_active,
+        deleted_at,
         created_at,
         updated_at,
         product_variants (
@@ -82,6 +83,7 @@ export async function GET(request: NextRequest) {
         )
         `
       )
+      .is('deleted_at', null)
       .order('created_at', { ascending: false });
 
     // Apply filters
@@ -215,4 +217,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to create product' }, { status: 500 });
   }
 }
-

@@ -54,6 +54,7 @@ export async function GET(request: NextRequest) {
     let { data: allProfiles, error: profilesError } = await supabaseAdmin
       .from('profiles')
       .select('id, name, phone, role, created_at')
+      .is('deleted_at', null)
       .order('created_at', { ascending: false });
 
     if (profilesError) {

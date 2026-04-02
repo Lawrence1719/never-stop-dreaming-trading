@@ -235,7 +235,7 @@ function LoginPageContent() {
           {(justLoggedIn || (user && !authLoading)) ? (
             <div className="text-center animate-in fade-in zoom-in duration-500">
               <div className="flex justify-center mb-8">
-                <Logo variant="long" className="h-16 w-auto" priority />
+                <Logo variant="long" priority />
               </div>
               <div className="bg-card p-10 rounded-2xl border border-border shadow-xl backdrop-blur-sm relative overflow-hidden">
                 <div className="absolute inset-0 bg-primary/5 -z-10" />
@@ -261,7 +261,7 @@ function LoginPageContent() {
             <>
               <div className="text-center mb-8">
                 <div className="flex justify-center mb-6">
-                  <Logo variant="long" className="h-16 w-auto" priority />
+                  <Logo variant="long" priority />
                 </div>
                 <h1 className="text-3xl font-bold mb-2">Welcome Back</h1>
                 <p className="text-muted-foreground">Sign in to your account</p>

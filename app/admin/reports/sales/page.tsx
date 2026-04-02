@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { formatPrice } from '@/lib/utils/formatting';
+import { formatPeso, formatPrice } from '@/lib/utils/formatting';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   DropdownMenu,
@@ -17,6 +17,7 @@ import {
 import { FileText, FileSpreadsheet } from 'lucide-react';
 
 import { SalesExportModal } from '@/components/admin/reports/SalesExportModal';
+import { getRelativeDateRangeLabel } from '@/components/admin/reports/PrintReportHeader';
 
 interface SalesReport {
   summary: {
@@ -29,7 +30,7 @@ interface SalesReport {
     aovGrowth: number;
   };
   salesByCategory: Array<{ category: string; sales: number; revenue: number }>;
-  topProducts: Array<{ name: string; sold: number; revenue: number }>;
+  topProducts: Array<{ name: string; sold: number; revenue: number; isDeletedProduct?: boolean }>;
 }
 
 export default function SalesReportPage() {
@@ -215,7 +216,7 @@ export default function SalesReportPage() {
           <CardTitle>Top Performing Products</CardTitle>
           <CardDescription>Best selling products by revenue</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
           <div className="rounded-md border">
             <Table>
               <TableHeader>
@@ -237,11 +238,13 @@ export default function SalesReportPage() {
                 ) : data && data.topProducts.length > 0 ? (
                   data.topProducts.map((product, idx) => (
                     <TableRow key={idx}>
-                      <TableCell className="font-medium text-sm">{product.name}</TableCell>
-                      <TableCell className="text-right">{product.sold}</TableCell>
-                      <TableCell className="text-right text-green-600 font-medium">
-                        {product.revenue}
+                      <TableCell
+                        className={`text-sm ${product.isDeletedProduct ? 'italic text-muted-foreground' : 'font-medium'}`}
+                      >
+                        {product.name}
                       </TableCell>
+                      <TableCell className="text-right">{product.sold}</TableCell>
+                      <TableCell className="text-right text-green-600 font-medium">{formatPeso(product.revenue)}</TableCell>
                     </TableRow>
                   ))
                 ) : (
@@ -254,6 +257,11 @@ export default function SalesReportPage() {
               </TableBody>
             </Table>
           </div>
+          {data?.topProducts.some((product) => product.isDeletedProduct) && (
+            <p className="text-xs text-muted-foreground">
+              * Some products may have been removed from the store
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -262,6 +270,7 @@ export default function SalesReportPage() {
           isOpen={isExportModalOpen}
           onClose={() => setIsExportModalOpen(false)}
           format={exportFormat}
+          dateRange={getRelativeDateRangeLabel(range)}
           data={data}
         />
       )}

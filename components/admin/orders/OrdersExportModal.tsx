@@ -20,10 +20,13 @@ import {
   TableHeader,
   TableRow
 } from '@/components/ui/table';
-import { formatPrice, formatDate, formatDateTime } from '@/lib/utils/formatting';
+import { formatPrice, formatDate, formatPriceForPdf } from '@/lib/utils/formatting';
 import { FileText, Download, Calendar, Loader2 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { PrintReportHeader } from '@/components/admin/reports/PrintReportHeader';
+import { addProfessionalPdfHeader, getDateRangeFromValues, getLogoBase64 } from '@/components/admin/reports/pdf-report-header';
+import { PrintReportFooter } from '@/components/admin/reports/PrintReportFooter';
 
 export type ExportMode = 'date-range' | 'pdf-preview';
 
@@ -53,49 +56,24 @@ export function OrdersExportModal({ isOpen, onClose, mode, data = [], onExportCS
   }, [isOpen, mode]);
 
   const formatCurrencyForPDF = (amount: number | string) => {
-    const val = typeof amount === 'number' ? amount : parseFloat(amount.toString().replace(/[^0-9.-]+/g, ""));
-    return `PHP ${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return formatPriceForPdf(amount);
   };
 
   const generatePDF = async () => {
     setIsGenerating(true);
     try {
       const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+      doc.setFont('helvetica', 'normal');
+      (doc as any).setCharSpace?.(0);
       const pageWidth = 210;
       const today = new Date().toISOString().split('T')[0];
       const filename = `orders-report-${today}.pdf`;
-
-      let y = 15;
-
-      // Load Logo
-      const logoUrl = '/nsd_light_long_logo.png';
-      try {
-        const logoBase64 = await getBase64ImageFromUrl(logoUrl);
-        const img = new Image();
-        img.src = logoBase64;
-        await new Promise((resolve) => (img.onload = resolve));
-        
-        const maxW = 60;
-        const ratio = img.height / img.width;
-        const logoW = maxW;
-        const logoH = maxW * ratio;
-        doc.addImage(logoBase64, 'PNG', (pageWidth - logoW) / 2, y, logoW, logoH);
-        y += logoH + 10;
-      } catch (err) {
-        console.warn('Failed to load logo for PDF', err);
-        y += 5;
-      }
-
-      // Title
-      doc.setFontSize(22);
-      doc.setTextColor(30, 41, 59); // slate-800
-      doc.text("NSD Orders Report", pageWidth / 2, y, { align: 'center' });
-      y += 8;
-
-      doc.setFontSize(9);
-      doc.setTextColor(107, 114, 128); // gray-500
-      doc.text(`Generated Date: ${formatDateTime(new Date())}`, pageWidth / 2, y, { align: 'center' });
-      y += 12;
+      let y = addProfessionalPdfHeader(doc, {
+        reportTitle: 'Orders Report',
+        generatedAt: new Date(),
+        dateRange: getDateRangeFromValues(data.map((order) => order.date)),
+        logo: await getLogoBase64(),
+      });
 
       // Summary Stats
       const totalOrders = data.length;
@@ -122,7 +100,7 @@ export function OrdersExportModal({ isOpen, onClose, mode, data = [], onExportCS
         ],
         theme: 'grid',
         headStyles: { fillColor: [51, 65, 85], textColor: 255, fontStyle: 'bold' },
-        styles: { fontSize: 10 },
+        styles: { fontSize: 10, font: 'helvetica' },
         margin: { left: 14, right: 14 },
       });
 
@@ -146,7 +124,7 @@ export function OrdersExportModal({ isOpen, onClose, mode, data = [], onExportCS
         ]),
         theme: 'striped',
         headStyles: { fillColor: [59, 130, 246], textColor: 255 },
-        styles: { fontSize: 8.5 },
+        styles: { fontSize: 8.5, font: 'helvetica' },
         margin: { left: 14, right: 14 },
       });
 
@@ -157,7 +135,7 @@ export function OrdersExportModal({ isOpen, onClose, mode, data = [], onExportCS
         doc.setFontSize(8);
         doc.setTextColor(156, 163, 175);
         doc.text(
-          `© 2026 Never Stop Dreaming Trading — Admin Panel`,
+          `© ${new Date().getFullYear()} Never Stop Dreaming Online Grocery`,
           14,
           doc.internal.pageSize.getHeight() - 10
         );
@@ -177,17 +155,6 @@ export function OrdersExportModal({ isOpen, onClose, mode, data = [], onExportCS
       setIsGenerating(false);
     }
   };
-
-  async function getBase64ImageFromUrl(imageUrl: string): Promise<string> {
-    const res = await fetch(imageUrl);
-    const blob = await res.blob();
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.addEventListener('load', () => resolve(reader.result as string), false);
-      reader.addEventListener('error', () => reject(new Error('Failed to convert image to base64')), false);
-      reader.readAsDataURL(blob);
-    });
-  }
 
   const handleExportCSV = () => {
     if (onExportCSV) {
@@ -236,16 +203,18 @@ export function OrdersExportModal({ isOpen, onClose, mode, data = [], onExportCS
         ) : (
           <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-2 py-4">
             {/* Report Preview */}
-            <div className="border rounded-lg p-6 bg-white dark:bg-zinc-950 shadow-sm space-y-6 text-foreground">
-              <div className="flex justify-between items-start border-b pb-4">
-                <div className="flex flex-col items-center">
-                   <img src="/nsd_light_long_logo.png" alt="Logo" className="h-12 w-auto mb-2" />
-                   <h2 className="text-xl font-bold text-blue-600">NSD Orders Report</h2>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-muted-foreground">Generated: {formatDate(new Date())}</p>
-                </div>
-              </div>
+            <div className="printable-area border rounded-lg p-6 bg-white dark:bg-zinc-950 shadow-sm space-y-6 text-foreground">
+              <PrintReportHeader
+                reportTitle="Orders Report"
+                generatedAt={new Date()}
+                className="screen-only-report-header"
+              />
+              <PrintReportHeader
+                reportTitle="Orders Report"
+                generatedAt={new Date()}
+                className="print-only-report-header"
+              />
+              <PrintReportFooter className="print-only-report-footer" />
 
               <div className="grid grid-cols-3 gap-4">
                 <div className="bg-muted/50 p-4 rounded-lg text-center">

@@ -68,6 +68,18 @@ const CANCEL_REASONS = [
   "Other"
 ];
 
+function renderEntityLabel(value: string) {
+  const match = value.match(/^(.*?)(\s\((?:Removed|Deleted Account)\))$/);
+  if (!match) return value;
+
+  return (
+    <>
+      {match[1]}
+      <span className="text-muted-foreground italic">{match[2]}</span>
+    </>
+  );
+}
+
 export default function OrderDetailsPage({ params }: { params: Promise<{ orderId: string }> }) {
   const router = useRouter();
   const { orderId } = use(params);
@@ -355,7 +367,7 @@ export default function OrderDetailsPage({ params }: { params: Promise<{ orderId
                         />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-black text-sm md:text-base leading-tight uppercase truncate">{item.name}</p>
+                        <p className="font-black text-sm md:text-base leading-tight uppercase truncate">{renderEntityLabel(item.name)}</p>
                         <div className="flex items-center gap-3 mt-1.5">
                           <span className="text-[10px] font-bold text-muted-foreground uppercase bg-muted px-2 py-0.5 rounded">Qty: {item.quantity}</span>
                           {item.variantLabel && (

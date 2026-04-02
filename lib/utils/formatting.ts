@@ -10,6 +10,29 @@ export const formatPrice = (price: number): string => {
   return formatted.replace(/^PHP\s*/, "₱");
 };
 
+export const formatPeso = (amount: number | string): string => {
+  if (typeof amount === "string") {
+    const numeric = Number(amount.replace(/[^0-9.-]+/g, ""));
+    return formatPrice(Number.isFinite(numeric) ? numeric : 0);
+  }
+
+  return formatPrice(amount);
+};
+
+export const formatPriceForPdf = (amount: number | string): string => {
+  const numeric = typeof amount === "string"
+    ? Number(amount.replace(/[^0-9.-]+/g, ""))
+    : amount;
+
+  const safeValue = Number.isFinite(numeric) ? Number(numeric) : 0;
+
+  return new Intl.NumberFormat("en-PH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+    useGrouping: true,
+  }).format(safeValue).replace(/\u00A0/g, " ").replace(/^/, "PHP ");
+};
+
 /**
  * Formats a global sequence number into a human-readable order number.
  * e.g. 47 → "#00047"

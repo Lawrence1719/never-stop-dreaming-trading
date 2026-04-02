@@ -58,20 +58,20 @@ export async function GET(request: NextRequest) {
     ) as string[];
 
     // Fetch profiles for all users (name only, email is in auth.users)
-    let profilesMap: Record<string, { name: string | null }> = {};
+    let profilesMap: Record<string, { name: string | null; deleted_at: string | null }> = {};
     if (userIds.length > 0) {
       const { data: profiles, error: profilesError } = await supabaseAdmin
         .from('profiles')
-        .select('id, name')
+        .select('id, name, deleted_at')
         .in('id', userIds);
 
       if (profilesError) {
         console.error('Failed to fetch profiles', profilesError);
       } else {
         profilesMap = (profiles || []).reduce((acc: any, profile: any) => {
-          acc[profile.id] = { name: profile.name };
+          acc[profile.id] = { name: profile.name, deleted_at: profile.deleted_at || null };
           return acc;
-        }, {} as Record<string, { name: string | null }>);
+        }, {} as Record<string, { name: string | null; deleted_at: string | null }>);
       }
     }
 
@@ -117,7 +117,10 @@ export async function GET(request: NextRequest) {
         
         // Get customer info from profiles map and emails map
         const profile = row.user_id ? profilesMap[row.user_id] : null;
-        const customerName = profile?.name || 'Guest';
+        const baseCustomerName = profile?.name || 'Guest';
+        const customerName = profile?.deleted_at
+          ? `${baseCustomerName} (Deleted Account)`
+          : baseCustomerName;
         const customerEmail = row.user_id ? (emailsMap[row.user_id] || '') : '';
         
         // Use payment_status from database instead of calculating it
@@ -174,4 +177,3 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to load orders' }, { status: 500 });
   }
 }
-

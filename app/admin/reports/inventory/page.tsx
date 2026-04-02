@@ -1,13 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Download, Package, AlertTriangle } from 'lucide-react';
+import { Download, Package, AlertTriangle, FileText, FileSpreadsheet } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { supabase } from '@/lib/supabase/client';
-import { exportToCSV } from '@/lib/utils/export';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 import { ExportReportModal } from '@/components/admin/reports/ExportReportModal';
 
@@ -41,6 +45,7 @@ export default function InventoryReportPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportFormat, setExportFormat] = useState<'pdf' | 'csv' | 'xlsx'>('pdf');
 
   useEffect(() => {
     async function fetchReport() {
@@ -66,7 +71,8 @@ export default function InventoryReportPage() {
     fetchReport();
   }, []);
 
-  const handleExport = () => {
+  const handleExport = (format: 'pdf' | 'csv' | 'xlsx') => {
+    setExportFormat(format);
     setIsExportModalOpen(true);
   };
 
@@ -77,10 +83,28 @@ export default function InventoryReportPage() {
           <h1 className="text-3xl font-bold tracking-tight">Inventory Reports</h1>
           <p className="text-muted-foreground mt-1">Stock levels, alerts, and inventory analytics</p>
         </div>
-        <Button className="gap-2" onClick={handleExport} disabled={isLoading || !data}>
-          <Download className="h-4 w-4" />
-          Export Report
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button className="gap-2" disabled={isLoading || !data}>
+              <Download className="h-4 w-4" />
+              Export
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem onClick={() => handleExport('pdf')} className="cursor-pointer">
+              <FileText className="mr-2 h-4 w-4 text-red-500" />
+              <span>Export as PDF</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleExport('csv')} className="cursor-pointer">
+              <FileText className="mr-2 h-4 w-4 text-blue-500" />
+              <span>Export as CSV</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleExport('xlsx')} className="cursor-pointer">
+              <FileSpreadsheet className="mr-2 h-4 w-4 text-green-500" />
+              <span>Export as Excel</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {error && (
@@ -278,9 +302,9 @@ export default function InventoryReportPage() {
           onClose={() => setIsExportModalOpen(false)}
           reportType="inventory"
           data={data}
+          initialFormat={exportFormat}
         />
       )}
     </div>
   );
 }
-

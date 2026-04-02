@@ -29,6 +29,9 @@ import { formatPrice } from '@/lib/utils/formatting';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import { PrintReportHeader, getRelativeDateRangeLabel } from '@/components/admin/reports/PrintReportHeader';
+import { addProfessionalPdfFooter, addProfessionalPdfHeader, getLogoBase64 } from '@/components/admin/reports/pdf-report-header';
+import { PrintReportFooter } from '@/components/admin/reports/PrintReportFooter';
 
 export type DashboardMetric = 'revenue' | 'orders' | 'customers' | 'aov' | 'sales_overview' | 'sales_by_category';
 
@@ -125,13 +128,14 @@ export function DashboardDetailModal({
 
   const today = new Date().toISOString().split('T')[0];
   const filename = `${metric || 'report'}-summary-${today}.${format}`;
+  const printDateRange = getRelativeDateRangeLabel(dateRange as 'day' | 'week' | 'month');
 
   const handleDownload = async () => {
     setIsGenerating(true);
     await new Promise(r => setTimeout(r, 800)); // UX delay
     
     try {
-      if (format === 'pdf') exportToPDF();
+      if (format === 'pdf') await exportToPDF();
       else if (format === 'xlsx') exportToExcel();
       else exportToCSV();
       onClose();
@@ -142,15 +146,17 @@ export function DashboardDetailModal({
     }
   };
 
-  const exportToPDF = () => {
+  const exportToPDF = async () => {
     const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
+    doc.setFont('helvetica', 'normal');
+    (doc as any).setCharSpace?.(0);
     const title = getMetricTitle();
-    
-    doc.setFontSize(22);
-    doc.text('Never Stop Dreaming Trading', pageWidth / 2, 20, { align: 'center' });
-    doc.setFontSize(14);
-    doc.text(title, pageWidth / 2, 30, { align: 'center' });
+    const startY = addProfessionalPdfHeader(doc, {
+      reportTitle: title,
+      generatedAt: new Date(),
+      dateRange: printDateRange,
+      logo: await getLogoBase64(),
+    });
     
     let head = [];
     let body = [];
@@ -169,12 +175,21 @@ export function DashboardDetailModal({
     }
 
     autoTable(doc, {
-      startY: 40,
+      startY,
       head,
       body,
       theme: 'grid',
-      headStyles: { fillColor: [59, 130, 246] }
+      headStyles: { fillColor: [59, 130, 246] },
+      styles: { font: 'helvetica', fontSize: 9.5 },
+      margin: { left: 14, right: 14, bottom: 38 },
     });
+
+    const totalPages = (doc as any).internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      addProfessionalPdfFooter(doc, i, totalPages);
+    }
+
     doc.save(filename);
   };
 
@@ -220,15 +235,18 @@ export function DashboardDetailModal({
         {/* Body (Print Preview) */}
         <div className="p-6 overflow-y-auto max-h-[70vh] bg-muted/30">
           <div id="printable-modal-content" className="bg-background border rounded-xl shadow-sm overflow-hidden printable-area">
-            {/* Document Header */}
-            <div className="p-8 border-b text-center bg-muted/5">
-              <img src="/nsd_light_long_logo.png" alt="Logo" className="h-10 mx-auto mb-4 opacity-80" />
-              <div className="h-[1px] w-full bg-border mb-6" />
-              <h3 className="text-xl font-bold text-primary uppercase tracking-tight">NSD {getMetricTitle()}</h3>
-              <p className="text-[10px] text-muted-foreground uppercase pt-1">
-                Internal Document • {new Date().toLocaleDateString()}
-              </p>
-            </div>
+            <PrintReportHeader
+              reportTitle={getMetricTitle()}
+              generatedAt={new Date()}
+              dateRange={printDateRange}
+              className="screen-only-report-header p-8 pb-0"
+            />
+            <PrintReportHeader
+              reportTitle={getMetricTitle()}
+              generatedAt={new Date()}
+              dateRange={printDateRange}
+              className="print-only-report-header p-8 pb-0"
+            />
 
             {/* Executive Summary */}
             <div className="p-6 border-b">
@@ -325,6 +343,11 @@ export function DashboardDetailModal({
                 </Table>
               </div>
             </div>
+
+            <PrintReportFooter
+              className="mt-2 px-6 pb-6 print-only-report-footer"
+              previewPageLabel="Page 1 of 1"
+            />
           </div>
         </div>
 
@@ -354,24 +377,6 @@ export function DashboardDetailModal({
         </DialogFooter>
       </DialogContent>
 
-      <style jsx global>{`
-        @media print {
-          body * {
-            visibility: hidden;
-          }
-          .printable-area, .printable-area * {
-            visibility: visible;
-          }
-          .printable-area {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            border: none !important;
-            box-shadow: none !important;
-          }
-        }
-      `}</style>
     </Dialog>
   );
 }

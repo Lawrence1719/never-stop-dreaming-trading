@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     // Fetch all customers (profiles with role 'customer')
     const { data: profiles } = await supabaseAdmin
       .from('profiles')
-      .select('id, name, created_at')
+      .select('id, name, created_at, deleted_at')
       .eq('role', 'customer');
 
     // Fetch all orders
@@ -79,9 +79,12 @@ export async function GET(request: NextRequest) {
     const topCustomers = (profiles || [])
       .map((profile: any) => {
         const stats = customerStats[profile.id] || { orders: 0, totalSpent: 0, avgOrderValue: 0 };
+        const displayName = profile.deleted_at
+          ? `${profile.name || 'Unknown'} (Deleted Account)`
+          : profile.name || 'Unknown';
         return {
           id: profile.id,
-          name: profile.name || 'Unknown',
+          name: displayName,
           email: emailsMap[profile.id] || '',
           orders: stats.orders,
           totalSpent: stats.totalSpent,
@@ -179,4 +182,3 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to load customer report' }, { status: 500 });
   }
 }
-

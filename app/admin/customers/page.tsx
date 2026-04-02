@@ -268,8 +268,8 @@ export default function CustomersPage() {
       setDeleteDialogOpen(false);
       setSelectedCustomer(null);
       toast({
-        title: 'Customer deleted',
-        description: 'Customer has been deleted successfully.',
+        title: 'Customer archived',
+        description: 'Customer has been marked as deleted successfully.',
         variant: 'success',
       });
       refreshCustomers();

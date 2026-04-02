@@ -145,3 +145,71 @@
     animation: bounce-subtle 2s ease-in-out infinite;
   }
 }
+
+@media screen {
+  .print-only-report-header {
+    display: none !important;
+  }
+
+  .print-footer-page {
+    display: none !important;
+  }
+}
+
+@media print {
+  @page {
+    margin: 18mm 14mm 30mm 14mm;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .printable-area,
+  .printable-area * {
+    visibility: visible;
+  }
+
+  .printable-area {
+    position: static !important;
+    width: 100% !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: white !important;
+    color: black !important;
+    overflow: visible !important;
+    padding-bottom: 42mm !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .screen-only-report-header {
+    display: none !important;
+  }
+
+  .print-only-report-header {
+    display: block !important;
+    margin-bottom: 1.5rem;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .print-only-report-footer {
+    display: block !important;
+    position: fixed;
+    left: 14mm;
+    right: 14mm;
+    bottom: 10mm;
+    background: white;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .print-footer-page::after {
+    content: "Page " counter(page) " of " counter(pages);
+  }
+
+  .screen-footer-page {
+    display: none !important;
+  }
+}

@@ -25,11 +25,14 @@ import {
   TableHeader,
   TableRow
 } from '@/components/ui/table';
-import { formatPrice } from '@/lib/utils/formatting';
-import { FileText, FileSpreadsheet, Download, Printer } from 'lucide-react';
+import { formatPriceForPdf } from '@/lib/utils/formatting';
+import { FileText, FileSpreadsheet, Download } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import { PrintReportHeader } from '@/components/admin/reports/PrintReportHeader';
+import { addProfessionalPdfFooter, addProfessionalPdfHeader, getLogoBase64 } from '@/components/admin/reports/pdf-report-header';
+import { PrintReportFooter } from '@/components/admin/reports/PrintReportFooter';
 
 export type ReportType = 'sales' | 'inventory' | 'customers';
 
@@ -38,10 +41,23 @@ interface ExportReportModalProps {
   onClose: () => void;
   reportType: ReportType;
   data: any;
+  initialFormat?: 'pdf' | 'csv' | 'xlsx';
 }
 
-export function ExportReportModal({ isOpen, onClose, reportType, data }: ExportReportModalProps) {
-  const [format, setFormat] = useState<'pdf' | 'csv' | 'xlsx'>('pdf');
+export function ExportReportModal({
+  isOpen,
+  onClose,
+  reportType,
+  data,
+  initialFormat = 'pdf',
+}: ExportReportModalProps) {
+  const [format, setFormat] = useState<'pdf' | 'csv' | 'xlsx'>(initialFormat);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setFormat(initialFormat);
+    }
+  }, [isOpen, initialFormat]);
 
   const getReportName = () => {
     switch (reportType) {
@@ -58,11 +74,17 @@ export function ExportReportModal({ isOpen, onClose, reportType, data }: ExportR
   };
 
   const formatCurrencyForPDF = (amount: number | string) => {
-    if (typeof amount === 'string' && amount.includes('₱')) {
-      return amount.replace('₱', 'PHP ');
+    return formatPriceForPdf(amount);
+  };
+
+  const getEmptyDetailMessage = () => {
+    if (reportType === 'sales') {
+      return 'No information available for this report.';
     }
-    const val = typeof amount === 'number' ? amount : parseFloat(amount.toString().replace(/[^0-9.-]+/g, ""));
-    return `PHP ${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (reportType === 'inventory') {
+      return 'No low stock alerts at this time.';
+    }
+    return 'No information available for this report.';
   };
 
 
@@ -88,9 +110,9 @@ export function ExportReportModal({ isOpen, onClose, reportType, data }: ExportR
     }, 100);
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (format === 'pdf') {
-      exportToPDF();
+      await exportToPDF();
     } else if (format === 'csv') {
       exportToCSV();
     } else {
@@ -99,42 +121,17 @@ export function ExportReportModal({ isOpen, onClose, reportType, data }: ExportR
     // Don't call onClose() here — triggerDownload handles it
   };
 
-  const exportToPDF = () => {
+  const exportToPDF = async () => {
     const reportName = getReportName();
     const filename = getFilename('pdf');
-    const today = new Date().toLocaleString();
-    const pageWidth = 210; // A4 mm
-
-    const buildPDF = (logoBase64: string | null, logoWidth: number, logoHeight: number) => {
-      const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-      let y = 14;
-
-      // Logo with aspect ratio
-      if (logoBase64) {
-        const maxW = 75;
-        const ratio = logoHeight / logoWidth;
-        const logoW = maxW;
-        const logoH = maxW * ratio;
-        doc.addImage(logoBase64, 'PNG', (pageWidth - logoW) / 2, y, logoW, logoH);
-        y += logoH + 4;
-      }
-
-      // Title block
-      doc.setFontSize(26);
-      doc.setTextColor(59, 130, 246);
-      doc.text(`${reportName} Report`, pageWidth / 2, y, { align: 'center' });
-      y += 10;
-
-      doc.setFontSize(8);
-      doc.setTextColor(107, 114, 128);
-      doc.text(`Generated: ${today}`, pageWidth - 14, y, { align: 'right' });
-      y += 2;
-
-      // Divider
-      doc.setDrawColor(59, 130, 246);
-      doc.setLineWidth(0.5);
-      doc.line(14, y, pageWidth - 14, y);
-      y += 8;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    doc.setFont('helvetica', 'normal');
+    (doc as any).setCharSpace?.(0);
+    let y = addProfessionalPdfHeader(doc, {
+      reportTitle: `${reportName} Report`,
+      generatedAt: new Date(),
+      logo: await getLogoBase64(),
+    });
 
       // Summary table
       let summaryBody: string[][] = [];
@@ -162,16 +159,22 @@ export function ExportReportModal({ isOpen, onClose, reportType, data }: ExportR
         ];
       }
 
-      autoTable(doc, {
-        startY: y,
-        head: [['Metric', 'Value']],
-        body: summaryBody,
-        theme: 'grid',
-        headStyles: { fillColor: [59, 130, 246], textColor: 255, fontStyle: 'bold', fontSize: 10 },
-        columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } },
-        styles: { fontSize: 10 },
-      });
-      y = (doc as any).lastAutoTable.finalY + 10;
+    doc.setFontSize(10);
+    doc.setTextColor(100, 116, 139);
+    doc.text('SUMMARY STATISTICS', 14, y);
+    y += 4;
+
+    autoTable(doc, {
+      startY: y,
+      head: [['Metric', 'Value']],
+      body: summaryBody,
+      theme: 'grid',
+      headStyles: { fillColor: [59, 130, 246], textColor: 255, fontStyle: 'bold', fontSize: 10 },
+      columnStyles: { 1: { halign: 'right', fontStyle: 'bold', font: 'helvetica' } },
+      styles: { fontSize: 10, font: 'helvetica' },
+      margin: { left: 14, right: 14, bottom: 38 },
+    });
+    y = (doc as any).lastAutoTable.finalY + 10;
 
       // Detail table
       let detailHead: string[] = [];
@@ -192,56 +195,42 @@ export function ExportReportModal({ isOpen, onClose, reportType, data }: ExportR
         detailBody = data.topCustomers.map((p: any) => [p.name, p.email, p.orders.toString(), formatCurrencyForPDF(p.totalSpent)]);
       }
 
-      doc.setFontSize(11);
-      doc.setTextColor(55, 65, 81);
-      doc.text(detailTitle, 14, y);
-      y += 4;
+    doc.setFontSize(10);
+    doc.setTextColor(100, 116, 139);
+    doc.text(detailTitle, 14, y);
+    y += 4;
 
+    if (detailBody.length === 0) {
+      doc.setFontSize(10);
+      doc.setTextColor(107, 114, 128);
+      doc.text(getEmptyDetailMessage(), 14, y + 6);
+    } else {
       autoTable(doc, {
         startY: y,
         head: [detailHead],
         body: detailBody,
         theme: 'striped',
         headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold', fontSize: 10 },
-        styles: { fontSize: 9.5 },
+        styles: { fontSize: 9.5, font: 'helvetica' },
+        margin: { left: 14, right: 14, bottom: 38 },
         didParseCell: (hookData) => {
-          // Highlight low/critical stock rows in inventory
           if (reportType === 'inventory' && hookData.row.section === 'body') {
             const status = (hookData.row.raw as string[])[3];
             if (status === 'critical') hookData.cell.styles.textColor = [220, 38, 38];
           }
         },
       });
+    }
 
       // Footer on each page
-      const totalPages = (doc as any).internal.getNumberOfPages();
-      for (let i = 1; i <= totalPages; i++) {
-        doc.setPage(i);
-        const footerY = doc.internal.pageSize.getHeight() - 8;
-        doc.setFontSize(8);
-        doc.setTextColor(156, 163, 175);
-        doc.text(`© ${new Date().getFullYear()} Never Stop Dreaming Trading — Admin Panel`, 14, footerY);
-        doc.text(`Page ${i} of ${totalPages}`, pageWidth - 14, footerY, { align: 'right' });
-      }
+    const totalPages = (doc as any).internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      addProfessionalPdfFooter(doc, i, totalPages);
+    }
 
-      // Trigger save via data URI (more reliable for filenames)
-      const dataUri = doc.output('datauristring');
-      triggerDownload(dataUri, filename);
-    };
-
-    // Load logo as base64 via canvas
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.src = '/nsd_light_long_logo.png';
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = img.naturalWidth;
-      canvas.height = img.naturalHeight;
-      const ctx = canvas.getContext('2d')!;
-      ctx.drawImage(img, 0, 0);
-      buildPDF(canvas.toDataURL('image/png'), img.naturalWidth, img.naturalHeight);
-    };
-    img.onerror = () => buildPDF(null, 0, 0); // fallback — no logo if image fails
+    const dataUri = doc.output('datauristring');
+    triggerDownload(dataUri, filename);
   };
 
 
@@ -347,17 +336,17 @@ export function ExportReportModal({ isOpen, onClose, reportType, data }: ExportR
 
         {/* Scrollable document preview */}
         <div className="flex-1 overflow-y-auto bg-muted/40 px-6 py-5">
-          <div className="bg-white dark:bg-zinc-900 shadow-md rounded-lg border px-8 py-8 space-y-6 text-sm text-foreground">
-            {/* Doc header */}
-            <div className="border-b pb-8 text-center ring-offset-background">
-              <img src="/nsd_light_long_logo.png" alt="Logo" className="h-20 w-auto mx-auto mb-2" />
-              <h2 className="text-3xl font-bold text-blue-600 tracking-tight">{getReportName()} Report</h2>
-              <div className="flex justify-end mt-4">
-                <p className="text-[10px] text-muted-foreground font-mono opacity-70">
-                  Generated: {new Date().toLocaleString()}
-                </p>
-              </div>
-            </div>
+          <div className="printable-area bg-white dark:bg-zinc-900 shadow-md rounded-lg border px-8 py-8 space-y-6 text-sm text-foreground">
+            <PrintReportHeader
+              reportTitle={`${getReportName()} Report`}
+              generatedAt={new Date()}
+              className="screen-only-report-header"
+            />
+            <PrintReportHeader
+              reportTitle={`${getReportName()} Report`}
+              generatedAt={new Date()}
+              className="print-only-report-header"
+            />
 
             {/* Summary stats */}
             <div>
@@ -401,47 +390,60 @@ export function ExportReportModal({ isOpen, onClose, reportType, data }: ExportR
                 {reportType === 'sales' ? 'Top Performing Products' : reportType === 'inventory' ? 'Low Stock Alerts' : 'Top Customers'}
               </h3>
               <div className="border rounded overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-green-50 dark:bg-green-950/30">
-                      {reportType === 'sales' && (<><TableHead className="font-semibold">Product Name</TableHead><TableHead className="text-right font-semibold">Units Sold</TableHead><TableHead className="text-right font-semibold">Revenue</TableHead></>)}
-                      {reportType === 'inventory' && (<><TableHead className="font-semibold">Product</TableHead><TableHead className="font-semibold">SKU</TableHead><TableHead className="text-right font-semibold">Stock</TableHead><TableHead className="font-semibold">Status</TableHead></>)}
-                      {reportType === 'customers' && (<><TableHead className="font-semibold">Name</TableHead><TableHead className="font-semibold">Email</TableHead><TableHead className="text-right font-semibold">Orders</TableHead><TableHead className="text-right font-semibold">Total Spent</TableHead></>)}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {reportType === 'sales' && data.topProducts.map((p: any, i: number) => (
-                      <TableRow key={i}>
-                        <TableCell className="font-medium">{p.name}</TableCell>
-                        <TableCell className="text-right">{p.sold}</TableCell>
-                        <TableCell className="text-right text-green-600 font-medium">{formatCurrencyForPDF(p.revenue)}</TableCell>
+                {((reportType === 'sales' && data.topProducts.length === 0) ||
+                  (reportType === 'inventory' && data.lowStockItems.length === 0) ||
+                  (reportType === 'customers' && data.topCustomers.length === 0)) ? (
+                  <div className="px-4 py-8 text-center text-sm italic text-muted-foreground">
+                    {getEmptyDetailMessage()}
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-green-50 dark:bg-green-950/30">
+                        {reportType === 'sales' && (<><TableHead className="font-semibold">Product Name</TableHead><TableHead className="text-right font-semibold">Units Sold</TableHead><TableHead className="text-right font-semibold">Revenue</TableHead></>)}
+                        {reportType === 'inventory' && (<><TableHead className="font-semibold">Product</TableHead><TableHead className="font-semibold">SKU</TableHead><TableHead className="text-right font-semibold">Stock</TableHead><TableHead className="font-semibold">Status</TableHead></>)}
+                        {reportType === 'customers' && (<><TableHead className="font-semibold">Name</TableHead><TableHead className="font-semibold">Email</TableHead><TableHead className="text-right font-semibold">Orders</TableHead><TableHead className="text-right font-semibold">Total Spent</TableHead></>)}
                       </TableRow>
-                    ))}
-                    {reportType === 'inventory' && data.lowStockItems.map((p: any, i: number) => (
-                      <TableRow key={i}>
-                        <TableCell className="font-medium">{p.name}</TableCell>
-                        <TableCell className="text-muted-foreground">{p.sku}</TableCell>
-                        <TableCell className="text-right font-bold text-yellow-600">{p.stock}</TableCell>
-                        <TableCell><span className={`px-1.5 py-0.5 rounded text-xs font-medium ${p.status === 'critical' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>{p.status}</span></TableCell>
-                      </TableRow>
-                    ))}
-                    {reportType === 'customers' && data.topCustomers.map((p: any, i: number) => (
-                      <TableRow key={i}>
-                        <TableCell className="font-medium">{p.name}</TableCell>
-                        <TableCell className="text-muted-foreground">{p.email}</TableCell>
-                        <TableCell className="text-right">{p.orders}</TableCell>
-                        <TableCell className="text-right text-green-600 font-medium">{formatCurrencyForPDF(p.totalSpent)}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {reportType === 'sales' && data.topProducts.map((p: any, i: number) => (
+                        <TableRow key={i}>
+                          <TableCell className={p.isDeletedProduct ? 'italic text-muted-foreground' : 'font-medium'}>{p.name}</TableCell>
+                          <TableCell className="text-right">{p.sold}</TableCell>
+                          <TableCell className="text-right text-green-600 font-medium">{formatCurrencyForPDF(p.revenue)}</TableCell>
+                        </TableRow>
+                      ))}
+                      {reportType === 'inventory' && data.lowStockItems.map((p: any, i: number) => (
+                        <TableRow key={i}>
+                          <TableCell className="font-medium">{p.name}</TableCell>
+                          <TableCell className="text-muted-foreground">{p.sku}</TableCell>
+                          <TableCell className="text-right font-bold text-yellow-600">{p.stock}</TableCell>
+                          <TableCell><span className={`px-1.5 py-0.5 rounded text-xs font-medium ${p.status === 'critical' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>{p.status}</span></TableCell>
+                        </TableRow>
+                      ))}
+                      {reportType === 'customers' && data.topCustomers.map((p: any, i: number) => (
+                        <TableRow key={i}>
+                          <TableCell className="font-medium">{p.name}</TableCell>
+                          <TableCell className="text-muted-foreground">{p.email}</TableCell>
+                          <TableCell className="text-right">{p.orders}</TableCell>
+                          <TableCell className="text-right text-green-600 font-medium">{formatCurrencyForPDF(p.totalSpent)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
               </div>
+              {reportType === 'sales' && data.topProducts.some((p: any) => p.isDeletedProduct) && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  * Some products may have been removed from the store
+                </p>
+              )}
             </div>
 
-            {/* Doc footer */}
-            <div className="text-center text-xs text-muted-foreground border-t pt-4">
-              &copy; {new Date().getFullYear()} Never Stop Dreaming Trading — Confidential
-            </div>
+            <PrintReportFooter
+              className="mt-2 print-only-report-footer"
+              previewPageLabel="Page 1 of 1"
+            />
           </div>
         </div>
 

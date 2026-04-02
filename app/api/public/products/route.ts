@@ -29,6 +29,7 @@ export async function GET() {
         category,
         image_url,
         is_active,
+        deleted_at,
         created_at,
         updated_at,
         specifications,
@@ -46,6 +47,7 @@ export async function GET() {
         `
       )
       .eq('is_active', true)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false });
 
     if (error) {

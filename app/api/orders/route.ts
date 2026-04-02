@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
         order_items(
           *,
           product_variants:variant_id(variant_label),
-          products:product_id(name, image_url)
+          products:product_id(name, image_url, deleted_at)
         )
       `, { count: 'exact' })
       .eq('user_id', user.id);
@@ -124,9 +124,12 @@ export async function GET(request: NextRequest) {
         const variantLabel = item.product_variants?.variant_label || item.variant_label || item.variantLabel || null;
         
         // Use p.name, or fall back to item.name if it's not the generic "PRODUCT" placeholder
-        let productName = item.products?.name || item.name;
+        const baseProductName = item.products?.name || item.name;
+        let productName = baseProductName;
         if (!productName || productName.toUpperCase() === 'PRODUCT') {
           productName = 'Product no longer available';
+        } else if (item.products?.deleted_at) {
+          productName = `${productName} (Removed)`;
         }
 
         const productImage = item.products?.image_url || item.image || item.image_url || null;

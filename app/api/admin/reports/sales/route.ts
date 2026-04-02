@@ -10,6 +10,9 @@ import {
   getDateRange,
 } from '@/lib/supabase/admin';
 
+const DELETED_PRODUCT_FALLBACK = '[Deleted Product]';
+const LEGACY_UNKNOWN_PRODUCT_NAME = 'Unknown Product';
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createServerClient()
@@ -71,11 +74,16 @@ export async function GET(request: NextRequest) {
       console.error('Failed to load top products from RPC', topProductsError);
     }
 
-    const topProducts = (topProductsData || []).map((product: any) => ({
-      name: product.name,
-      sold: Number(product.sold),
-      revenue: `₱${Number(product.revenue).toFixed(2)}`,
-    }));
+    const topProducts = (topProductsData || []).map((product: any) => {
+      const isDeletedProduct = product.name === LEGACY_UNKNOWN_PRODUCT_NAME;
+
+      return {
+        name: isDeletedProduct ? DELETED_PRODUCT_FALLBACK : product.name,
+        isDeletedProduct,
+        sold: Number(product.sold),
+        revenue: Number(product.revenue) || 0,
+      };
+    });
 
     // Calculate sales count by category from orders (already handled by get_sales_by_category_rpc inside getSalesByCategory)
     // The previous implementation calculated salesByCategoryChart manually here because standard getSalesByCategory didn't include counts.
@@ -104,4 +112,3 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to load sales report' }, { status: 500 });
   }
 }
-

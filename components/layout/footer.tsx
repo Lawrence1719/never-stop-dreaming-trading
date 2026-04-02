@@ -2,11 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { Facebook, Twitter, Linkedin, Instagram, Mail, Phone, MapPin, Loader2 } from 'lucide-react';
 import { useSettings } from "@/lib/hooks/use-settings";
 import { MAIN_CATEGORIES } from "@/lib/data/categories";
-import { useTheme } from "next-themes";
 import { Logo } from "@/components/ui/logo";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -89,10 +87,10 @@ export function Footer() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-8 mb-8">
           <div className="lg:col-span-2">
-            <div className="mb-4">
-              <Logo variant="long" />
+            <div className="mb-4 flex items-center justify-start bg-transparent">
+              <Logo variant="long" width={360} height={90} zoom={3.1} />
             </div>
-            <p className="text-sm text-muted-foreground mb-4">
+            <p className="text-sm text-muted-foreground mb-4 max-w-sm leading-relaxed">
               {tagline}
             </p>
             <div className="space-y-2 text-sm text-muted-foreground">

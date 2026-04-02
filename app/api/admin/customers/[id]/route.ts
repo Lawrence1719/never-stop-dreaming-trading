@@ -59,7 +59,7 @@ export async function GET(
     // Fetch customer profile
     const { data: customerProfile, error: customerError } = await supabaseAdmin
       .from('profiles')
-      .select('id, name, phone, role, created_at')
+      .select('id, name, phone, role, created_at, deleted_at')
       .eq('id', id)
       .single();
 
@@ -117,7 +117,7 @@ export async function GET(
         email,
         phone: customerProfile.phone,
         role: customerProfile.role,
-        status: isBlocked ? 'blocked' : 'active',
+        status: customerProfile.deleted_at ? 'deleted' : isBlocked ? 'blocked' : 'active',
         joinDate: customerProfile.created_at,
         orders: orderHistory.length,
         totalSpent,
@@ -296,8 +296,12 @@ export async function DELETE(
       .eq('id', id)
       .single();
 
-    // Delete user from auth.users (this will cascade delete profile due to ON DELETE CASCADE)
-    const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(id);
+    const deletedAt = new Date().toISOString();
+
+    const { error: deleteError } = await supabaseAdmin
+      .from('profiles')
+      .update({ deleted_at: deletedAt })
+      .eq('id', id);
 
     if (deleteError) {
       return NextResponse.json({ error: deleteError.message }, { status: 500 });
@@ -313,10 +317,9 @@ export async function DELETE(
       }
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, message: 'Customer archived successfully' });
   } catch (error) {
     console.error('Failed to delete customer', error);
     return NextResponse.json({ error: 'Failed to delete customer' }, { status: 500 });
   }
 }
-
