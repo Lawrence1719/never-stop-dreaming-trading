@@ -46,14 +46,19 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get('search') || '';
     const status = searchParams.get('status') || 'all';
+    const role = searchParams.get('role') || 'all';
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '10');
     const offset = (page - 1) * limit;
 
-    // Fetch all profiles to allow cross-field filtering (since email/stats/blocked are external)
+    const allowedRoles = ['customer', 'courier'] as const;
+    const normalizedRoleFilter = role === 'customer' || role === 'courier' ? role : 'all';
+
+    // Fetch only customer and courier profiles for the customer management page.
     let { data: allProfiles, error: profilesError } = await supabaseAdmin
       .from('profiles')
       .select('id, name, phone, role, created_at')
+      .in('role', allowedRoles)
       .is('deleted_at', null)
       .order('created_at', { ascending: false });
 
@@ -61,9 +66,6 @@ export async function GET(request: NextRequest) {
       console.error('Failed to fetch profiles', profilesError);
       return NextResponse.json({ error: profilesError.message }, { status: 500 });
     }
-
-    // Get all user IDs
-    const userIds = (allProfiles || []).map((p: any) => p.id);
 
     // Fetch emails and metadata from auth.users (requires service role)
     const { data: { users: authUsers }, error: usersError } = await supabaseAdmin.auth.admin.listUsers();
@@ -96,8 +98,8 @@ export async function GET(request: NextRequest) {
       const email = emailsMap[p.id] || '';
       const isBlocked = blockedMap[p.id] || false;
       const stats = orderStats[p.id] || { count: 0, total: 0 };
-      const role = p.role || 'customer';
-      const isSuperAdmin = superAdminEmail && email === superAdminEmail;
+      const role = p.role === 'courier' ? 'courier' : 'customer';
+      const isSuperAdmin = !!(superAdminEmail && email === superAdminEmail);
 
       return {
         id: p.id,
@@ -115,6 +117,12 @@ export async function GET(request: NextRequest) {
 
     // Apply filters
     const filteredCustomers = allCustomers.filter(customer => {
+      if (customer.isSuperAdmin) return false;
+
+      if (normalizedRoleFilter !== 'all' && customer.role !== normalizedRoleFilter) {
+        return false;
+      }
+
       // Status filter
       if (status !== 'all' && customer.status !== status) return false;
 
@@ -173,7 +181,7 @@ export async function POST(request: NextRequest) {
       .join(' ');
 
     const normalizedEmail = email.trim().toLowerCase();
-    const normalizedRole = role === 'admin' ? 'admin' : role === 'courier' ? 'courier' : 'customer';
+    const normalizedRole = role === 'courier' ? 'courier' : 'customer';
 
     // Password validation (min 6 chars to match registration)
     if (password.length < 6) {

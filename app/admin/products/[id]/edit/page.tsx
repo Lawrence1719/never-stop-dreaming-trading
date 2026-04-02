@@ -90,7 +90,7 @@ export default function EditProductPage() {
 
       setSuccessMessage('Product updated successfully!');
       setTimeout(() => {
-        router.push(`/admin/products/${productId}`);
+        router.push('/admin/products');
       }, 1500);
     } catch (err) {
       console.error('Failed to update product', err);
@@ -190,7 +190,7 @@ export default function EditProductPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <Link href={`/admin/products/${productId}`}>
+        <Link href="/admin/products">
           <Button variant="ghost" size="icon">
             <ArrowLeft className="h-5 w-5" />
           </Button>
@@ -223,7 +223,7 @@ export default function EditProductPage() {
         initialData={initialData} 
         onSubmit={handleSubmit}
         isLoading={isSaving}
-        onCancel={() => router.back()}
+        onCancel={() => router.push('/admin/products')}
         submitText="Update Product"
       />
     </div>

@@ -34,7 +34,7 @@ import { StatusBadge } from '@/components/admin/status-badge';
 import { supabase } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { formatPrice, formatDate, formatOrderNumber } from '@/lib/utils/formatting';
-import { OrdersExportModal, ExportMode } from '@/components/admin/orders/OrdersExportModal';
+import { OrdersExportModal, ExportMode, type OrdersExportRow } from '@/components/admin/orders/OrdersExportModal';
 
 interface Order {
   id: string;
@@ -81,7 +81,7 @@ export default function OrdersPage() {
   const [isExporting, setIsExporting] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [exportMode, setExportMode] = useState<ExportMode>('pdf-preview');
-  const [exportData, setExportData] = useState<any[]>([]);
+  const [exportData, setExportData] = useState<OrdersExportRow[]>([]);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Debounce search term

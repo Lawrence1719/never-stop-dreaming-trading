@@ -21,24 +21,38 @@ import {
   TableRow
 } from '@/components/ui/table';
 import { formatPrice, formatDate, formatPriceForPdf } from '@/lib/utils/formatting';
-import { FileText, Download, Calendar, Loader2 } from 'lucide-react';
+import { averageOrderValue, parseOrderAmountNumeric, sumOrderAmounts } from '@/lib/admin/orders-export';
+import { FileText, Download, Loader2 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { PrintReportHeader } from '@/components/admin/reports/PrintReportHeader';
 import { addProfessionalPdfHeader, getDateRangeFromValues, getLogoBase64 } from '@/components/admin/reports/pdf-report-header';
 import { PrintReportFooter } from '@/components/admin/reports/PrintReportFooter';
+import { useToast } from '@/hooks/use-toast';
 
 export type ExportMode = 'date-range' | 'pdf-preview';
+
+/** Row shape for PDF preview / export (matches admin orders list). */
+export interface OrdersExportRow {
+  id?: string;
+  orderId?: string;
+  customer: string;
+  amount: number | string;
+  orderStatus: string;
+  paymentStatus: string;
+  date: string;
+}
 
 interface OrdersExportModalProps {
   isOpen: boolean;
   onClose: () => void;
   mode: ExportMode;
-  data?: any[]; // For PDF preview
+  data?: OrdersExportRow[];
   onExportCSV?: (startDate: string, endDate: string) => void;
 }
 
 export function OrdersExportModal({ isOpen, onClose, mode, data = [], onExportCSV }: OrdersExportModalProps) {
+  const { toast } = useToast();
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -77,13 +91,8 @@ export function OrdersExportModal({ isOpen, onClose, mode, data = [], onExportCS
 
       // Summary Stats
       const totalOrders = data.length;
-      const totalRevenue = data.reduce((sum, order) => {
-        const amount = typeof order.amount === 'string' 
-          ? parseFloat(order.amount.replace(/[^0-9.-]/g, '')) 
-          : order.amount;
-        return sum + (amount || 0);
-      }, 0);
-      const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+      const totalRevenue = sumOrderAmounts(data);
+      const avgOrderValue = averageOrderValue(data);
 
       doc.setFontSize(11);
       doc.setTextColor(51, 65, 85); // slate-700
@@ -114,10 +123,10 @@ export function OrdersExportModal({ isOpen, onClose, mode, data = [], onExportCS
       autoTable(doc, {
         startY: y,
         head: [['Order ID', 'Customer', 'Amount', 'Status', 'Payment', 'Date']],
-        body: data.map(order => [
-          order.id || order.orderId?.slice(0, 8).toUpperCase(),
+        body: data.map((order) => [
+          (order.id || order.orderId?.slice(0, 8).toUpperCase()) ?? '',
           order.customer,
-          formatCurrencyForPDF(order.amount),
+          formatCurrencyForPDF(parseOrderAmountNumeric(order.amount)),
           order.orderStatus.charAt(0).toUpperCase() + order.orderStatus.slice(1),
           order.paymentStatus.charAt(0).toUpperCase() + order.paymentStatus.slice(1),
           order.date
@@ -151,6 +160,12 @@ export function OrdersExportModal({ isOpen, onClose, mode, data = [], onExportCS
       onClose();
     } catch (err) {
       console.error('PDF Generation Error:', err);
+      toast({
+        title: 'PDF export failed',
+        description:
+          err instanceof Error ? err.message : 'Could not generate the PDF. Please try again.',
+        variant: 'destructive',
+      });
     } finally {
       setIsGenerating(false);
     }
@@ -164,7 +179,7 @@ export function OrdersExportModal({ isOpen, onClose, mode, data = [], onExportCS
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className={mode === 'pdf-preview' ? "max-w-4xl" : "sm:max-w-[425px]"}>
         <DialogHeader>
           <DialogTitle>
@@ -224,13 +239,13 @@ export function OrdersExportModal({ isOpen, onClose, mode, data = [], onExportCS
                 <div className="bg-muted/50 p-4 rounded-lg text-center">
                   <p className="text-xs text-muted-foreground uppercase font-semibold">Total Revenue</p>
                   <p className="text-xl font-bold text-green-600">
-                    {formatPrice(data.reduce((sum: number, o: any) => sum + (typeof o.amount === 'string' ? parseFloat(o.amount.replace(/[^0-9.-]/g, '')) : o.amount), 0))}
+                    {formatPrice(sumOrderAmounts(data))}
                   </p>
                 </div>
                 <div className="bg-muted/50 p-4 rounded-lg text-center">
                   <p className="text-xs text-muted-foreground uppercase font-semibold">Avg Order Value</p>
                   <p className="text-xl font-bold">
-                    {formatPrice(data.length > 0 ? data.reduce((sum: number, o: any) => sum + (typeof o.amount === 'string' ? parseFloat(o.amount.replace(/[^0-9.-]/g, '')) : o.amount), 0) / data.length : 0)}
+                    {formatPrice(averageOrderValue(data))}
                   </p>
                 </div>
               </div>
@@ -247,11 +262,15 @@ export function OrdersExportModal({ isOpen, onClose, mode, data = [], onExportCS
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {data.slice(0, 10).map((order: any, idx: number) => (
+                    {data.slice(0, 10).map((order, idx) => (
                       <TableRow key={idx}>
                         <TableCell className="font-medium">{order.id}</TableCell>
                         <TableCell>{order.customer}</TableCell>
-                        <TableCell>{typeof order.amount === 'string' ? order.amount : formatPrice(order.amount)}</TableCell>
+                        <TableCell>
+                          {typeof order.amount === 'string'
+                            ? order.amount
+                            : formatPrice(parseOrderAmountNumeric(order.amount))}
+                        </TableCell>
                         <TableCell className="capitalize">{order.orderStatus}</TableCell>
                         <TableCell className="text-xs">{formatDate(order.date)}</TableCell>
                       </TableRow>
@@ -278,7 +297,7 @@ export function OrdersExportModal({ isOpen, onClose, mode, data = [], onExportCS
               Export CSV
             </Button>
           ) : (
-            <Button onClick={generatePDF} disabled={isGenerating} className="gap-2 bg-blue-600 hover:bg-blue-700">
+            <Button onClick={generatePDF} disabled={isGenerating} className="gap-2">
               {isGenerating ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />

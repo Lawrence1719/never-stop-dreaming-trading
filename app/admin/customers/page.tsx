@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Search, Download, MoreVertical, Edit, Trash2, Ban, UserCheck, Eye, Shield, Plus, ChevronLeft, ChevronRight, Check, Mail } from 'lucide-react';
+import { Search, Download, Plus, ChevronLeft, ChevronRight, Check, Mail, Phone, Circle, Calendar } from 'lucide-react';
+import { CustomerRowActions } from '@/components/admin/customers/CustomerRowActions';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,13 +16,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -31,6 +25,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle as ModalTitle,
+} from '@/components/ui/dialog';
 import { supabase } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Toaster } from '@/components/ui/toaster';
@@ -49,6 +49,8 @@ interface Customer {
   isSuperAdmin?: boolean;
 }
 
+type CustomerRole = 'customer' | 'courier';
+
 export default function CustomersPage() {
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
@@ -62,7 +64,7 @@ export default function CustomersPage() {
   const [blockDialogOpen, setBlockDialogOpen] = useState(false);
   const [unblockDialogOpen, setUnblockDialogOpen] = useState(false);
   const [roleChangeDialogOpen, setRoleChangeDialogOpen] = useState(false);
-  const [pendingRoleChange, setPendingRoleChange] = useState<'admin' | 'customer' | null>(null);
+  const [pendingRoleChange, setPendingRoleChange] = useState<CustomerRole | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [viewDetailsOpen, setViewDetailsOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -73,6 +75,7 @@ export default function CustomersPage() {
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [currentUserIsSuperAdmin, setCurrentUserIsSuperAdmin] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [newCustomer, setNewCustomer] = useState({
     firstName: '',
     middleName: '',
@@ -102,6 +105,10 @@ export default function CustomersPage() {
       }
     };
   }, [searchTerm]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearchTerm, statusFilter, roleFilter]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -139,19 +146,11 @@ export default function CustomersPage() {
         }
 
         const payload = await res.json();
-        const allCustomers = payload.data || [];
-        
-        // Apply role filter on client side (since API doesn't support it yet)
-        const filteredCustomers = roleFilter === 'all' 
-          ? allCustomers 
-          : allCustomers.filter((c: Customer) => {
-              if (roleFilter === 'super_admin') return c.isSuperAdmin;
-              if (roleFilter === 'admin') return c.role === 'admin' && !c.isSuperAdmin;
-              return c.role === 'customer';
-            });
-        
+        const filteredCustomers = payload.data || [];
+
         setCustomers(filteredCustomers);
         setCurrentUserIsSuperAdmin(payload.currentUser?.isSuperAdmin || false);
+        setCurrentUserId(payload.currentUser?.id || null);
         // Calculate total pages based on payload totalCount
         const itemsPerPage = 10;
         const total = payload.totalCount || filteredCustomers.length;
@@ -283,7 +282,7 @@ export default function CustomersPage() {
     }
   };
 
-  const handleChangeRole = async (customerId: string, newRole: 'admin' | 'customer') => {
+  const handleChangeRole = async (customerId: string, newRole: CustomerRole) => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch(`/api/admin/customers/${customerId}/role`, {
@@ -305,7 +304,10 @@ export default function CustomersPage() {
       setSelectedCustomer(null);
       toast({
         title: 'Role updated',
-        description: `Customer role changed to ${newRole} successfully.`,
+        description:
+          newRole === 'courier'
+            ? 'Courier role assigned successfully.'
+            : 'Courier role removed successfully.',
         variant: 'success',
       });
       refreshCustomers();
@@ -318,6 +320,40 @@ export default function CustomersPage() {
       });
     }
   };
+
+  const getRoleBadge = (role: string) => {
+    if (role === 'courier') {
+      return (
+        <Badge className="border border-amber-500/40 bg-amber-500/15 text-amber-200">
+          Courier
+        </Badge>
+      );
+    }
+
+    return <Badge variant="outline">Customer</Badge>;
+  };
+
+  const getRoleChangeDialogCopy = () => {
+    if (!selectedCustomer || !pendingRoleChange) return '';
+
+    return pendingRoleChange === 'courier'
+      ? `Are you sure you want to assign ${selectedCustomer.name} as a Courier?`
+      : `Are you sure you want to remove Courier role from ${selectedCustomer.name}?`;
+  };
+
+  const getInitials = (name: string) =>
+    name
+      .split(' ')
+      .map((part) => part.charAt(0).toUpperCase())
+      .slice(0, 2)
+      .join('');
+
+  const getStatusBadge = (status: string) =>
+    status === 'active' ? (
+      <Badge variant="success">Active</Badge>
+    ) : (
+      <Badge variant="destructive">Blocked</Badge>
+    );
 
   const handleNewCustomerChange = (field: keyof typeof newCustomer, value: string) => {
     let newValue = value;
@@ -434,10 +470,9 @@ export default function CustomersPage() {
                 <SelectValue placeholder="Role" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Roles</SelectItem>
+                <SelectItem value="all">All</SelectItem>
                 <SelectItem value="customer">Customer</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
-                <SelectItem value="super_admin">Super Admin</SelectItem>
+                <SelectItem value="courier">Courier</SelectItem>
               </SelectContent>
             </Select>
             <Button 
@@ -521,120 +556,45 @@ export default function CustomersPage() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        {customer.isSuperAdmin ? (
-                          <span className="inline-flex items-center rounded-full bg-purple-600 px-3 py-1 text-xs font-semibold text-white">
-                            ⭐ Super Admin
-                          </span>
-                        ) : (
-                          <Badge variant={customer.role === 'admin' ? 'secondary' : 'outline'}>
-                            {customer.role === 'admin' ? 'Admin' : 'Customer'}
-                          </Badge>
-                        )}
+                        {getRoleBadge(customer.role)}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">{customer.joinDate}</TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" onClick={(e) => e.stopPropagation()}>
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem 
-                              className="gap-2"
-                              onClick={() => {
-                                setSelectedCustomer(customer);
-                                setViewDetailsOpen(true);
-                              }}
-                            >
-                              <Eye className="h-4 w-4" />
-                              View Details
-                            </DropdownMenuItem>
-                            {/* Only super admin can edit/modify other super admins */}
-                            {!(customer.isSuperAdmin && !currentUserIsSuperAdmin) && (
-                              <>
-                                <DropdownMenuItem 
-                                  className="gap-2"
-                                  onClick={() => {
-                                    setSelectedCustomer(customer);
-                                    setEditDialogOpen(true);
-                                  }}
-                                >
-                                  <Edit className="h-4 w-4" />
-                                  Edit Customer
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                {customer.status === 'active' ? (
-                                  <DropdownMenuItem 
-                                    className="gap-2 text-destructive"
-                                    onClick={() => {
-                                      setSelectedCustomer(customer);
-                                      setBlockDialogOpen(true);
-                                    }}
-                                  >
-                                    <Ban className="h-4 w-4" />
-                                    Deactivate Customer
-                                  </DropdownMenuItem>
-                                ) : (
-                                  <DropdownMenuItem 
-                                    className="gap-2"
-                                    onClick={() => {
-                                      setSelectedCustomer(customer);
-                                      setUnblockDialogOpen(true);
-                                    }}
-                                  >
-                                    <UserCheck className="h-4 w-4" />
-                                    Activate Customer
-                                  </DropdownMenuItem>
-                                )}
-                                <DropdownMenuSeparator />
-                                {!customer.isSuperAdmin && (
-                                  customer.role !== 'admin' ? (
-                                    <DropdownMenuItem 
-                                      className="gap-2"
-                                      onClick={() => {
-                                        setSelectedCustomer(customer);
-                                        setPendingRoleChange('admin');
-                                        setRoleChangeDialogOpen(true);
-                                      }}
-                                    >
-                                      <Shield className="h-4 w-4" />
-                                      Make Admin
-                                    </DropdownMenuItem>
-                                  ) : (
-                                    <DropdownMenuItem 
-                                      className="gap-2"
-                                      onClick={() => {
-                                        setSelectedCustomer(customer);
-                                        setPendingRoleChange('customer');
-                                        setRoleChangeDialogOpen(true);
-                                      }}
-                                    >
-                                      <Shield className="h-4 w-4" />
-                                      Remove Admin
-                                    </DropdownMenuItem>
-                                  )
-                                )}
-                                <DropdownMenuItem 
-                                  className="gap-2 text-destructive"
-                                  onClick={() => {
-                                    setSelectedCustomer(customer);
-                                    setDeleteDialogOpen(true);
-                                  }}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                  Delete Customer
-                                </DropdownMenuItem>
-                              </>
-                            )}
-                            {customer.isSuperAdmin && !currentUserIsSuperAdmin && (
-                              <DropdownMenuItem disabled className="gap-2 text-muted-foreground">
-                                <Shield className="h-4 w-4" />
-                                Protected Account
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        <CustomerRowActions
+                          customer={customer}
+                          currentUserId={currentUserId}
+                          currentUserIsSuperAdmin={currentUserIsSuperAdmin}
+                          onViewDetails={() => {
+                            setSelectedCustomer(customer);
+                            setViewDetailsOpen(true);
+                          }}
+                          onEdit={() => {
+                            setSelectedCustomer(customer);
+                            setEditDialogOpen(true);
+                          }}
+                          onAssignCourier={() => {
+                            setSelectedCustomer(customer);
+                            setPendingRoleChange('courier');
+                            setRoleChangeDialogOpen(true);
+                          }}
+                          onRemoveCourier={() => {
+                            setSelectedCustomer(customer);
+                            setPendingRoleChange('customer');
+                            setRoleChangeDialogOpen(true);
+                          }}
+                          onDeactivate={() => {
+                            setSelectedCustomer(customer);
+                            setBlockDialogOpen(true);
+                          }}
+                          onActivate={() => {
+                            setSelectedCustomer(customer);
+                            setUnblockDialogOpen(true);
+                          }}
+                          onDelete={() => {
+                            setSelectedCustomer(customer);
+                            setDeleteDialogOpen(true);
+                          }}
+                        />
                       </TableCell>
                     </TableRow>
                   ))
@@ -684,7 +644,9 @@ export default function CustomersPage() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {selectedCustomer?.role === 'courier' ? 'Delete Courier' : 'Delete Customer'}
+            </AlertDialogTitle>
             <AlertDialogDescription>
               This will permanently delete {selectedCustomer?.name}'s account and all associated data. This action cannot be undone.
             </AlertDialogDescription>
@@ -699,58 +661,89 @@ export default function CustomersPage() {
       </AlertDialog>
 
       {/* View Details Dialog */}
-      <AlertDialog open={viewDetailsOpen} onOpenChange={setViewDetailsOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Customer Details</AlertDialogTitle>
-          </AlertDialogHeader>
-          {selectedCustomer && (
-            <div className="space-y-3">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Name</p>
-                <p className="text-base">{selectedCustomer.name}</p>
+      <Dialog open={viewDetailsOpen} onOpenChange={setViewDetailsOpen}>
+        <DialogContent className="w-full max-w-[860px] max-h-[90vh] overflow-y-auto bg-background border border-border rounded-xl shadow-2xl">
+          <DialogHeader className="text-center py-6">
+            <ModalTitle className="sr-only">Customer Details</ModalTitle>
+            <div className="flex flex-col items-center gap-4">
+              <div className="w-24 h-24 rounded-full flex items-center justify-center text-white text-2xl font-bold bg-blue-500">
+                {selectedCustomer ? getInitials(selectedCustomer.name) : 'CU'}
               </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Email</p>
-                <p className="text-base">{selectedCustomer.email}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Phone</p>
-                <p className="text-base">{selectedCustomer.phone}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Role</p>
-                <Badge variant={selectedCustomer.role === 'admin' ? 'secondary' : 'outline'}>
-                  {selectedCustomer.role === 'admin' ? 'Admin' : 'Customer'}
-                </Badge>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Status</p>
-                <Badge variant={selectedCustomer.status === 'active' ? 'default' : 'destructive'}>
-                  {selectedCustomer.status}
-                </Badge>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Orders</p>
-                <p className="text-base">{selectedCustomer.orders}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Spent</p>
-                <p className="text-base">
-                  {formatPrice(Number(selectedCustomer.totalSpent))}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Join Date</p>
-                <p className="text-base">{selectedCustomer.joinDate}</p>
+              <div className="text-center">
+                <h2 className="text-3xl font-bold tracking-tight">{selectedCustomer?.name}</h2>
+                <div className="mt-2 flex justify-center gap-2">{selectedCustomer && getRoleBadge(selectedCustomer.role)}</div>
               </div>
             </div>
+          </DialogHeader>
+
+          {selectedCustomer ? (
+            <div className="px-6 pb-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex items-start gap-3">
+                  <Mail className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Email</p>
+                    <p className="font-medium">{selectedCustomer.email}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Phone className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Phone</p>
+                    <p className="font-medium">{selectedCustomer.phone}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Circle className="h-3 w-3 mt-1" />
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Status</p>
+                    {getStatusBadge(selectedCustomer.status)}
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Calendar className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Join Date</p>
+                    <p className="font-medium">{selectedCustomer.joinDate}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Check className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Orders</p>
+                    <p className="font-medium">{selectedCustomer.orders}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Download className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Total Spent</p>
+                    <p className="font-medium">{formatPrice(Number(selectedCustomer.totalSpent))}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="p-6 text-sm text-muted-foreground">No customer selected.</div>
           )}
-          <AlertDialogFooter>
-            <AlertDialogCancel>Close</AlertDialogCancel>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+
+          <div className="border-t border-border bg-muted/30 px-6 py-4 flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setViewDetailsOpen(false)}>
+              Close
+            </Button>
+            <Button
+              onClick={() => {
+                if (selectedCustomer) {
+                  setEditDialogOpen(true);
+                  setViewDetailsOpen(false);
+                }
+              }}
+            >
+              Edit Customer
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Customer Dialog */}
       <AlertDialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
@@ -813,7 +806,9 @@ export default function CustomersPage() {
       <AlertDialog open={blockDialogOpen} onOpenChange={setBlockDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Deactivate Customer</AlertDialogTitle>
+            <AlertDialogTitle>
+              {selectedCustomer?.role === 'courier' ? 'Deactivate' : 'Deactivate Customer'}
+            </AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to deactivate {selectedCustomer?.name}? They will not be able to access their account until reactivated.
             </AlertDialogDescription>
@@ -824,7 +819,7 @@ export default function CustomersPage() {
               onClick={() => selectedCustomer && handleBlockCustomer(selectedCustomer.id)} 
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Deactivate Customer
+              {selectedCustomer?.role === 'courier' ? 'Deactivate' : 'Deactivate Customer'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -854,11 +849,11 @@ export default function CustomersPage() {
       <AlertDialog open={roleChangeDialogOpen} onOpenChange={setRoleChangeDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Change Customer Role</AlertDialogTitle>
+            <AlertDialogTitle>
+              {pendingRoleChange === 'courier' ? 'Assign as Courier' : 'Remove Courier Role'}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to change {selectedCustomer?.name}'s role from <strong>{selectedCustomer?.role}</strong> to <strong>{pendingRoleChange}</strong>? 
-              {pendingRoleChange === 'admin' && ' This will give them admin privileges.'}
-              {pendingRoleChange === 'customer' && ' This will remove their admin privileges.'}
+              {getRoleChangeDialogCopy()}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -866,7 +861,7 @@ export default function CustomersPage() {
             <AlertDialogAction 
               onClick={() => selectedCustomer && pendingRoleChange && handleChangeRole(selectedCustomer.id, pendingRoleChange)}
             >
-              Change Role
+              Confirm
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -997,7 +992,6 @@ export default function CustomersPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="customer">Customer</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
                       <SelectItem value="courier">Courier</SelectItem>
                     </SelectContent>
                   </Select>

@@ -5,8 +5,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
-  DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -33,16 +31,26 @@ import * as XLSX from 'xlsx';
 import { PrintReportHeader } from '@/components/admin/reports/PrintReportHeader';
 import { addProfessionalPdfFooter, addProfessionalPdfHeader, getLogoBase64 } from '@/components/admin/reports/pdf-report-header';
 import { PrintReportFooter } from '@/components/admin/reports/PrintReportFooter';
+import type {
+  CustomersReportExportPayload,
+  InventoryReportExportPayload,
+  SalesReportExportPayload,
+} from '@/lib/admin/report-export-types';
+import { useToast } from '@/hooks/use-toast';
 
 export type ReportType = 'sales' | 'inventory' | 'customers';
 
-interface ExportReportModalProps {
+type ExportFormat = 'pdf' | 'csv' | 'xlsx';
+
+type ExportReportModalProps = {
   isOpen: boolean;
   onClose: () => void;
-  reportType: ReportType;
-  data: any;
-  initialFormat?: 'pdf' | 'csv' | 'xlsx';
-}
+  initialFormat?: ExportFormat;
+} & (
+  | { reportType: 'sales'; data: SalesReportExportPayload }
+  | { reportType: 'inventory'; data: InventoryReportExportPayload }
+  | { reportType: 'customers'; data: CustomersReportExportPayload }
+);
 
 export function ExportReportModal({
   isOpen,
@@ -51,7 +59,8 @@ export function ExportReportModal({
   data,
   initialFormat = 'pdf',
 }: ExportReportModalProps) {
-  const [format, setFormat] = useState<'pdf' | 'csv' | 'xlsx'>(initialFormat);
+  const { toast } = useToast();
+  const [format, setFormat] = useState<ExportFormat>(initialFormat);
 
   React.useEffect(() => {
     if (isOpen) {
@@ -87,10 +96,6 @@ export function ExportReportModal({
     return 'No information available for this report.';
   };
 
-
-
-
-
   const triggerDownload = (url: string, filename: string) => {
     const link = document.createElement('a');
     link.href = url;
@@ -111,14 +116,23 @@ export function ExportReportModal({
   };
 
   const handleDownload = async () => {
-    if (format === 'pdf') {
-      await exportToPDF();
-    } else if (format === 'csv') {
-      exportToCSV();
-    } else {
-      exportToExcel();
+    try {
+      if (format === 'pdf') {
+        await exportToPDF();
+      } else if (format === 'csv') {
+        exportToCSV();
+      } else {
+        exportToExcel();
+      }
+    } catch (err) {
+      console.error('Export failed', err);
+      toast({
+        title: 'Export failed',
+        description:
+          err instanceof Error ? err.message : 'Could not generate the file. Please try again.',
+        variant: 'destructive',
+      });
     }
-    // Don't call onClose() here — triggerDownload handles it
   };
 
   const exportToPDF = async () => {
@@ -184,15 +198,15 @@ export function ExportReportModal({
       if (reportType === 'sales') {
         detailTitle = 'Top Performing Products';
         detailHead = ['Product Name', 'Units Sold', 'Revenue'];
-        detailBody = data.topProducts.map((p: any) => [p.name, p.sold.toString(), formatCurrencyForPDF(p.revenue)]);
+        detailBody = data.topProducts.map((p) => [p.name, p.sold.toString(), formatCurrencyForPDF(p.revenue)]);
       } else if (reportType === 'inventory') {
         detailTitle = 'Low Stock Alerts';
         detailHead = ['Product', 'SKU', 'Stock', 'Status'];
-        detailBody = data.lowStockItems.map((p: any) => [p.name, p.sku, p.stock.toString(), p.status]);
+        detailBody = data.lowStockItems.map((p) => [p.name, p.sku, p.stock.toString(), p.status]);
       } else {
         detailTitle = 'Top Customers';
         detailHead = ['Name', 'Email', 'Orders', 'Total Spent'];
-        detailBody = data.topCustomers.map((p: any) => [p.name, p.email, p.orders.toString(), formatCurrencyForPDF(p.totalSpent)]);
+        detailBody = data.topCustomers.map((p) => [p.name, p.email, p.orders.toString(), formatCurrencyForPDF(p.totalSpent)]);
       }
 
     doc.setFontSize(10);
@@ -243,7 +257,7 @@ export function ExportReportModal({
       csvContent += `Avg. Order Value,${formatCurrencyForPDF(data.summary.averageOrderValue)}\n`;
       csvContent += `Conversion Rate,${data.summary.conversionRate.toFixed(2)}%\n\n`;
       csvContent += 'Product Name,Units Sold,Revenue\n';
-      data.topProducts.forEach((p: any) => { csvContent += `"${p.name}",${p.sold},${formatCurrencyForPDF(p.revenue)}\n`; });
+      data.topProducts.forEach((p) => { csvContent += `"${p.name}",${p.sold},${formatCurrencyForPDF(p.revenue)}\n`; });
     } else if (reportType === 'inventory') {
       csvContent = 'Metric,Value\n';
       csvContent += `Total Products,${data.summary.totalProducts}\n`;
@@ -251,7 +265,7 @@ export function ExportReportModal({
       csvContent += `Low Stock,${data.summary.lowStock}\n`;
       csvContent += `Out of Stock,${data.summary.outOfStock}\n\n`;
       csvContent += 'Product Name,SKU,Stock,Threshold,Status\n';
-      data.lowStockItems.forEach((p: any) => { csvContent += `"${p.name}",${p.sku},${p.stock},${p.threshold},${p.status}\n`; });
+      data.lowStockItems.forEach((p) => { csvContent += `"${p.name}",${p.sku},${p.stock},${p.threshold},${p.status}\n`; });
     } else if (reportType === 'customers') {
       csvContent = 'Metric,Value\n';
       csvContent += `Total Customers,${data.summary.totalCustomers}\n`;
@@ -259,7 +273,7 @@ export function ExportReportModal({
       csvContent += `Avg. Order Value,${formatCurrencyForPDF(data.summary.avgOrderValue)}\n`;
       csvContent += `Lifetime Value,${formatCurrencyForPDF(data.summary.customerLifetimeValue)}\n\n`;
       csvContent += 'Name,Email,Orders,Total Spent,Status\n';
-      data.topCustomers.forEach((p: any) => { csvContent += `"${p.name}",${p.email},${p.orders},${formatCurrencyForPDF(p.totalSpent)},${p.status}\n`; });
+      data.topCustomers.forEach((p) => { csvContent += `"${p.name}",${p.email},${p.orders},${formatCurrencyForPDF(p.totalSpent)},${p.status}\n`; });
     }
 
     const blob = new Blob(['﻿', csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -282,7 +296,7 @@ export function ExportReportModal({
       XLSX.utils.book_append_sheet(wb, summaryWS, 'Summary');
       const productsWS = XLSX.utils.aoa_to_sheet([
         ['Product Name', 'Units Sold', 'Revenue'],
-        ...data.topProducts.map((p: any) => [p.name, p.sold, formatCurrencyForPDF(p.revenue)])
+        ...data.topProducts.map((p) => [p.name, p.sold, formatCurrencyForPDF(p.revenue)])
       ]);
       XLSX.utils.book_append_sheet(wb, productsWS, 'Top Products');
     } else if (reportType === 'inventory') {
@@ -296,7 +310,7 @@ export function ExportReportModal({
       XLSX.utils.book_append_sheet(wb, summaryWS, 'Summary');
       const itemsWS = XLSX.utils.aoa_to_sheet([
         ['Product Name', 'SKU', 'Stock', 'Threshold', 'Status'],
-        ...data.lowStockItems.map((p: any) => [p.name, p.sku, p.stock, p.threshold, p.status])
+        ...data.lowStockItems.map((p) => [p.name, p.sku, p.stock, p.threshold, p.status])
       ]);
       XLSX.utils.book_append_sheet(wb, itemsWS, 'Low Stock Items');
     } else if (reportType === 'customers') {
@@ -310,7 +324,7 @@ export function ExportReportModal({
       XLSX.utils.book_append_sheet(wb, summaryWS, 'Summary');
       const customersWS = XLSX.utils.aoa_to_sheet([
         ['Name', 'Email', 'Orders', 'Total Spent', 'Status'],
-        ...data.topCustomers.map((p: any) => [p.name, p.email, p.orders, formatCurrencyForPDF(p.totalSpent), p.status])
+        ...data.topCustomers.map((p) => [p.name, p.email, p.orders, formatCurrencyForPDF(p.totalSpent), p.status])
       ]);
       XLSX.utils.book_append_sheet(wb, customersWS, 'Top Customers');
     }
@@ -322,7 +336,7 @@ export function ExportReportModal({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="sm:max-w-[750px] max-h-[92vh] flex flex-col gap-0 p-0 overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b shrink-0">
@@ -406,14 +420,14 @@ export function ExportReportModal({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {reportType === 'sales' && data.topProducts.map((p: any, i: number) => (
+                      {reportType === 'sales' && data.topProducts.map((p, i) => (
                         <TableRow key={i}>
                           <TableCell className={p.isDeletedProduct ? 'italic text-muted-foreground' : 'font-medium'}>{p.name}</TableCell>
                           <TableCell className="text-right">{p.sold}</TableCell>
                           <TableCell className="text-right text-green-600 font-medium">{formatCurrencyForPDF(p.revenue)}</TableCell>
                         </TableRow>
                       ))}
-                      {reportType === 'inventory' && data.lowStockItems.map((p: any, i: number) => (
+                      {reportType === 'inventory' && data.lowStockItems.map((p, i) => (
                         <TableRow key={i}>
                           <TableCell className="font-medium">{p.name}</TableCell>
                           <TableCell className="text-muted-foreground">{p.sku}</TableCell>
@@ -421,7 +435,7 @@ export function ExportReportModal({
                           <TableCell><span className={`px-1.5 py-0.5 rounded text-xs font-medium ${p.status === 'critical' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>{p.status}</span></TableCell>
                         </TableRow>
                       ))}
-                      {reportType === 'customers' && data.topCustomers.map((p: any, i: number) => (
+                      {reportType === 'customers' && data.topCustomers.map((p, i) => (
                         <TableRow key={i}>
                           <TableCell className="font-medium">{p.name}</TableCell>
                           <TableCell className="text-muted-foreground">{p.email}</TableCell>
@@ -433,7 +447,7 @@ export function ExportReportModal({
                   </Table>
                 )}
               </div>
-              {reportType === 'sales' && data.topProducts.some((p: any) => p.isDeletedProduct) && (
+              {reportType === 'sales' && data.topProducts.some((p) => p.isDeletedProduct) && (
                 <p className="mt-2 text-xs text-muted-foreground">
                   * Some products may have been removed from the store
                 </p>
@@ -453,7 +467,7 @@ export function ExportReportModal({
             Filename: <span className="font-mono font-medium">{getFilename(format)}</span>
           </p>
           <div className="flex-1" />
-          <Select value={format} onValueChange={(val: any) => setFormat(val)}>
+          <Select value={format} onValueChange={(val) => setFormat(val as ExportFormat)}>
             <SelectTrigger className="w-44 h-9">
               <SelectValue placeholder="Select format" />
             </SelectTrigger>
@@ -463,7 +477,7 @@ export function ExportReportModal({
               <SelectItem value="csv"><div className="flex items-center gap-2"><FileText className="h-4 w-4 text-blue-500" /><span>CSV (.csv)</span></div></SelectItem>
             </SelectContent>
           </Select>
-          <Button onClick={handleDownload} className="gap-2 bg-blue-600 hover:bg-blue-700">
+          <Button onClick={handleDownload} className="gap-2">
             <Download className="h-4 w-4" />
             Download {format.toUpperCase()}
           </Button>

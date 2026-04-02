@@ -1,0 +1,142 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getClient } from '@/lib/supabase/admin';
+import { resolveStaffRole, verifyStaffAccess, type StaffRole } from '@/lib/admin/staff';
+import { sendStaffWelcomeEmail } from '@/lib/emails/profile-emails';
+
+export async function GET(request: NextRequest) {
+  const authHeader = request.headers.get('authorization') || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
+  const authResult = await verifyStaffAccess(token, true);
+
+  if (authResult.error || !authResult.user) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status });
+  }
+
+  try {
+    const supabaseAdmin = getClient();
+
+    const { data: profiles, error: profilesError } = await supabaseAdmin
+      .from('profiles')
+      .select('id, name, phone, role, created_at, deleted_at')
+      .eq('role', 'admin')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false });
+
+    if (profilesError) {
+      return NextResponse.json({ error: profilesError.message }, { status: 500 });
+    }
+
+    const { data: { users }, error: usersError } = await supabaseAdmin.auth.admin.listUsers();
+
+    if (usersError) {
+      return NextResponse.json({ error: usersError.message }, { status: 500 });
+    }
+
+    const authUsersMap = new Map((users || []).map((user) => [user.id, user]));
+
+    const staff = (profiles || [])
+      .map((profile) => {
+        const authUser = authUsersMap.get(profile.id);
+        const role = authUser ? resolveStaffRole(authUser) : ('admin' as StaffRole);
+        const isBlocked = authUser?.user_metadata?.blocked === true;
+
+        return {
+          id: profile.id,
+          name: profile.name || 'Unknown',
+          email: authUser?.email || '',
+          phone: profile.phone || '-',
+          role,
+          status: isBlocked ? 'inactive' : 'active',
+          joinDate: profile.created_at,
+          isCurrentUser: profile.id === authResult.user?.id,
+        };
+      })
+      .filter((member) => member.email);
+
+    return NextResponse.json({
+      data: staff,
+      currentUser: {
+        id: authResult.user.id,
+        email: authResult.user.email,
+        isSuperAdmin: authResult.isSuperAdmin,
+      },
+    });
+  } catch (error) {
+    console.error('Failed to load staff', error);
+    return NextResponse.json({ error: 'Failed to load staff' }, { status: 500 });
+  }
+}
+
+export async function POST(request: NextRequest) {
+  const authHeader = request.headers.get('authorization') || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
+  const authResult = await verifyStaffAccess(token, true);
+
+  if (authResult.error || !authResult.user) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status });
+  }
+
+  try {
+    const { name, email, phone, password, role } = await request.json();
+
+    if (!name || !email || !password) {
+      return NextResponse.json({ error: 'Name, email, and password are required.' }, { status: 400 });
+    }
+
+    if (role && !['admin', 'super_admin'].includes(role)) {
+      return NextResponse.json({ error: 'Invalid staff role.' }, { status: 400 });
+    }
+
+    const normalizedRole: StaffRole = role === 'super_admin' ? 'super_admin' : 'admin';
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const trimmedName = String(name).trim();
+    const trimmedPhone = typeof phone === 'string' ? phone.trim() : '';
+
+    if (password.length < 6) {
+      return NextResponse.json({ error: 'Password must be at least 6 characters long.' }, { status: 400 });
+    }
+
+    const supabaseAdmin = getClient();
+    const {
+      data: { user: createdUser },
+      error: createError,
+    } = await supabaseAdmin.auth.admin.createUser({
+      email: normalizedEmail,
+      password,
+      email_confirm: false,
+      user_metadata: {
+        name: trimmedName,
+        phone: trimmedPhone,
+        role: 'admin',
+        isSuperAdmin: normalizedRole === 'super_admin',
+      },
+    });
+
+    if (createError || !createdUser) {
+      return NextResponse.json(
+        { error: createError?.message || 'Failed to create staff account' },
+        { status: 500 }
+      );
+    }
+
+    try {
+      await sendStaffWelcomeEmail(normalizedEmail, trimmedName, normalizedRole);
+    } catch (emailError) {
+      console.error('Failed to send staff welcome email', emailError);
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        id: createdUser.id,
+        name: trimmedName,
+        email: normalizedEmail,
+        phone: trimmedPhone,
+        role: normalizedRole,
+      },
+    });
+  } catch (error) {
+    console.error('Failed to create staff account', error);
+    return NextResponse.json({ error: 'Failed to create staff account' }, { status: 500 });
+  }
+}

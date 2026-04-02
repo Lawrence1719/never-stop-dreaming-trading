@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
@@ -108,8 +108,11 @@ const menuItems: MenuItem[] = [
   }, */
   {
     label: 'Settings',
-    href: '/admin/settings',
     icon: Settings,
+    submenu: [
+      { label: 'General Settings', href: '/admin/settings', icon: Settings },
+      { label: 'Staff Management', href: '/admin/settings/staff', icon: Users },
+    ],
   },
 ];
 
@@ -122,12 +125,18 @@ function SidebarItem({
   isOpen: boolean;
   pathname: string;
 }) {
-  const [expanded, setExpanded] = useState(false);
   const Icon = item.icon;
   const hasSubmenu = !!item.submenu;
 
   const isActive = item.href && pathname === item.href;
   const isSubmenuActive = item.submenu?.some((sub) => pathname === sub.href);
+  const [expanded, setExpanded] = useState(Boolean(isSubmenuActive));
+
+  useEffect(() => {
+    if (isSubmenuActive) {
+      setExpanded(true);
+    }
+  }, [isSubmenuActive]);
 
   if (hasSubmenu && !isOpen) {
     return (

@@ -26,7 +26,7 @@ export async function PATCH(
     const body = await request.json();
     const { role } = body;
     
-    if (!role || !['admin', 'customer'].includes(role)) {
+    if (!role || !['customer', 'courier'].includes(role)) {
       return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
     }
 
@@ -54,13 +54,30 @@ export async function PATCH(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Prevent self-demotion
-    if (id === user.id && role === 'customer') {
-      return NextResponse.json({ error: 'Cannot demote your own account' }, { status: 400 });
+    if (!isSuperAdmin) {
+      return NextResponse.json({ error: 'Only the super admin can change roles' }, { status: 403 });
+    }
+
+    if (id === user.id) {
+      return NextResponse.json({ error: 'Cannot change your own role from this page' }, { status: 400 });
     }
 
     // Use admin client for role update
     const supabaseAdmin = getClient();
+
+    const { data: targetProfile, error: targetProfileError } = await supabaseAdmin
+      .from('profiles')
+      .select('role')
+      .eq('id', id)
+      .single();
+
+    if (targetProfileError || !targetProfile) {
+      return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
+    }
+
+    if (!['customer', 'courier'].includes(targetProfile.role)) {
+      return NextResponse.json({ error: 'Only customer and courier accounts can be updated here' }, { status: 400 });
+    }
     
     // Check if target is super admin
     let targetEmail = '';
@@ -73,14 +90,8 @@ export async function PATCH(
 
     const targetIsSuperAdmin = superAdminEmail && targetEmail === superAdminEmail;
     
-    // Only super admin can change super admin roles
-    if (targetIsSuperAdmin && !isSuperAdmin) {
-      return NextResponse.json({ error: 'Cannot modify super admin role' }, { status: 403 });
-    }
-
-    // Prevent super admin from demoting themselves
-    if (targetIsSuperAdmin && isSuperAdmin && id === user.id && role === 'customer') {
-      return NextResponse.json({ error: 'Super admin cannot remove their own admin role' }, { status: 400 });
+    if (targetIsSuperAdmin) {
+      return NextResponse.json({ error: 'Cannot modify the super admin account from this page' }, { status: 403 });
     }
     
     // Update role in profiles table
@@ -93,10 +104,22 @@ export async function PATCH(
       return NextResponse.json({ error: updateError.message }, { status: 500 });
     }
 
+    const { data: targetUser } = await supabaseAdmin.auth.admin.getUserById(id);
+    const existingMetadata = targetUser?.user?.user_metadata || {};
+    const { error: authUpdateError } = await supabaseAdmin.auth.admin.updateUserById(id, {
+      user_metadata: {
+        ...existingMetadata,
+        role,
+      },
+    });
+
+    if (authUpdateError) {
+      return NextResponse.json({ error: authUpdateError.message }, { status: 500 });
+    }
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Failed to change role', error);
     return NextResponse.json({ error: 'Failed to change role' }, { status: 500 });
   }
 }
-
