@@ -3,6 +3,7 @@ import { getClient } from '@/lib/supabase/admin';
 import { sendOrderStatusEmail } from '@/lib/emails/order-emails';
 import { createNotification } from '@/lib/notifications/service';
 import { assignCourier } from '@/lib/courier';
+import { formatOrderNumber } from '@/lib/utils/formatting';
 
 /**
  * GET /api/admin/orders/[orderId]
@@ -110,8 +111,22 @@ export async function GET(
 
     const items = Array.isArray(order.items) ? order.items : [];
 
+    // Calculate readable order number (#NSD-xxxxx)
+    const { data: allOrderIds } = await supabaseAdmin
+      .from('orders')
+      .select('id')
+      .order('created_at', { ascending: true });
+
+    const sequenceMap = new Map<string, number>();
+    (allOrderIds || []).forEach((row: { id: string }, idx: number) => {
+      sequenceMap.set(row.id, idx + 1);
+    });
+    
+    const orderNumber = formatOrderNumber(sequenceMap.get(order.id) || 0);
+
     return NextResponse.json({
       id: order.id,
+      orderNumber,
       customer: customerInfo,
       status: order.status,
       payment_status: order.payment_status || 'pending',
@@ -413,8 +428,22 @@ export async function PUT(
 
     const items = Array.isArray(order.items) ? order.items : [];
 
+    // Calculate readable order number (#NSD-xxxxx)
+    const { data: allOrderIds } = await supabaseAdmin
+      .from('orders')
+      .select('id')
+      .order('created_at', { ascending: true });
+
+    const sequenceMap = new Map<string, number>();
+    (allOrderIds || []).forEach((row: { id: string }, idx: number) => {
+      sequenceMap.set(row.id, idx + 1);
+    });
+    
+    const orderNumber = formatOrderNumber(sequenceMap.get(order.id) || 0);
+
     const responseData = {
       id: order.id,
+      orderNumber,
       customer: customerInfo,
       status: order.status,
       total: Number(order.total),
@@ -478,7 +507,7 @@ export async function PUT(
          createNotification({
            userId: order.courier_id,
            title: 'Delivery Confirmed by Admin',
-           message: `Order #${order.id.slice(0, 8).toUpperCase()} has been manually confirmed as delivered by the admin. Please ensure proof of delivery is submitted.`,
+           message: `Order ${orderNumber} has been manually confirmed as delivered by the admin. Please ensure proof of delivery is submitted.`,
            type: 'warning',
            link: `/courier/dashboard`,
            targetRole: 'courier'

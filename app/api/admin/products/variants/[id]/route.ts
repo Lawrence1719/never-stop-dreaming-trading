@@ -39,8 +39,9 @@ async function verifyAdminAuth(token: string | null) {
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const authHeader = request.headers.get('authorization') || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
 
@@ -51,7 +52,6 @@ export async function GET(
 
   try {
     const supabaseAdmin = getClient();
-    const { id } = params;
 
     const { data, error } = await supabaseAdmin
       .from('product_variants')
@@ -76,8 +76,9 @@ export async function GET(
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const authHeader = request.headers.get('authorization') || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
 
@@ -89,7 +90,6 @@ export async function PUT(
   try {
     const body = await request.json();
     const supabaseAdmin = getClient();
-    const { id } = params;
 
     // Check if variant exists
     const { data: existingVariant, error: fetchError } = await supabaseAdmin
@@ -151,8 +151,9 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const authHeader = request.headers.get('authorization') || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
 
@@ -163,7 +164,6 @@ export async function DELETE(
 
   try {
     const supabaseAdmin = getClient();
-    const { id } = params;
 
     // Check if variant exists
     const { data: existingVariant, error: fetchError } = await supabaseAdmin
@@ -176,10 +176,10 @@ export async function DELETE(
       return NextResponse.json({ error: 'Variant not found' }, { status: 404 });
     }
 
-    // Soft delete by setting is_active to false
+    // Hard delete the variant
     const { data, error } = await supabaseAdmin
       .from('product_variants')
-      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .delete()
       .eq('id', id)
       .select()
       .single();

@@ -131,6 +131,7 @@ export async function GET(request: NextRequest) {
           : 'N/A',
         status: row.is_active ? 'active' : 'inactive',
         image_url: row.image_url,
+        variant_names: variants.map((v: any) => v.variant_label),
       };
     });
 

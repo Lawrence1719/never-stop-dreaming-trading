@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { Plus, Search, Filter, Download, Trash2, Edit, Eye, AlertCircle, Package, Tag, Calendar, Clock, DollarSign } from 'lucide-react';
+import { Plus, Search, Filter, Download, Trash2, Edit, Eye, AlertCircle, Package, Tag, Calendar, Clock, DollarSign, Loader2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -54,6 +54,7 @@ interface Product {
   variant_count?: number;
   total_stock?: number;
   price_range?: string;
+  variant_names?: string[];
 }
 
 const formatTimeAgo = (dateString?: string) => {
@@ -426,17 +427,31 @@ export default function ProductsPage() {
                       </TableCell>
                       <TableCell>{product.category}</TableCell>
                       <TableCell>
-                        <Badge variant="outline">{product.variant_count}</Badge>
+                        <div className="flex flex-wrap gap-1 max-w-[150px]">
+                          {(product.variant_names || []).slice(0, 2).map((v, i) => (
+                            <Badge key={`${v}-${i}`} variant="secondary" className="px-1.5 py-0 text-[10px] font-medium whitespace-nowrap rounded-md">
+                              {v}
+                            </Badge>
+                          ))}
+                          {(product.variant_names || []).length > 2 && (
+                            <Badge variant="outline" className="px-1.5 py-0 text-[10px] font-medium whitespace-nowrap rounded-md">
+                              +{(product.variant_names?.length || 0) - 2} more
+                            </Badge>
+                          )}
+                          {(!product.variant_names || product.variant_names.length === 0) && (
+                            <span className="text-xs text-muted-foreground">No variants</span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-right">
                         <Badge
-                          variant={product.total_stock > 10 ? 'default' : product.total_stock > 0 ? 'secondary' : 'destructive'}
+                          variant={(product.total_stock ?? 0) > 10 ? 'default' : (product.total_stock ?? 0) > 0 ? 'secondary' : 'destructive'}
                         >
-                          {product.total_stock}
+                          {product.total_stock ?? 0}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-sm">{product.price_range}</TableCell>
-                      <TableCell>{getProductStatusBadge(product.status)}</TableCell>
+                      <TableCell>{getProductStatusBadge(product.status || 'inactive')}</TableCell>
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -620,7 +635,7 @@ export default function ProductsPage() {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Badge className="text-xs">{selectedProduct?.category || 'Uncategorized'}</Badge>
-                    {selectedProduct && getProductStatusBadge(selectedProduct.status)}
+                    {selectedProduct && getProductStatusBadge(selectedProduct.status || 'inactive')}
                   </div>
                 </div>
 
@@ -706,8 +721,8 @@ export default function ProductsPage() {
                               </tr>
                             </thead>
                             <tbody>
-                              {selectedProduct.variants.map((variant, idx) => (
-                                <tr key={variant.sku} className={`${idx !== selectedProduct.variants.length - 1 ? 'border-b border-border/50' : ''}`}>
+                              {(selectedProduct.variants || []).map((variant, idx) => (
+                                <tr key={variant.sku} className={`${idx !== (selectedProduct.variants?.length || 0) - 1 ? 'border-b border-border/50' : ''}`}>
                                   <td className="px-3 py-2 text-sm">{variant.label}</td>
                                   <td className="px-3 py-2 text-sm">{variant.price}</td>
                                   <td className="px-3 py-2 text-sm">{variant.stock}</td>

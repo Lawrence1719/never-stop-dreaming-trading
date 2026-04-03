@@ -33,8 +33,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       <AdminSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="flex-1 flex flex-col overflow-hidden">
         <AdminNavbar onSidebarToggle={() => setSidebarOpen(!sidebarOpen)} sidebarOpen={sidebarOpen} />
-        <main className="flex-1 overflow-auto">
-          <div className="p-6">
+        <main className="flex-1 overflow-x-hidden overflow-y-auto">
+          <div className="p-6 md:p-8">
             {children}
           </div>
         </main>

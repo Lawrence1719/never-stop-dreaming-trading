@@ -80,7 +80,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const handleResize = () => {
-      setLegendPosition(window.innerWidth < 1024 ? 'bottom' : 'right');
+      setLegendPosition(window.innerWidth < 2500 ? 'bottom' : 'right');
     };
     handleResize();
     window.addEventListener('resize', handleResize);
@@ -198,7 +198,7 @@ export default function AdminDashboard() {
   const recentOrders = data?.recentOrders ?? [];
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {error && (
         <Card className="border-destructive bg-destructive/5">
           <CardContent className="pt-6">
@@ -302,8 +302,8 @@ export default function AdminDashboard() {
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card className="lg:col-span-2">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <Card className="xl:col-span-2 flex flex-col h-[480px]">
           <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <CardTitle>Sales Overview</CardTitle>
@@ -331,14 +331,14 @@ export default function AdminDashboard() {
             </div>
           </CardHeader>
           <CardContent
-            className="cursor-pointer hover:opacity-90 transition-opacity"
+            className="cursor-pointer hover:opacity-90 transition-opacity flex-1 w-full min-h-0"
             onClick={() => openModal('sales_overview')}
           >
             {salesData.length === 0 ? (
               <div className="text-center text-sm text-muted-foreground">{isLoading ? 'Loading chart...' : 'No sales data for the selected range.'}</div>
             ) : (
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={salesData} margin={{ top: 10, right: 10, left: -10, bottom: 5 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={salesData} margin={{ top: 10, right: 30, left: 60, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgb(var(--color-border))" />
                   <XAxis
                     dataKey="period"
@@ -391,26 +391,26 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="flex flex-col h-[480px]">
           <CardHeader>
             <CardTitle>Sales by Category</CardTitle>
             <CardDescription>Distribution breakdown</CardDescription>
           </CardHeader>
           <CardContent
-            className="cursor-pointer hover:opacity-90 transition-opacity"
+            className="cursor-pointer hover:opacity-90 transition-opacity flex-1 w-full min-h-0"
             onClick={() => openModal('sales_by_category')}
           >
             {categoryData.length === 0 ? (
               <div className="text-center text-sm text-muted-foreground">{isLoading ? 'Loading breakdown...' : 'No category data available.'}</div>
             ) : (
-              <ResponsiveContainer width="100%" height={legendPosition === 'bottom' ? 500 : 400}>
+              <ResponsiveContainer width="100%" height="100%">
                 <PieChart margin={{ left: 25, right: 10 }}>
                   <Pie
                     data={categoryData}
                     cx={legendPosition === 'right' ? "42%" : "50%"}
-                    cy={legendPosition === 'right' ? "50%" : "45%"}
-                    innerRadius={70}
-                    outerRadius={100}
+                    cy="50%"
+                    innerRadius={80}
+                    outerRadius={120}
                     paddingAngle={5}
                     dataKey="value"
                     stroke="none"
@@ -439,7 +439,7 @@ export default function AdminDashboard() {
                     align={legendPosition === 'right' ? "right" : "center"}
                     iconType="circle"
                     formatter={(value, entry: any) => (
-                      <span className="text-[12px] text-muted-foreground font-semibold inline-block whitespace-nowrap">
+                      <span className="text-[11px] text-muted-foreground font-semibold inline-block">
                         {value}: <span className="text-foreground ml-1">{entry.payload.value}%</span> <span className="text-[10px] ml-1 opacity-70">({formatPrice(entry.payload.revenue)})</span>
                       </span>
                     )}

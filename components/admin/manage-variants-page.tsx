@@ -39,9 +39,10 @@ import { useToast } from "@/hooks/use-toast";
 
 interface ManageVariantsPageProps {
   productId: string;
+  isTab?: boolean;
 }
 
-export function ManageVariantsPage({ productId }: ManageVariantsPageProps) {
+export function ManageVariantsPage({ productId, isTab = false }: ManageVariantsPageProps) {
   const router = useRouter();
   const { toast } = useToast();
   const [product, setProduct] = useState<Product | null>(null);
@@ -177,7 +178,11 @@ export function ManageVariantsPage({ productId }: ManageVariantsPageProps) {
       handleCloseDialog();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to save variant";
-      setError(message);
+      toast({
+        title: 'Error',
+        description: message,
+        variant: 'destructive',
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -215,7 +220,6 @@ export function ManageVariantsPage({ productId }: ManageVariantsPageProps) {
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to delete variant";
-      setError(message);
       toast({
         title: 'Error',
         description: message,
@@ -248,9 +252,18 @@ export function ManageVariantsPage({ productId }: ManageVariantsPageProps) {
       setVariants((prev) =>
         prev.map((v) => (v.id === result.data.id ? result.data : v))
       );
+      toast({
+        title: 'Status Updated',
+        description: `Variant "${variant.variant_label}" is now ${!variant.is_active ? 'active' : 'inactive'}.`,
+        variant: 'success',
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to update variant";
-      setError(message);
+      toast({
+        title: "Error",
+        description: message,
+        variant: "destructive",
+      });
     }
   };
 
@@ -284,35 +297,40 @@ export function ManageVariantsPage({ productId }: ManageVariantsPageProps) {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={() => router.back()}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
+    <div className={isTab ? "space-y-4" : "space-y-6"}>
+      {/* Header - Hidden if in Tab view */}
+      {!isTab && (
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="sm" onClick={() => router.back()}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">{product.name}</h1>
+              <p className="text-muted-foreground mt-1">Manage product variants</p>
+            </div>
+          </div>
+          <Button onClick={() => handleOpenDialog()} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Add Variant
           </Button>
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">{product.name}</h1>
-            <p className="text-muted-foreground mt-1">Manage product variants</p>
-          </div>
-        </div>
-        <Button onClick={() => handleOpenDialog()} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Add Variant
-        </Button>
-      </div>
-
-      {/* Error Message */}
-      {error && (
-        <div className="flex gap-3 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
-          <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-          <div>
-            <p className="font-semibold text-destructive">Error</p>
-            <p className="text-sm text-destructive/90">{error}</p>
-          </div>
         </div>
       )}
+
+      {isTab && (
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight">Product Variants</h2>
+            <p className="text-muted-foreground text-sm">Manage inventory and pricing for all variants.</p>
+          </div>
+          <Button onClick={() => handleOpenDialog()} size="sm" className="gap-1">
+            <Plus className="h-3.5 w-3.5" />
+            Add Variant
+          </Button>
+        </div>
+      )}
+
 
       {/* Variants Table */}
       <Card>

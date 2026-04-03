@@ -9,16 +9,21 @@ import { Button } from '@/components/ui/button';
 import { ProductForm, ProductFormData } from '@/components/admin/product-form';
 import { supabase } from '@/lib/supabase/client';
 
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ManageVariantsPage } from '@/components/admin/manage-variants-page';
+
+import { useToast } from '@/hooks/use-toast';
+
 export default function EditProductPage() {
   const params = useParams();
   const router = useRouter();
+  const { toast } = useToast();
   const productId = params.id as string;
 
   const [initialData, setInitialData] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -62,8 +67,6 @@ export default function EditProductPage() {
 
   const handleSubmit = async (data: ProductFormData) => {
     setIsSaving(true);
-    setError(null);
-    setSuccessMessage(null);
 
     try {
       const {
@@ -88,13 +91,19 @@ export default function EditProductPage() {
         throw new Error(payload.error || 'Failed to update product');
       }
 
-      setSuccessMessage('Product updated successfully!');
-      setTimeout(() => {
-        router.push('/admin/products');
-      }, 1500);
+      toast({
+        title: "Success",
+        description: "Product updated successfully!",
+        variant: "success",
+      });
+      
     } catch (err) {
       console.error('Failed to update product', err);
-      setError(err instanceof Error ? err.message : 'Failed to update product');
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : 'Failed to update product',
+        variant: "destructive",
+      });
       throw err; // Re-throw for ProductForm to handle
     } finally {
       setIsSaving(false);
@@ -105,7 +114,7 @@ export default function EditProductPage() {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
-          <Link href={`/admin/products/${productId}`}>
+          <Link href="/admin/products">
             <Button variant="ghost" size="icon">
               <ArrowLeft className="h-5 w-5" />
             </Button>
@@ -117,45 +126,8 @@ export default function EditProductPage() {
         </div>
 
         <div className="space-y-6">
-          {/* Product Name */}
-          <div className="space-y-2">
-            <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-24 animate-pulse" />
-            <div className="h-10 bg-slate-200 dark:bg-slate-700 rounded w-full animate-pulse" />
-          </div>
-
-          {/* Description */}
-          <div className="space-y-2">
-            <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-24 animate-pulse" />
-            <div className="h-32 bg-slate-200 dark:bg-slate-700 rounded w-full animate-pulse" />
-          </div>
-
-          {/* Category */}
-          <div className="space-y-4 p-4 border border-border rounded-lg bg-muted/30">
-            <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-20 animate-pulse" />
-            <div className="h-10 bg-slate-200 dark:bg-slate-700 rounded w-full animate-pulse" />
-          </div>
-
-          {/* Gallery */}
-          <div className="space-y-4">
-            <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-32 animate-pulse" />
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-              {Array.from({ length: 1 }).map((_, i) => (
-                <div key={i} className="aspect-square bg-slate-200 dark:bg-slate-700 rounded-lg animate-pulse" />
-              ))}
-            </div>
-          </div>
-
-          {/* Status */}
-          <div className="flex items-center space-x-2">
-            <div className="h-4 w-4 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
-            <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-64 animate-pulse" />
-          </div>
-
-          {/* Actions */}
-          <div className="flex items-center gap-3 pt-4 border-t border-border">
-            <div className="h-10 bg-slate-200 dark:bg-slate-700 rounded w-24 animate-pulse" />
-            <div className="h-10 bg-slate-200 dark:bg-slate-700 rounded w-32 animate-pulse" />
-          </div>
+          <div className="h-10 bg-slate-200 dark:bg-slate-700 rounded w-full max-w-md animate-pulse" />
+          <div className="h-[400px] bg-slate-200 dark:bg-slate-700 rounded-xl w-full animate-pulse" />
         </div>
       </div>
     );
@@ -189,43 +161,53 @@ export default function EditProductPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link href="/admin/products">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Edit Product</h1>
-          <p className="text-muted-foreground mt-1 text-sm md:text-base">Update product information and manage the image gallery.</p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Link href="/admin/products">
+            <Button variant="ghost" size="icon">
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Edit Product</h1>
+            <p className="text-muted-foreground mt-1 text-sm md:text-base">
+              Manage product information, gallery, and variants.
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* Success Message */}
-      {successMessage && (
-        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg">
-          <p className="text-sm text-emerald-800 font-medium">{successMessage}</p>
-        </div>
-      )}
+      <Tabs defaultValue="general" className="space-y-6">
+        <TabsList className="bg-muted/50 p-1 rounded-xl w-full max-w-md grid grid-cols-2">
+          <TabsTrigger value="general" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
+            General Info
+          </TabsTrigger>
+          <TabsTrigger value="variants" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
+            Product Variants
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Error Message */}
-      {error && (
-        <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex gap-3">
-          <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm font-medium text-destructive">Error</p>
-            <p className="text-sm text-muted-foreground mt-1">{error}</p>
-          </div>
-        </div>
-      )}
+        <TabsContent value="general" className="mt-0 focus-visible:outline-none outline-none">
+          <Card className="border-border/50 shadow-sm overflow-hidden">
+            <CardHeader className="bg-muted/30 border-b border-border/50 px-6 py-4">
+              <CardTitle className="text-xl">Basic Information</CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <ProductForm 
+                initialData={initialData} 
+                onSubmit={handleSubmit}
+                isLoading={isSaving}
+                onCancel={() => router.push('/admin/products')}
+                submitText="Update Product"
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-      <ProductForm 
-        initialData={initialData} 
-        onSubmit={handleSubmit}
-        isLoading={isSaving}
-        onCancel={() => router.push('/admin/products')}
-        submitText="Update Product"
-      />
+        <TabsContent value="variants" className="mt-0 focus-visible:outline-none outline-none">
+          <ManageVariantsPage productId={productId} isTab={true} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -1,13 +1,17 @@
 'use client';
 
-import { use } from 'react';
-import { ManageVariantsPage } from '@/components/admin/manage-variants-page';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
-interface Params {
-  id: string;
-}
+export default function ProductVariantsPage({ params }: { params: any }) {
+  const router = useRouter();
+  
+  useEffect(() => {
+    // Redirect to the new tabbed edit page
+    params.then((p: any) => {
+      router.replace(`/admin/products/${p.id}/edit?tab=variants`);
+    });
+  }, [params, router]);
 
-export default function ProductVariantsPage({ params }: { params: Promise<Params> }) {
-  const { id } = use(params);
-  return <ManageVariantsPage productId={id} />;
+  return null;
 }

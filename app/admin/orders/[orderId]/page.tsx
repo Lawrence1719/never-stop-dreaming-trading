@@ -47,6 +47,7 @@ interface StatusHistory {
 
 interface Order {
   id: string;
+  orderNumber: string;
   customer: {
     name: string;
     email: string;
@@ -106,7 +107,7 @@ const STATUS_COLORS: Record<string, string> = {
   duplicate: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400',
 };
 
-const COURIERS = ['NSD Delivery', '2GO', 'LBC', 'Lalamove', 'J&T Express', 'Flash Express', 'Ninja Van', 'Others'];
+const COURIERS = ['NSD Delivery'];
 
 export default function OrderDetailPage() {
   const router = useRouter();
@@ -153,9 +154,9 @@ export default function OrderDetailPage() {
     if (newStatus === 'shipped' && !trackingNumber) {
       // Auto-generate tracking number: NSD-{DATE}-{ORDER_ID}-{RANDOM}
       const date = new Date().toISOString().split('T')[0].replace(/-/g, '');
-      const orderIdShort = order?.id.slice(0, 8).toUpperCase() || '';
+      const orderNumberClean = order?.orderNumber.replace('#', '') || '';
       const random = Math.random().toString(36).substring(2, 8).toUpperCase();
-      const autoTrackingNumber = `NSD-${date}-${orderIdShort}-${random}`;
+      const autoTrackingNumber = `NSD-${date}-${orderNumberClean}-${random}`;
       setTrackingNumber(autoTrackingNumber);
       // Set default courier to in-house delivery
       if (!courier) {
@@ -400,7 +401,7 @@ export default function OrderDetailPage() {
       
       toast({ 
         title: 'Success', 
-        description: `Order status updated to ${appliedStatus}`,
+        description: `Order ${order.orderNumber} updated to ${appliedStatus}`,
         variant: 'success'
       });
     } catch (err) {
@@ -543,7 +544,7 @@ export default function OrderDetailPage() {
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <div>
-          <h1 className="text-3xl font-bold">Order #{order.id.slice(0, 8).toUpperCase()}</h1>
+          <h1 className="text-3xl font-bold">Order {order.orderNumber}</h1>
           <p className="text-muted-foreground">Created {formatDate(order.created_at)}</p>
         </div>
       </div>
@@ -948,17 +949,13 @@ export default function OrderDetailPage() {
                   {newStatus === 'shipped' && (
                     <div className="space-y-4 pt-2">
                       <div className="space-y-2">
-                        <Label htmlFor="courier">Courier Service *</Label>
-                        <Select value={courier} onValueChange={setCourier}>
-                          <SelectTrigger id="courier">
-                            <SelectValue placeholder="Select courier service" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {COURIERS.map((c) => (
-                              <SelectItem key={c} value={c}>{c}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <Label htmlFor="courier">Courier Service</Label>
+                        <Input
+                          id="courier"
+                          value="NSD Delivery"
+                          readOnly
+                          className="bg-muted/50 cursor-not-allowed font-medium"
+                        />
                       </div>
                       
                       <div className="space-y-2">

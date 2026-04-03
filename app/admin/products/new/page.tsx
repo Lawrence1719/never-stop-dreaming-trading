@@ -1,24 +1,24 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowLeft, AlertCircle } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ProductForm, ProductFormData } from '@/components/admin/product-form';
 import { supabase } from '@/lib/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 export default function CreateProductPage() {
   const router = useRouter();
+  const { toast } = useToast();
   
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [successInfo, setSuccessInfo] = useState<{ id: string; name: string } | null>(null);
 
   const handleSubmit = async (data: ProductFormData) => {
     setIsSubmitting(true);
-    setError(null);
     setSuccessInfo(null);
 
     try {
@@ -46,9 +46,19 @@ export default function CreateProductPage() {
 
       const payload = await res.json();
       setSuccessInfo({ id: payload.data.id, name: data.name });
+      
+      toast({
+        title: "Success",
+        description: `Product "${data.name}" created successfully!`,
+        variant: "success",
+      });
     } catch (err) {
       console.error('Failed to create product', err);
-      setError(err instanceof Error ? err.message : 'Failed to create product');
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : 'Failed to create product',
+        variant: "destructive",
+      });
       throw err; // Re-throw for ProductForm to handle
     } finally {
       setIsSubmitting(false);
@@ -71,7 +81,7 @@ export default function CreateProductPage() {
         </div>
         <div className="flex flex-col sm:flex-row gap-3 w-full max-w-sm">
           <Button asChild className="flex-1">
-            <Link href={`/admin/products/${successInfo.id}/variants`}>
+            <Link href={`/admin/products/${successInfo.id}/edit?tab=variants`}>
               Manage Variants
             </Link>
           </Button>
@@ -98,17 +108,6 @@ export default function CreateProductPage() {
           <p className="text-muted-foreground mt-1 text-sm md:text-base">Add a new product and set up its image gallery.</p>
         </div>
       </div>
-
-      {/* Error Message */}
-      {error && (
-        <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex gap-3">
-          <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm font-medium text-destructive">Error</p>
-            <p className="text-sm text-muted-foreground mt-1">{error}</p>
-          </div>
-        </div>
-      )}
 
       <ProductForm 
         onSubmit={handleSubmit}
