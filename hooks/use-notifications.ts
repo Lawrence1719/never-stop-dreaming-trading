@@ -28,21 +28,46 @@ export function useNotifications(
   const { page = 0, limit = 10, filter = 'all', enabled = true } = options;
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadStockCount, setUnreadStockCount] = useState(0);
+  const [unreadWarningCount, setUnreadWarningCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const fetchUnreadCount = useCallback(async () => {
     if (!user) return;
-    const { count, error } = await supabase
+    
+    // Fetch generic unread count
+    const { count: totalUnread } = await supabase
       .from('notifications')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', user.id)
       .eq('target_role', targetRole)
       .eq('is_read', false);
     
-    if (!error && count !== null) {
-      setUnreadCount(count);
-    }
+    if (totalUnread !== null) setUnreadCount(totalUnread);
+
+    // Fetch unread stock alerts
+    const { count: stockUnread } = await supabase
+      .from('notifications')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('target_role', targetRole)
+      .eq('type', 'stock')
+      .eq('is_read', false);
+    
+    if (stockUnread !== null) setUnreadStockCount(stockUnread);
+
+    // Fetch unread warnings/errors
+    const { count: warningsUnread } = await supabase
+      .from('notifications')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('target_role', targetRole)
+      .in('type', ['warning', 'error'])
+      .eq('is_read', false);
+    
+    if (warningsUnread !== null) setUnreadWarningCount(warningsUnread);
+
   }, [user, targetRole]);
 
   const fetchNotifications = useCallback(async (silent = false) => {
@@ -132,7 +157,7 @@ export function useNotifications(
       setNotifications(prev => 
         prev.map(n => n.id === id ? { ...n, is_read: true } : n)
       );
-      setUnreadCount(prev => Math.max(0, prev - 1));
+      await fetchUnreadCount();
     } catch (err) {
       console.error('Error marking notification as read:', err);
     }
@@ -151,6 +176,8 @@ export function useNotifications(
       if (error) throw error;
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
       setUnreadCount(0);
+      setUnreadStockCount(0);
+      setUnreadWarningCount(0);
     } catch (err) {
       console.error('Error marking all notifications as read:', err);
     }
@@ -174,6 +201,8 @@ export function useNotifications(
   return {
     notifications,
     unreadCount,
+    unreadStockCount,
+    unreadWarningCount,
     totalCount,
     loading,
     markAsRead,

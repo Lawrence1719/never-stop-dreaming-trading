@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getClient } from '@/lib/supabase/admin';
+import { notifyIfVariantLowStock } from '@/lib/notifications/service';
 
 async function verifyAdminAuth(token: string | null) {
   if (!token) {
@@ -136,6 +137,13 @@ export async function PUT(
     if (error) {
       console.error('Failed to update variant', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Trigger low stock notification check if stock or threshold was updated
+    if (body.stock !== undefined || body.reorder_threshold !== undefined) {
+      notifyIfVariantLowStock(id).catch(err => 
+        console.error(`[VariantAPI] Failed to trigger stock check for ${id}:`, err)
+      );
     }
 
     return NextResponse.json({ data });

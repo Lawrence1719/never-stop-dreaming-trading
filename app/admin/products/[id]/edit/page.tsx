@@ -160,8 +160,8 @@ export default function EditProductPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="flex flex-col h-[calc(100vh-110px)] space-y-4">
+      <div className="flex-none flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Link href="/admin/products">
             <Button variant="ghost" size="icon">
@@ -177,7 +177,7 @@ export default function EditProductPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="general" className="space-y-6">
+      <Tabs defaultValue="general" className="flex-1 flex flex-col overflow-hidden min-h-0">
         <TabsList className="bg-muted/50 p-1 rounded-xl w-full max-w-md grid grid-cols-2">
           <TabsTrigger value="general" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
             General Info
@@ -187,12 +187,12 @@ export default function EditProductPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="general" className="mt-0 focus-visible:outline-none outline-none">
-          <Card className="border-border/50 shadow-sm overflow-hidden">
+        <TabsContent value="general" className="mt-4 flex-1 flex flex-col overflow-hidden min-h-0 focus-visible:outline-none outline-none">
+          <Card className="flex-1 flex flex-col border-border/50 shadow-sm overflow-hidden min-h-0">
             <CardHeader className="bg-muted/30 border-b border-border/50 px-6 py-4">
               <CardTitle className="text-xl">Basic Information</CardTitle>
             </CardHeader>
-            <CardContent className="p-6">
+            <CardContent className="flex-1 overflow-hidden p-0">
               <ProductForm 
                 initialData={initialData} 
                 onSubmit={handleSubmit}
@@ -204,7 +204,7 @@ export default function EditProductPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="variants" className="mt-0 focus-visible:outline-none outline-none">
+        <TabsContent value="variants" className="mt-4 flex-1 flex flex-col overflow-hidden min-h-0 focus-visible:outline-none outline-none">
           <ManageVariantsPage productId={productId} isTab={true} />
         </TabsContent>
       </Tabs>

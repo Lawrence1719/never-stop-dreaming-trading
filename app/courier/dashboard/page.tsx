@@ -8,8 +8,9 @@ import { DeliveryCard } from './DeliveryCard';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, Package, History, LogOut, User, Bell, LayoutDashboard } from 'lucide-react';
+import { Loader2, Package, History, LogOut, User, Bell, LayoutDashboard, CheckCircle2, PackageCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Logo } from '@/components/ui/logo';
 
 export default function CourierDashboard() {
   const { user, logout } = useAuth();
@@ -17,14 +18,35 @@ export default function CourierDashboard() {
   const { toast } = useToast();
   
   const [deliveries, setDeliveries] = useState<any[]>([]);
+  const [orderSequences, setOrderSequences] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('active');
 
   useEffect(() => {
     if (user) {
       fetchDeliveries();
+      fetchOrderSequences();
     }
   }, [user]);
+
+  const fetchOrderSequences = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const res = await fetch('/api/courier/order-numbers', {
+        headers: session?.access_token ? {
+          Authorization: `Bearer ${session.access_token}`
+        } : {}
+      });
+
+      if (!res.ok) throw new Error('Failed to fetch global sequences');
+      
+      const payload = await res.json();
+      setOrderSequences(payload.data || {});
+    } catch (err) {
+      console.error('[Courier] Failed to sync order sequences:', err);
+    }
+  };
 
   const fetchDeliveries = async () => {
     try {
@@ -67,24 +89,31 @@ export default function CourierDashboard() {
   return (
     <div className="min-h-screen bg-muted/30">
       {/* Header */}
-      <header className="sticky top-0 z-10 bg-background border-b shadow-sm">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="bg-primary p-2 rounded-lg">
-              <LayoutDashboard className="w-5 h-5 text-primary-foreground" />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold">Courier Dashboard</h1>
-              <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-tighter">Logistics Center</p>
+      <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b shadow-sm">
+        <div className="container mx-auto px-4 h-20 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Logo variant="square" width={48} height={48} priority />
+            <div className="hidden sm:block">
+              <h1 className="text-xl font-black tracking-tight leading-tight">NSD LOGISTICS</h1>
+              <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-[0.2em]">Management Center</p>
             </div>
           </div>
           
-          <div className="flex items-center gap-3">
-            <div className="hidden md:flex flex-col items-end mr-2">
-               <span className="text-sm font-semibold">{user.name || 'Courier'}</span>
-               <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full uppercase">Official Courier</span>
+          <div className="flex items-center gap-4">
+            <div className="hidden md:flex flex-col items-end pr-4 border-r">
+               <span className="text-sm font-bold text-foreground capitalize tracking-tight">{user.name || 'Courier'}</span>
+               <div className="flex items-center gap-1.5 mt-0.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+                  <span className="text-[9px] text-muted-foreground font-black uppercase tracking-wider">Official Courier</span>
+               </div>
             </div>
-            <Button variant="ghost" size="icon" onClick={handleLogout} title="Logout" className="text-destructive hover:text-destructive hover:bg-destructive/10">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={handleLogout} 
+              title="Logout" 
+              className="text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 rounded-full transition-colors"
+            >
               <LogOut className="w-5 h-5" />
             </Button>
           </div>
@@ -92,42 +121,53 @@ export default function CourierDashboard() {
       </header>
 
       <main className="container mx-auto px-4 py-8">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+        <div className="space-y-6 mb-10">
            <div>
-             <h2 className="text-3xl font-extrabold tracking-tight">Welcome back, {user.name?.split(' ')[0]}</h2>
-             <p className="text-muted-foreground mt-1 text-sm font-medium">You have <span className="text-primary font-bold">{activeDeliveries.length} active</span> deliveries assigned to you.</p>
+             <h2 className="text-4xl font-black tracking-tighter text-foreground">
+               Hey, {user.name?.split(' ')[0]} 👋
+             </h2>
+             <p className="text-muted-foreground mt-2 text-lg font-medium opacity-80">
+               Ready for your next assignment?
+             </p>
            </div>
            
-           <div className="flex items-center gap-3">
-              <div className="bg-background border rounded-lg p-3 flex items-center gap-3 shadow-sm">
-                 <div className="bg-green-100 p-2 rounded-full">
-                    <History className="w-4 h-4 text-green-600" />
+           <div className="flex flex-wrap items-center gap-4">
+              <div className="bg-background/50 border border-border/50 backdrop-blur-sm rounded-2xl p-4 flex items-center gap-4 shadow-sm hover:shadow-md transition-all group">
+                 <div className="bg-cyan-500/10 p-3 rounded-xl group-hover:bg-cyan-500/20 transition-colors">
+                    <Package className="w-5 h-5 text-cyan-400" />
                  </div>
-                 <div className="pr-2">
-                    <p className="text-[10px] text-muted-foreground uppercase font-bold">Finished</p>
-                    <p className="text-lg font-bold leading-none">{finishedDeliveries.length}</p>
+                 <div>
+                    <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest mb-0.5">Active Tasks</p>
+                    <p className="text-2xl font-black tracking-tighter leading-none">{activeDeliveries.length}</p>
                  </div>
               </div>
-              <div className="bg-background border rounded-lg p-3 flex items-center gap-3 shadow-sm">
-                 <div className="bg-blue-100 p-2 rounded-full">
-                    <Package className="w-4 h-4 text-blue-600" />
+
+              <div className="bg-background/50 border border-border/50 backdrop-blur-sm rounded-2xl p-4 flex items-center gap-4 shadow-sm hover:shadow-md transition-all group">
+                 <div className="bg-emerald-500/10 p-3 rounded-xl group-hover:bg-emerald-500/20 transition-colors">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-400" />
                  </div>
-                 <div className="pr-2">
-                    <p className="text-[10px] text-muted-foreground uppercase font-bold">Active</p>
-                    <p className="text-lg font-bold leading-none">{activeDeliveries.length}</p>
+                 <div>
+                    <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest mb-0.5">Completed</p>
+                    <p className="text-2xl font-black tracking-tighter leading-none">{finishedDeliveries.length}</p>
                  </div>
               </div>
            </div>
         </div>
 
-        <Tabs defaultValue="active" onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="bg-muted/50 p-1 border grid grid-cols-2 max-w-md mx-auto md:mx-0">
-            <TabsTrigger value="active" className="data-[state=active]:bg-background data-[state=active]:shadow-sm py-2">
-              <Package className="w-4 h-4 mr-2" />
-              Active
+        <Tabs defaultValue="active" onValueChange={setActiveTab} className="space-y-8">
+          <TabsList className="bg-muted/30 p-1.5 border backdrop-blur-sm rounded-full max-w-sm">
+            <TabsTrigger 
+              value="active" 
+              className="rounded-full data-[state=active]:bg-cyan-400 data-[state=active]:text-black font-black uppercase text-[11px] tracking-widest py-2.5 px-6 transition-all"
+            >
+              <Package className="w-3.5 h-3.5 mr-2" />
+              Active Orders
             </TabsTrigger>
-            <TabsTrigger value="history" className="data-[state=active]:bg-background data-[state=active]:shadow-sm py-2">
-              <History className="w-4 h-4 mr-2" />
+            <TabsTrigger 
+              value="history" 
+              className="rounded-full data-[state=active]:bg-cyan-400 data-[state=active]:text-black font-black uppercase text-[11px] tracking-widest py-2.5 px-6 transition-all"
+            >
+              <History className="w-3.5 h-3.5 mr-2" />
               History
             </TabsTrigger>
           </TabsList>
@@ -149,13 +189,14 @@ export default function CourierDashboard() {
                 </CardContent>
               </Card>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6 content-start">
                 {activeDeliveries.map((delivery) => (
                   <DeliveryCard 
                     key={delivery.id} 
                     delivery={delivery} 
                     courierId={user.id} 
                     onUpdate={fetchDeliveries} 
+                    orderNumber={orderSequences[delivery.order_id] || 0}
                   />
                 ))}
               </div>
@@ -176,13 +217,14 @@ export default function CourierDashboard() {
                 </CardContent>
               </Card>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6 content-start">
                 {finishedDeliveries.map((delivery) => (
                   <DeliveryCard 
                     key={delivery.id} 
                     delivery={delivery} 
                     courierId={user.id} 
                     onUpdate={fetchDeliveries} 
+                    orderNumber={orderSequences[delivery.order_id] || 0}
                   />
                 ))}
               </div>
@@ -191,8 +233,14 @@ export default function CourierDashboard() {
         </Tabs>
       </main>
       
-      <footer className="container mx-auto px-4 py-8 text-center text-xs text-muted-foreground mt-auto border-t">
-         &copy; {new Date().getFullYear()} Never Stop Dreaming Logistics Division. All deliveries tracked.
+      <footer className="container mx-auto px-4 py-12 text-center mt-auto border-t">
+        <div className="flex flex-col items-center gap-6">
+          <Logo variant="long" className="h-10 w-auto opacity-70 grayscale hover:grayscale-0 transition-all duration-500" width={180} />
+          <div className="space-y-1">
+            <p className="text-[10px] uppercase font-black tracking-widest text-muted-foreground/60">Never Stop Dreaming Logistics Division</p>
+            <p className="text-[10px] text-muted-foreground/40 font-medium">© {new Date().getFullYear()} Protected Delivery Channel. All operations are logged.</p>
+          </div>
+        </div>
       </footer>
     </div>
   );

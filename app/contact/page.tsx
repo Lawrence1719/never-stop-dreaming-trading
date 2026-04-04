@@ -1,10 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { useToast } from "@/hooks/use-toast";
-import { Mail, Phone, MapPin } from 'lucide-react';
+import { Mail, Phone, MapPin, Clock } from "lucide-react";
+import { STORE_CONTACT } from "@/lib/store-contact";
+
+const MapComponent = dynamic(() => import("@/components/MapComponent"), { ssr: false });
 
 export default function ContactPage() {
   const { toast } = useToast();
@@ -49,20 +53,77 @@ export default function ContactPage() {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
             {[
-              { icon: Mail, label: "Email", value: "support@neverstoptrading.com" },
-              { icon: Phone, label: "Phone", value: "9123456789" },
-              { icon: MapPin, label: "Address", value: "123 Trading St, New York, NY 10001" },
+              { icon: Mail, label: "Email", value: STORE_CONTACT.email, href: `mailto:${STORE_CONTACT.email}` },
+              { icon: Phone, label: "Phone", value: STORE_CONTACT.phone, href: STORE_CONTACT.phoneTelHref },
+              { icon: MapPin, label: "Address", value: STORE_CONTACT.address },
             ].map((contact, i) => {
               const Icon = contact.icon;
               return (
                 <div key={i} className="bg-card border border-border rounded-lg p-6 text-center">
                   <Icon className="w-8 h-8 mx-auto mb-3 text-primary" />
                   <p className="text-sm text-muted-foreground mb-1">{contact.label}</p>
-                  <p className="font-medium">{contact.value}</p>
+                  {"href" in contact && contact.href ? (
+                    <a href={contact.href} className="font-medium text-primary hover:underline">
+                      {contact.value}
+                    </a>
+                  ) : (
+                    <p className="font-medium">{contact.value}</p>
+                  )}
                 </div>
               );
             })}
           </div>
+
+          <section className="mb-12" aria-labelledby="store-location-heading">
+            <h2 id="store-location-heading" className="text-2xl font-bold mb-6 text-center lg:text-left">
+              Visit our store
+            </h2>
+            <div className="rounded-xl border border-[#00BFFF]/35 bg-card p-4 sm:p-6 shadow-[0_0_24px_rgba(0,191,255,0.12)]">
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8 lg:items-stretch">
+                <div
+                  className="h-[400px] w-full overflow-hidden rounded-[12px] border border-[#00BFFF]/40 shadow-[0_0_20px_rgba(0,191,255,0.15)] bg-muted/20"
+                  role="presentation"
+                >
+                  <MapComponent />
+                </div>
+                <div className="flex flex-col justify-center space-y-5 text-left">
+                  <div>
+                    <h3 className="text-lg font-semibold mb-1">{STORE_CONTACT.storeName}</h3>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      {STORE_CONTACT.listingName} · {STORE_CONTACT.listingCategory}
+                    </p>
+                    <p className="text-muted-foreground flex items-start gap-2">
+                      <MapPin className="w-4 h-4 mt-1 shrink-0 text-[#00BFFF]" aria-hidden />
+                      <span>{STORE_CONTACT.address}</span>
+                    </p>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <Phone className="w-4 h-4 mt-1 shrink-0 text-[#00BFFF]" aria-hidden />
+                    <a href={STORE_CONTACT.phoneTelHref} className="text-foreground hover:text-primary transition-colors">
+                      {STORE_CONTACT.phone}
+                    </a>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <Mail className="w-4 h-4 mt-1 shrink-0 text-[#00BFFF]" aria-hidden />
+                    <a href={`mailto:${STORE_CONTACT.email}`} className="text-foreground hover:text-primary transition-colors">
+                      {STORE_CONTACT.email}
+                    </a>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <Clock className="w-4 h-4 mt-1 shrink-0 text-[#00BFFF]" aria-hidden />
+                    <div className="text-sm text-muted-foreground space-y-1">
+                      <p>
+                        {STORE_CONTACT.hoursWeekdayLabel}: {STORE_CONTACT.hoursWeekdayTime}
+                      </p>
+                      <p>
+                        {STORE_CONTACT.hoursWeekendLabel}: {STORE_CONTACT.hoursWeekendTime}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
             {/* Contact Form */}
@@ -128,12 +189,12 @@ export default function ContactPage() {
               <h2 className="text-2xl font-bold mb-6">Business Hours</h2>
               <div className="space-y-4">
                 <div className="bg-card border border-border rounded-lg p-4">
-                  <p className="font-medium">Monday - Friday</p>
-                  <p className="text-muted-foreground">9:00 AM - 6:00 PM EST</p>
+                  <p className="font-medium">{STORE_CONTACT.hoursWeekdayLabel}</p>
+                  <p className="text-muted-foreground">{STORE_CONTACT.hoursWeekdayTime}</p>
                 </div>
                 <div className="bg-card border border-border rounded-lg p-4">
-                  <p className="font-medium">Saturday - Sunday</p>
-                  <p className="text-muted-foreground">10:00 AM - 4:00 PM EST</p>
+                  <p className="font-medium">{STORE_CONTACT.hoursWeekendLabel}</p>
+                  <p className="text-muted-foreground">{STORE_CONTACT.hoursWeekendTime}</p>
                 </div>
               </div>
 

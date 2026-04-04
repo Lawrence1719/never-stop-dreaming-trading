@@ -621,8 +621,43 @@ export default function OrderDetailPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {/* Status history */}
-                {order.status_history && [...order.status_history].sort((a, b) => new Date(b.changed_at).getTime() - new Date(a.changed_at).getTime()).map((history, index, sortedHistory) => (
+                {/* Status history with deduplication */}
+                {(() => {
+                  if (!order.status_history) return null;
+                  
+                  // Sort by date descending
+                  const sorted = [...order.status_history].sort((a, b) => 
+                    new Date(b.changed_at).getTime() - new Date(a.changed_at).getTime()
+                  );
+
+                  // Deduplicate consecutive same statuses
+                  const deduped: StatusHistory[] = [];
+                  sorted.forEach((item) => {
+                    const existing = deduped.find(d => d.new_status === item.new_status);
+                    if (existing) {
+                      // Merge notes if they are different
+                      if (item.notes && existing.notes !== item.notes) {
+                        if (!existing.notes) existing.notes = item.notes;
+                        else if (!existing.notes.includes(item.notes)) {
+                          existing.notes = `${existing.notes}. ${item.notes}`;
+                        }
+                      }
+                      // Merge tracking info
+                      if (item.tracking_number && !existing.tracking_number) {
+                        existing.tracking_number = item.tracking_number;
+                      }
+                      if (item.courier && !existing.courier) {
+                        existing.courier = item.courier;
+                      }
+                      // Keep the earliest changed_at for the step initiation? 
+                      // Or the latest for the status achievement? 
+                      // Usually timeline shows when it was achieved.
+                    } else {
+                      deduped.push({ ...item });
+                    }
+                  });
+
+                  return deduped.map((history, index, sortedHistory) => (
                   <div key={history.id} className="flex gap-4">
                     <div className="flex flex-col items-center">
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 ${STATUS_COLORS[history.new_status] || 'bg-gray-100'}`}>
@@ -703,8 +738,9 @@ export default function OrderDetailPage() {
                       )}
                     </div>
                   </div>
-                ))}
-              </div>
+                ));
+              })()}
+            </div>
             </CardContent>
           </Card>
         </div>

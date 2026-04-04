@@ -297,21 +297,23 @@ export function ManageVariantsPage({ productId, isTab = false }: ManageVariantsP
   }
 
   return (
-    <div className={isTab ? "space-y-4" : "space-y-6"}>
+    <div className={`flex flex-col h-full overflow-hidden ${isTab ? "space-y-4" : "space-y-6"}`}>
       {/* Header - Hidden if in Tab view */}
       {!isTab && (
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex-none flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" onClick={() => router.back()}>
+            <Button variant="ghost" size="sm" onClick={() => router.back()} className="hover:bg-muted font-medium transition-colors">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back
             </Button>
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">{product.name}</h1>
-              <p className="text-muted-foreground mt-1">Manage product variants</p>
+              <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+                {product.name}
+              </h1>
+              <p className="text-muted-foreground mt-1 text-sm font-medium">Manage product variants</p>
             </div>
           </div>
-          <Button onClick={() => handleOpenDialog()} className="gap-2">
+          <Button onClick={() => handleOpenDialog()} className="gap-2 shadow-lg shadow-primary/20 font-bold px-6">
             <Plus className="h-4 w-4" />
             Add Variant
           </Button>
@@ -319,115 +321,144 @@ export function ManageVariantsPage({ productId, isTab = false }: ManageVariantsP
       )}
 
       {isTab && (
-        <div className="flex items-center justify-between">
+        <div className="flex-none flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold tracking-tight">Product Variants</h2>
-            <p className="text-muted-foreground text-sm">Manage inventory and pricing for all variants.</p>
+            <p className="text-muted-foreground text-sm font-medium">Manage inventory and pricing for all variants.</p>
           </div>
-          <Button onClick={() => handleOpenDialog()} size="sm" className="gap-1">
-            <Plus className="h-3.5 w-3.5" />
+          <Button 
+            onClick={() => handleOpenDialog()} 
+            size="default" 
+            className="gap-2 font-bold px-5 shadow-lg shadow-primary/10 transition-transform active:scale-95"
+          >
+            <Plus className="h-4 w-4" />
             Add Variant
           </Button>
         </div>
       )}
 
+      {/* Variants List Container */}
+      <div className="flex-1 overflow-y-auto pr-1 -mr-1 scrollbar-thin scrollbar-thumb-border">
+        {isLoadingVariants ? (
+          <div className="flex flex-col justify-center items-center py-20 space-y-4 bg-muted/20 rounded-xl border-2 border-dashed border-border/50">
+            <Loader2 className="h-10 w-10 animate-spin text-primary" />
+            <p className="text-muted-foreground font-medium animate-pulse">Loading variants...</p>
+          </div>
+        ) : variants.length === 0 ? (
+          <div className="text-center py-20 bg-muted/20 rounded-xl border-2 border-dashed border-border/50 flex flex-col items-center">
+            <div className="p-4 rounded-full bg-muted border border-border mb-4">
+              <Plus className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <h3 className="text-lg font-bold mb-1">No variants yet</h3>
+            <p className="text-muted-foreground mb-6 max-w-sm">Create one or more variants (e.g. different sizes, weights) to start managing your stock.</p>
+            <Button onClick={() => handleOpenDialog()} className="font-bold">Create First Variant</Button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {variants.map((variant) => {
+              const isLowStock = variant.stock <= (variant.reorder_threshold || 5);
+              const isOutOfStock = variant.stock === 0;
 
-      {/* Variants Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Product Variants</CardTitle>
-          <CardDescription>
-            {variants.length === 0
-              ? "No variants yet. Create one to get started."
-              : `${variants.length} variant${variants.length !== 1 ? "s" : ""} available`}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoadingVariants ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : variants.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground mb-4">No variants yet</p>
-              <Button onClick={() => handleOpenDialog()}>Create First Variant</Button>
-            </div>
-          ) : (
-            <div className="border rounded-lg overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Label</TableHead>
-                    <TableHead>SKU</TableHead>
-                    <TableHead className="text-right">Price</TableHead>
-                    <TableHead className="text-right">Stock</TableHead>
-                    <TableHead>Reorder</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {variants.map((variant) => (
-                    <TableRow key={variant.id}>
-                      <TableCell className="font-medium">{variant.variant_label}</TableCell>
-                      <TableCell className="font-mono text-sm">{variant.sku}</TableCell>
-                      <TableCell className="text-right">{formatPrice(Number(variant.price))}</TableCell>
-                      <TableCell className="text-right">
+              return (
+                <div 
+                  key={variant.id}
+                  className="group relative flex flex-col md:flex-row md:items-center justify-between p-4 bg-card border border-border/50 rounded-xl shadow-sm hover:border-primary/40 hover:shadow-md transition-all duration-200"
+                >
+                  <div className="flex flex-1 items-start gap-4">
+                    <div className="hidden sm:flex items-center justify-center w-10 h-10 rounded-lg bg-muted border border-border/30 text-muted-foreground font-black uppercase text-xs">
+                      {variant.variant_label.slice(0, 2)}
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-lg leading-tight uppercase tracking-tight group-hover:text-primary transition-colors">
+                        {variant.variant_label}
+                      </h4>
+                      <p className="text-xs font-mono text-muted-foreground mt-0.5 flex items-center gap-1.5">
+                        SKU: <span className="text-foreground/80">{variant.sku}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-6 mt-4 md:mt-0 items-center">
+                    {/* Price */}
+                    <div className="text-left md:text-right px-4 border-l border-border/30 md:border-l-0">
+                      <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-0.5">Price</p>
+                      <p className="text-base font-black text-foreground">{formatPrice(Number(variant.price))}</p>
+                    </div>
+
+                    {/* Inventory */}
+                    <div className="text-left px-4 border-l border-border md:border-l border-border/30">
+                      <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Inventory</p>
+                      <div className="flex items-center gap-2">
                         <Badge
-                          variant={
-                            variant.stock === 0
-                              ? "destructive"
-                              : variant.stock <= (variant.reorder_threshold || 5)
-                              ? "outline"
-                              : "secondary"
-                          }
+                          variant={isOutOfStock ? "destructive" : isLowStock ? "outline" : "secondary"}
+                          className={`font-black px-2.5 py-0.5 text-xs shadow-sm ${
+                            isOutOfStock 
+                              ? "bg-destructive text-destructive-foreground animate-pulse" 
+                              : isLowStock 
+                                ? "border-amber-500 text-amber-500 bg-amber-500/10" 
+                                : "bg-green-500/10 text-green-600 border-green-200"
+                          }`}
                         >
-                          {variant.stock}
+                          {variant.stock} IN STOCK
                         </Badge>
-                      </TableCell>
-                      <TableCell>{variant.reorder_threshold || "-"}</TableCell>
-                      <TableCell>
-                        <div className="cursor-pointer" onClick={() => toggleVariantStatus(variant)}>
-                          <Badge variant={variant.is_active ? "default" : "secondary"}>
-                            {variant.is_active ? "Active" : "Inactive"}
-                          </Badge>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleOpenDialog(variant)}
-                          >
-                            <Edit2 className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setVariantToDelete(variant);
-                              setDeleteDialogOpen(true);
-                            }}
-                            disabled={isDeleting === variant.id}
-                            className="text-destructive hover:text-destructive"
-                          >
-                            {isDeleting === variant.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                        <span className="text-[10px] subpixel-antialiased text-muted-foreground/70 font-medium">
+                          Min: {variant.reorder_threshold || 5}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Status & Actions */}
+                    <div className="col-span-2 lg:col-span-1 flex items-center justify-end gap-3 pt-4 border-t lg:border-t-0 lg:pt-0 border-border/20">
+                      <div 
+                        className="cursor-pointer transition-transform active:scale-95" 
+                        onClick={() => toggleVariantStatus(variant)}
+                      >
+                        <Badge 
+                          variant={variant.is_active ? "default" : "secondary"}
+                          className={`font-bold text-[10px] uppercase ${
+                            variant.is_active 
+                              ? "bg-primary/10 text-primary border-primary/20 hover:bg-primary/20" 
+                              : "bg-muted text-muted-foreground grayscale"
+                          }`}
+                        >
+                          {variant.is_active ? "Active" : "Disabled"}
+                        </Badge>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 ml-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleOpenDialog(variant)}
+                          className="h-8 w-8 rounded-lg hover:bg-primary/10 hover:text-primary transition-all"
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            setVariantToDelete(variant);
+                            setDeleteDialogOpen(true);
+                          }}
+                          disabled={isDeleting === variant.id}
+                          className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all"
+                        >
+                          {isDeleting === variant.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {/* Variant Form Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

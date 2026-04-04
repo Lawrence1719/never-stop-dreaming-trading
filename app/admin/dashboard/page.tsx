@@ -337,8 +337,8 @@ export default function AdminDashboard() {
             {salesData.length === 0 ? (
               <div className="text-center text-sm text-muted-foreground">{isLoading ? 'Loading chart...' : 'No sales data for the selected range.'}</div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={salesData} margin={{ top: 10, right: 30, left: 60, bottom: 5 }}>
+              <ResponsiveContainer width="100%" height={350}>
+                <LineChart data={salesData} margin={{ top: 10, right: 30, left: 10, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgb(var(--color-border))" />
                   <XAxis
                     dataKey="period"
@@ -364,27 +364,19 @@ export default function AdminDashboard() {
                     }}
                     formatter={(value: any) => [activeMetric === 'revenue' ? formatPrice(value) : value, activeMetric === 'revenue' ? 'Revenue' : 'Orders']}
                   />
-                  {activeMetric === 'orders' ? (
-                    <Line
-                      type="monotone"
-                      dataKey="orders"
-                      stroke="#3b82f6"
-                      strokeWidth={3}
-                      dot={{ r: 4, fill: '#3b82f6' }}
-                      activeDot={{ r: 6 }}
-                      animationDuration={1000}
-                    />
-                  ) : (
-                    <Line
-                      type="monotone"
-                      dataKey="revenue"
-                      stroke="#10b981"
-                      strokeWidth={3}
-                      dot={{ r: 4, fill: '#10b981' }}
-                      activeDot={{ r: 6 }}
-                      animationDuration={1000}
-                    />
-                  )}
+                  <Line
+                    type="monotone"
+                    dataKey={activeMetric}
+                    stroke={activeMetric === 'orders' ? '#3b82f6' : '#10b981'}
+                    strokeWidth={2}
+                    strokeOpacity={1}
+                    fill="none"
+                    connectNulls={true}
+                    dot={{ r: 4, fill: activeMetric === 'orders' ? '#3b82f6' : '#10b981', strokeWidth: 2 }}
+                    activeDot={{ r: 6, strokeWidth: 0 }}
+                    isAnimationActive={true}
+                    animationDuration={1000}
+                  />
                 </LineChart>
               </ResponsiveContainer>
             )}

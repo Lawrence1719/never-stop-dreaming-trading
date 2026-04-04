@@ -52,6 +52,8 @@ export default function AdminNotificationsPage() {
   const { 
     notifications, 
     unreadCount, 
+    unreadStockCount,
+    unreadWarningCount,
     totalCount,
     loading: historyLoading,
     markAsRead, 
@@ -186,19 +188,19 @@ export default function AdminNotificationsPage() {
     },
     {
       title: 'Warnings',
-      value: notifications.filter(n => n.type === 'warning' || n.type === 'error').length.toLocaleString(),
+      value: unreadWarningCount.toLocaleString(),
       sub: 'Critical events',
       icon: AlertTriangle,
       color: 'text-amber-600'
     },
     {
       title: 'Stock Alerts',
-      value: notifications.filter(n => n.type === 'stock').length.toLocaleString(),
+      value: unreadStockCount.toLocaleString(),
       sub: 'Inventory status',
       icon: ShoppingBag,
       color: 'text-blue-600'
     }
-  ], [totalCount, unreadCount, notifications]);
+  ], [totalCount, unreadCount, unreadWarningCount, unreadStockCount]);
 
   return (
     <div className="space-y-8">

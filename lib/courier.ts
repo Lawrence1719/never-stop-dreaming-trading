@@ -69,22 +69,7 @@ export async function assignCourier(orderId: string, manualCourierId?: string) {
 
   if (orderError) throw orderError;
 
-  // 4. Log to order_status_history
-  const { data: currentOrder } = await supabase
-    .from('orders')
-    .select('status')
-    .eq('id', orderId)
-    .single();
-
-  await supabase.from('order_status_history').insert({
-    order_id: orderId,
-    old_status: currentOrder?.status || 'processing',
-    new_status: 'shipped',
-    notes: `Courier assigned: ${(delivery.courier as any)?.name || 'Assigned Courier'}`,
-    changed_at: new Date().toISOString()
-  });
-
-  // 5. Send notification to courier
+  // 4. Send notification to courier
   await createNotification({
     userId: assignedCourierId,
     title: 'New Delivery Assigned',

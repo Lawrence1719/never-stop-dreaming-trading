@@ -329,8 +329,31 @@ export async function PUT(
       }, { status: 500 });
     }
 
+    // NEW: Handle courier assignment when shipped
+    let assignedPersonnelName = null;
+    if (status === 'shipped') {
+      try {
+        console.log('[PUT] Triggering courier assignment');
+        const delivery = await assignCourier(orderId, manualCourierId);
+        if (delivery && (delivery as any).courier) {
+           assignedPersonnelName = (delivery as any).courier.name;
+        }
+      } catch (e) {
+        console.error('[PUT] Courier assignment failed:', e);
+      }
+    }
+
     // Log status history (non-critical)
     try {
+      let finalNotes = notes?.trim() || null;
+      if (status === 'delivered' && isManualOverride) {
+        finalNotes = 'Manually confirmed as delivered by admin (no courier proof uploaded)';
+      } else if (status === 'shipped') {
+        const personnelNote = assignedPersonnelName ? `Courier assigned: ${assignedPersonnelName}` : '';
+        const baseNote = notes?.trim() ? notes.trim() : 'Package handed to courier';
+        finalNotes = personnelNote ? `${baseNote}. ${personnelNote}` : baseNote;
+      }
+
       await supabaseAdmin
         .from('order_status_history')
         .insert({
@@ -338,27 +361,13 @@ export async function PUT(
           old_status: currentStatus,
           new_status: status,
           changed_by: user.id,
-          notes: (status === 'delivered' && isManualOverride) 
-            ? 'Manually confirmed as delivered by admin (no courier proof uploaded)' 
-            : (notes?.trim() || null),
+          notes: finalNotes,
           tracking_number: status === 'shipped' ? tracking_number?.trim() : null,
           courier: status === 'shipped' ? courier?.trim() : null,
           changed_at: new Date().toISOString(),
         });
     } catch (e) {
       console.error('[PUT] Failed to log status history (non-critical):', e);
-    }
-
-    // NEW: Handle courier assignment when shipped
-    if (status === 'shipped') {
-      try {
-        console.log('[PUT] Triggering courier assignment');
-        await assignCourier(orderId, manualCourierId);
-      } catch (e) {
-        console.error('[PUT] Courier assignment failed:', e);
-        // We don't block the status update if courier assignment fails, 
-        // but we log it. In a real system you might want to return a warning.
-      }
     }
 
     // NEW: Handle manual override courier_deliveries table update

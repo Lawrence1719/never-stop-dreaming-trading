@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getClient } from '@/lib/supabase/admin';
+import { notifyIfVariantLowStock } from '@/lib/notifications/service';
 
 async function verifyAdminAuth(token: string | null) {
   if (!token) {
@@ -143,6 +144,13 @@ export async function POST(request: NextRequest) {
     if (error) {
       console.error('Failed to create variant', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Trigger low stock notification check for the new variant
+    if (data?.id) {
+      notifyIfVariantLowStock(data.id).catch(err => 
+        console.error(`[VariantAPI] Failed to trigger stock check for new variant ${data.id}:`, err)
+      );
     }
 
     return NextResponse.json({ data }, { status: 201 });

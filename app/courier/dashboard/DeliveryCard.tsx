@@ -8,8 +8,19 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { MapPin, Phone, User, Package, Upload, CheckCircle, Clock, Loader2, Image as ImageIcon } from 'lucide-react';
-import { formatPrice, formatDate } from '@/lib/utils/formatting';
+import { formatPrice, formatDate, formatOrderNumber } from '@/lib/utils/formatting';
 import { useToast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface OrderItem {
   name: string;
@@ -40,9 +51,10 @@ interface DeliveryCardProps {
   };
   courierId: string;
   onUpdate: () => void;
+  orderNumber?: number;
 }
 
-export function DeliveryCard({ delivery, courierId, onUpdate }: DeliveryCardProps) {
+export function DeliveryCard({ delivery, courierId, onUpdate, orderNumber }: DeliveryCardProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [notes, setNotes] = useState('');
@@ -113,11 +125,14 @@ export function DeliveryCard({ delivery, courierId, onUpdate }: DeliveryCardProp
 
 
   return (
-    <Card className={`flex flex-col h-full overflow-hidden border-2 transition-all ${isDelivered ? 'border-green-100 bg-green-50/10' : 'border-indigo-100'}`}>
-      <CardHeader className="pb-3 border-b bg-muted/30">
+    <Card className={`flex flex-col h-full overflow-hidden border-2 transition-all hover:shadow-xl group/card ${isDelivered ? 'border-green-100 bg-green-50/10' : 'border-border/50 bg-background/50 backdrop-blur-sm'}`}>
+      <CardHeader className="p-6 border-b bg-muted/20">
         <div className="flex justify-between items-start">
           <div>
-            <CardTitle className="text-lg">Order #{delivery.order_id.slice(0, 8).toUpperCase()}</CardTitle>
+            <CardTitle className="text-xl font-black tracking-tight flex items-center gap-2">
+               <span className="text-cyan-400">#</span>
+               {orderNumber ? formatOrderNumber(orderNumber).replace('#', '') : delivery.order_id.slice(0, 8).toUpperCase()}
+            </CardTitle>
             <div className="flex items-center gap-2 mt-1">
               <Clock className="w-3 h-3 text-muted-foreground" />
               <p className="text-xs text-muted-foreground">Assigned {formatDate(delivery.created_at)}</p>
@@ -135,7 +150,7 @@ export function DeliveryCard({ delivery, courierId, onUpdate }: DeliveryCardProp
         </div>
       </CardHeader>
       
-      <CardContent className="pt-4 flex-1 flex flex-col gap-4">
+      <CardContent className="p-6 flex-1 flex flex-col gap-6">
         {/* Customer Info */}
         <div className="space-y-2">
           <div className="flex items-start gap-3">
@@ -241,13 +256,39 @@ export function DeliveryCard({ delivery, courierId, onUpdate }: DeliveryCardProp
               </div>
 
               <div className="flex gap-2">
-                <Button variant="ghost" className="flex-1" onClick={() => setShowUploadForm(false)} disabled={isUploading}>
+                <Button variant="outline" className="flex-1 rounded-xl" onClick={() => setShowUploadForm(false)} disabled={isUploading}>
                   Cancel
                 </Button>
-                <Button className="flex-1" onClick={handleSubmitProof} disabled={isUploading || !file}>
-                  {isUploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-2" />}
-                  Confirm
-                </Button>
+                
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button 
+                      className="flex-1 rounded-xl bg-cyan-400 text-black hover:bg-cyan-500 font-bold" 
+                      disabled={isUploading || !file}
+                    >
+                      {isUploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-2" />}
+                      Confirm
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent className="bg-background border-border shadow-2xl rounded-2xl">
+                    <AlertDialogHeader>
+                      <AlertDialogTitle className="text-2xl font-black tracking-tight text-cyan-400 uppercase">Confirm Completion?</AlertDialogTitle>
+                      <AlertDialogDescription className="text-muted-foreground font-medium text-base">
+                        You are about to mark order <span className="text-foreground font-bold">{orderNumber ? formatOrderNumber(orderNumber) : `#${delivery.order_id.slice(0, 8).toUpperCase()}`}</span> as delivered. 
+                        Once confirmed, this action cannot be undone. Please ensure the proof of delivery is accurate.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="mt-6 gap-3">
+                      <AlertDialogCancel className="rounded-xl font-bold border-muted-foreground/20 hover:bg-muted">Review Details</AlertDialogCancel>
+                      <AlertDialogAction 
+                        onClick={handleSubmitProof}
+                        className="bg-cyan-400 text-black hover:bg-cyan-500 rounded-xl font-black px-8"
+                      >
+                        Yes, Delivered
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             </div>
           )

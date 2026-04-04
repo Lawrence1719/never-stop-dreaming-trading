@@ -184,29 +184,71 @@ export async function notifyDeletedUser(userName: string) {
 }
 
 /**
- * Checks items in an order and notifies admin if stock falls below threshold
+ * Checks items in an order and notifies admins if stock falls below threshold
  */
 export async function checkLowStockAndNotify(items: any[]) {
-  const supabase = getClient();
-  const adminId = process.env.ADMIN_USER_ID; // Optional: fallback to all admins if not set
-
+  console.log(`[NotificationService] Running bulk low stock check for ${items.length} items.`);
   for (const item of items) {
     const variantId = item.variant_id || item.product_variant_id;
-    if (!variantId) continue;
+    if (variantId) {
+      await notifyIfVariantLowStock(variantId);
+    }
+  }
+}
 
-    // Fetch current stock and threshold for the variant
-    const { data: variant, error } = await supabase
-      .from('product_variants')
-      .select('id, variant_label, stock, reorder_threshold, product_id, products(name)')
-      .eq('id', variantId)
-      .single();
+/**
+ * Checks a single variant's stock level and notifies admins if it's low or out of stock.
+ * Prevents redundant unread notifications for the same variant to avoid spamming admins.
+ */
+export async function notifyIfVariantLowStock(variantId: string) {
+  console.log(`[NotificationService] Checking stock status for variant ${variantId}`);
+  const supabase = getClient();
 
-    if (error || !variant) continue;
+  // Fetch variant details (including product name)
+  const { data: variant, error: fetchError } = await supabase
+    .from('product_variants')
+    .select('id, variant_label, stock, reorder_threshold, product_id, products(id, name)')
+    .eq('id', variantId)
+    .single();
 
-    const productName = (variant.products as any)?.name || 'Unknown Product';
-    const label = variant.variant_label ? ` (${variant.variant_label})` : '';
+  if (fetchError || !variant) {
+    console.error(`[NotificationService] Error fetching variant ${variantId} for stock check:`, fetchError);
+    return;
+  }
 
-    if (variant.stock <= (variant.reorder_threshold || 0)) {
+  const productName = (variant.products as any)?.name || 'Unknown Product';
+  const label = variant.variant_label ? ` (${variant.variant_label})` : '';
+  const threshold = variant.reorder_threshold ?? 5; // Use 5 as default if not specified
+
+  // Status-based notification title and type
+  const isOutOfStock = variant.stock === 0;
+  const isLowStockStatus = variant.stock <= threshold;
+
+  // Only notify if stock is low or zero
+  if (isLowStockStatus) {
+    const type = 'stock'; // Use dedicated stock type for all inventory alerts
+    const title = isOutOfStock ? 'Out of Stock Alert' : 'Low Stock Alert';
+    const message = isOutOfStock 
+      ? `CRITICAL: Product "${productName}"${label} is completely out of stock!`
+      : `Product "${productName}"${label} is running low (${variant.stock} remaining).`;
+    
+    // We link directly to the product edit page's variant tab if possible,
+    // otherwise the general product edit page.
+    const link = `/admin/products/${variant.product_id}/edit`;
+
+    // Check for existing UNREAD notification for this variant/product to prevent duplicate spam
+    // We check if any unread stock notification exists that mentions this specific product and variant
+    const { data: existingNotifications } = await supabase
+      .from('notifications')
+      .select('id')
+      .eq('target_role', 'admin')
+      .eq('is_read', false)
+      .eq('type', 'stock')
+      .like('message', `%${productName}%`)
+      .like('message', `%${variant.variant_label || ''}%`)
+      .limit(1);
+
+    if (!existingNotifications || existingNotifications.length === 0) {
       // Find all admin users to notify them
       const { data: admins } = await supabase
         .from('profiles')
@@ -214,17 +256,20 @@ export async function checkLowStockAndNotify(items: any[]) {
         .eq('role', 'admin');
 
       if (admins && admins.length > 0) {
+        console.log(`[NotificationService] Creating new ${type} alert for ${productName}${label}`);
         for (const admin of admins) {
           await createNotification({
             userId: admin.id,
-            title: 'Low Stock Alert',
-            message: `Product "${productName}"${label} is low on stock (${variant.stock} remaining).`,
-            type: 'warning',
-            link: `/admin/inventory?search=${encodeURIComponent(productName)}`,
+            title,
+            message,
+            type,
+            link,
             targetRole: 'admin',
-          }).catch(err => console.error('Failed to notify admin of low stock:', err));
+          }).catch(err => console.error(`[NotificationService] Failed to notify admin ${admin.id} of stock:`, err));
         }
       }
+    } else {
+      console.log(`[NotificationService] Unread alert exists for "${productName}${label}". Skipping duplicate.`);
     }
   }
 }

@@ -390,282 +390,313 @@ export function ProductForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Product Name */}
-      <div className="space-y-2">
-        <Label htmlFor="name" className="text-sm font-medium">
-          Product Name <span className="text-destructive">*</span>
-        </Label>
-        <Input
-          id="name"
-          name="name"
-          value={formData.name}
-          onChange={handleInputChange}
-          placeholder="e.g., Premium Coffee Beans 500g"
-          className={errors.name ? "border-destructive" : ""}
-        />
-        {errors.name && (
-          <p className="text-sm text-destructive flex items-center gap-1">
-            <AlertCircle className="w-4 h-4" />
-            {errors.name}
-          </p>
-        )}
-      </div>
-
-      {/* Description */}
-      <div className="space-y-2">
-        <Label htmlFor="description" className="text-sm font-medium">
-          Description <span className="text-destructive">*</span>
-        </Label>
-        <Textarea
-          id="description"
-          name="description"
-          value={formData.description}
-          onChange={handleInputChange}
-          placeholder="Describe your product in detail..."
-          rows={4}
-          className={errors.description ? "border-destructive" : ""}
-        />
-        {errors.description && (
-          <p className="text-sm text-destructive flex items-center gap-1">
-            <AlertCircle className="w-4 h-4" />
-            {errors.description}
-          </p>
-        )}
-      </div>
-
-
-
-      {/* Category Selection */}
-      <div className="space-y-4 p-4 border border-border rounded-lg bg-muted/30">
-        <div className="flex items-center gap-2 mb-2">
-          <h3 className="text-sm font-semibold">Category</h3>
-          <span className="text-destructive">*</span>
-        </div>
-
-        {/* Category Dropdown */}
-        <div className="space-y-2">
-          <SearchableSelect
-            options={dbCategories.map((cat) => ({ value: cat.name, label: cat.name }))}
-            value={mainCategory}
-            onValueChange={handleMainCategoryChange}
-            placeholder={isLoadingCategories ? "Loading categories..." : "-- Select Category --"}
-            searchPlaceholder="Search category..."
-            triggerClassName={errors.mainCategory ? "border-destructive bg-background" : "bg-background"}
-            disabled={isLoadingCategories}
-          />
-          {errors.mainCategory && (
-            <p className="text-sm text-destructive flex items-center gap-1">
-              <AlertCircle className="w-4 h-4" />
-              {errors.mainCategory}
-            </p>
-          )}
-        </div>
-
-        {/* Selected Category Display */}
-        {formData.category && (
-          <div className="mt-3 p-3 bg-primary/10 border border-primary/20 rounded-md">
-            <p className="text-sm font-medium text-primary">
-              Category: <span className="font-bold">{formData.category}</span>
-            </p>
-          </div>
-        )}
-            {/* Image Upload Gallery */}
-      <div className="space-y-4">
-        <Label className="text-sm font-medium">
-          Product Gallery ({formData.product_images.length})
-        </Label>
-        
-        {/* Gallery Grid */}
-        {formData.product_images.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {formData.product_images.map((img, index) => {
-              const imageUrl = img.preview || (img.storage_path ? (
-                img.storage_path.startsWith('http') 
-                  ? img.storage_path 
-                  : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-images/${img.storage_path}`
-              ) : "/placeholder-image.jpg");
-
-              return (
-                <div 
-                  key={index} 
-                  className={`relative group aspect-square border-2 rounded-lg overflow-hidden bg-muted/30 transition-all ${
-                    img.is_primary ? "border-primary shadow-md" : "border-border"
-                  }`}
-                >
-                  <img
-                    src={imageUrl}
-                    alt={`Product ${index + 1}`}
-                    className="w-full h-full object-cover"
-                  />
-                  
-                  {/* Actions Overlay */}
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 px-2">
-                    {!img.is_primary && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        className="w-full text-[10px] h-7"
-                        onClick={() => setPrimaryImage(index)}
-                      >
-                        Set Primary
-                      </Button>
-                    )}
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="destructive"
-                      className="w-full text-[10px] h-7"
-                      onClick={() => removeImage(index)}
-                    >
-                      Remove
-                    </Button>
-                  </div>
-
-                  {/* Badges */}
-                  {img.is_primary && (
-                    <div className="absolute top-2 left-2 bg-primary text-primary-foreground text-[10px] px-2 py-0.5 rounded-full font-bold shadow-sm">
-                      PRIMARY
-                    </div>
-                  )}
-                  {img.file && (
-                    <div className="absolute top-2 right-2 bg-blue-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold shadow-sm">
-                      NEW
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+    <form onSubmit={handleSubmit} className="flex flex-col h-full overflow-hidden">
+      {/* Scrollable Form Body */}
+      <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-border">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+          {/* Left Column: Basic Details */}
+          <div className="space-y-6">
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Basic Information</h3>
             
-            {/* Add More Button */}
-            <label
-              htmlFor="image-upload-more"
-              className="flex flex-col items-center justify-center aspect-square border-2 border-dashed border-border rounded-lg hover:border-primary/50 hover:bg-primary/5 cursor-pointer transition-colors"
-            >
-              <Upload className="w-6 h-6 text-muted-foreground" />
-              <span className="text-[10px] mt-1 font-medium text-muted-foreground uppercase">Add More</span>
-              <input
-                id="image-upload-more"
-                type="file"
-                multiple
-                accept="image/jpeg,image/png,image/webp"
-                onChange={handleFileInputChange}
-                className="hidden"
+            {/* Product Name */}
+            <div className="space-y-2">
+              <Label htmlFor="name" className="text-sm font-medium">
+                Product Name <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="name"
+                name="name"
+                value={formData.name}
+                onChange={handleInputChange}
+                placeholder="e.g., Premium Coffee Beans 500g"
+                className={errors.name ? "border-destructive focus-visible:ring-destructive" : "focus-visible:ring-primary"}
               />
-            </label>
-          </div>
-        )}
+              {errors.name && (
+                <p className="text-sm text-destructive flex items-center gap-1">
+                  <AlertCircle className="w-4 h-4" />
+                  {errors.name}
+                </p>
+              )}
+            </div>
 
-        {/* Initial Upload Zone if empty */}
-        {formData.product_images.length === 0 && (
-          <div className="space-y-0">
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept="image/jpeg,image/png,image/webp"
-              onChange={handleFileInputChange}
-              className="hidden"
-              id="image-upload"
-            />
-            <label
-              htmlFor="image-upload"
-              onDragEnter={handleDrag}
-              onDragLeave={handleDrag}
-              onDragOver={handleDrag}
-              onDrop={handleDrop}
-              className={`block border-2 border-dashed rounded-lg p-10 text-center transition-colors cursor-pointer ${
-                dragActive 
-                  ? 'border-primary bg-primary/5' 
-                  : 'border-border hover:border-primary/50'
-              } ${errors.imageFile ? 'border-destructive' : ''}`}
-            >
-              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-3 mx-auto">
-                {isUploadingImage ? (
-                  <Loader2 className="w-8 h-8 text-primary animate-spin" />
-                ) : (
-                  <Upload className="w-8 h-8 text-primary" />
+            {/* Description */}
+            <div className="space-y-2">
+              <Label htmlFor="description" className="text-sm font-medium">
+                Description <span className="text-destructive">*</span>
+              </Label>
+              <Textarea
+                id="description"
+                name="description"
+                value={formData.description}
+                onChange={handleInputChange}
+                placeholder="Describe your product in detail..."
+                rows={3}
+                className={`min-h-[100px] resize-none ${errors.description ? "border-destructive focus-visible:ring-destructive" : "focus-visible:ring-primary"}`}
+              />
+              {errors.description && (
+                <p className="text-sm text-destructive flex items-center gap-1">
+                  <AlertCircle className="w-4 h-4" />
+                  {errors.description}
+                </p>
+              )}
+            </div>
+
+            {/* Category Selection */}
+            <div className="space-y-4 p-4 border border-border rounded-lg bg-muted/20">
+              <div className="flex items-center gap-2 mb-2">
+                <h3 className="text-sm font-semibold">Category</h3>
+                <span className="text-destructive">*</span>
+              </div>
+
+              {/* Category Dropdown */}
+              <div className="space-y-2">
+                <SearchableSelect
+                  options={dbCategories.map((cat) => ({ value: cat.name, label: cat.name }))}
+                  value={mainCategory}
+                  onValueChange={handleMainCategoryChange}
+                  placeholder={isLoadingCategories ? "Loading categories..." : "-- Select Category --"}
+                  searchPlaceholder="Search category..."
+                  triggerClassName={errors.mainCategory ? "border-destructive bg-background" : "bg-background"}
+                  disabled={isLoadingCategories}
+                />
+                {errors.mainCategory && (
+                  <p className="text-sm text-destructive flex items-center gap-1">
+                    <AlertCircle className="w-4 h-4" />
+                    {errors.mainCategory}
+                  </p>
                 )}
               </div>
-              <p className="text-sm font-medium">Click to upload or drag and drop</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                You can upload up to 10 images. Primary image will be used in lists.
-              </p>
-            </label>
-          </div>
-        )}
-        {errors.imageFile && (
-          <p className="text-sm text-destructive flex items-center gap-1">
-            <AlertCircle className="w-4 h-4" />
-            {errors.imageFile}
-          </p>
-        )}
-      </div>
-      {isUploadingImage && uploadProgress > 0 && (
-          <div className="space-y-1">
-            <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
-              <div 
-                className="bg-primary h-full transition-all duration-300"
-                style={{ width: `${uploadProgress}%` }}
-              />
+
+              {/* Selected Category Display */}
+              {formData.category && (
+                <div className="mt-3 p-2 bg-primary/5 border border-primary/10 rounded-md">
+                  <p className="text-[11px] font-medium text-primary uppercase tracking-tight">
+                    Current: <span className="font-bold underline">{formData.category}</span>
+                  </p>
+                </div>
+              )}
             </div>
-            <p className="text-xs text-muted-foreground text-center">
-              Uploading images... {uploadProgress}%
-            </p>
+
+            {/* Active Status */}
+            <div className="flex items-center space-x-3 p-4 border border-border rounded-lg bg-muted/10">
+              <input
+                type="checkbox"
+                id="is_active"
+                name="is_active"
+                checked={formData.is_active}
+                onChange={handleCheckboxChange}
+                className="w-5 h-5 rounded border-border text-primary focus:ring-2 focus:ring-primary shadow-sm"
+              />
+              <Label htmlFor="is_active" className="text-sm font-medium cursor-pointer">
+                Product is active and visible to customers
+              </Label>
+            </div>
           </div>
-        )}
 
-        <p className="text-xs text-muted-foreground">
-          First image will be used as the primary thumbnail. You can upload up to 10 images.
-        </p>
+          {/* Right Column: Media & Gallery */}
+          <div className="space-y-6">
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Product Gallery</h3>
+            
+            {/* Image Upload Gallery */}
+            <div className="space-y-4">
+              <Label className="text-sm font-medium text-muted-foreground">
+                Manage Images ({formData.product_images.length}/10)
+              </Label>
+              
+              {/* Gallery Grid */}
+              {formData.product_images.length > 0 && (
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                  {formData.product_images.map((img, index) => {
+                    const imageUrl = img.preview || (img.storage_path ? (
+                      img.storage_path.startsWith('http') 
+                        ? img.storage_path 
+                        : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-images/${img.storage_path}`
+                    ) : "/placeholder-image.jpg");
+
+                    return (
+                      <div 
+                        key={index} 
+                        className={`relative group aspect-square border-2 rounded-xl overflow-hidden bg-muted/30 transition-all ${
+                          img.is_primary ? "border-primary shadow-md" : "border-border"
+                        }`}
+                      >
+                        <img
+                          src={imageUrl}
+                          alt={`Product ${index + 1}`}
+                          className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                        />
+                        
+                        {/* Actions Overlay */}
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 px-3">
+                          {!img.is_primary && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="secondary"
+                              className="w-full text-[10px] h-8 font-bold"
+                              onClick={() => setPrimaryImage(index)}
+                            >
+                              SET PRIMARY
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="destructive"
+                            className="w-full text-[10px] h-8 font-bold"
+                            onClick={() => removeImage(index)}
+                          >
+                            REMOVE
+                          </Button>
+                        </div>
+
+                        {/* Badges */}
+                        {img.is_primary && (
+                          <div className="absolute top-2 left-2 bg-primary text-primary-foreground text-[9px] px-2 py-0.5 rounded-full font-black shadow-lg">
+                            PRIMARY
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  
+                  {/* Add More Button */}
+                  {formData.product_images.length < 10 && (
+                    <label
+                      htmlFor="image-upload-more"
+                      className="flex flex-col items-center justify-center aspect-square border-2 border-dashed border-border rounded-xl hover:border-primary/50 hover:bg-primary/5 cursor-pointer transition-all bg-muted/10 group"
+                    >
+                      <div className="p-2 rounded-full bg-muted border border-border group-hover:border-primary/30 group-hover:scale-110 transition-all">
+                        <Upload className="w-5 h-5 text-muted-foreground" />
+                      </div>
+                      <span className="text-[10px] mt-2 font-bold text-muted-foreground uppercase">Add Photo</span>
+                      <input
+                        id="image-upload-more"
+                        type="file"
+                        multiple
+                        accept="image/jpeg,image/png,image/webp"
+                        onChange={handleFileInputChange}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                </div>
+              )}
+
+              {/* Initial Upload Zone if empty */}
+              {formData.product_images.length === 0 && (
+                <div className="space-y-0">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleFileInputChange}
+                    className="hidden"
+                    id="image-upload"
+                  />
+                  <label
+                    htmlFor="image-upload"
+                    onDragEnter={handleDrag}
+                    onDragLeave={handleDrag}
+                    onDragOver={handleDrag}
+                    onDrop={handleDrop}
+                    className={`block border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer ${
+                      dragActive 
+                        ? 'border-primary bg-primary/5' 
+                        : 'border-border hover:border-primary/40 hover:bg-muted/30'
+                    } ${errors.imageFile ? 'border-destructive' : ''}`}
+                  >
+                    <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-4 mx-auto border border-primary/20">
+                      {isUploadingImage ? (
+                        <Loader2 className="w-7 h-7 text-primary animate-spin" />
+                      ) : (
+                        <ImageIcon className="w-7 h-7 text-primary" />
+                      )}
+                    </div>
+                    <p className="text-sm font-semibold">Drop your images here</p>
+                    <p className="text-xs text-muted-foreground mt-2 px-4">
+                      Upload up to 10 photos of your product.
+                    </p>
+                  </label>
+                </div>
+              )}
+
+              {errors.imageFile && (
+                <p className="text-sm text-destructive flex items-center gap-1">
+                  <AlertCircle className="w-4 h-4" />
+                  {errors.imageFile}
+                </p>
+              )}
+
+              {isUploadingImage && uploadProgress > 0 && (
+                <div className="space-y-2 p-3 bg-muted/50 rounded-lg border border-border">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[10px] font-bold uppercase text-muted-foreground">Uploading...</span>
+                    <span className="text-[10px] font-bold text-primary">{uploadProgress}%</span>
+                  </div>
+                  <div className="w-full bg-background rounded-full h-1.5 overflow-hidden border border-border">
+                    <div 
+                      className="bg-primary h-full transition-all duration-300"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2 p-3 bg-blue-500/5 border border-blue-500/10 rounded-lg mt-4">
+                 <AlertCircle className="w-4 h-4 text-blue-500 shrink-0" />
+                 <p className="text-[11px] text-blue-500 leading-tight">
+                   First image will be used as the primary thumbnail across the store. Ensure high quality.
+                 </p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-
-
-      {/* Active Status */}
-      <div className="flex items-center space-x-2">
-        <input
-          type="checkbox"
-          id="is_active"
-          name="is_active"
-          checked={formData.is_active}
-          onChange={handleCheckboxChange}
-          className="w-4 h-4 rounded border-border text-primary focus:ring-2 focus:ring-primary"
-        />
-        <Label htmlFor="is_active" className="text-sm font-medium cursor-pointer">
-          Product is active and visible to customers
-        </Label>
-      </div>
-
-
-      {/* Form Actions */}
-      <div className="flex items-center gap-3 pt-4 border-t border-border">
-        {showCancel && onCancel && (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onCancel}
-            disabled={isLoading || isUploadingImage}
-          >
-            Cancel
-          </Button>
-        )}
-        <Button type="submit" disabled={isLoading || isUploadingImage} className="min-w-[120px]">
-          {isUploadingImage ? (
-            <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Uploading...
-            </>
-          ) : isLoading ? (
-            <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Saving...
-            </>
-          ) : (
-            submitText
+      {/* Form Actions (Sticky Footer) */}
+      <div className="flex-none flex items-center justify-between gap-3 px-6 py-4 border-t border-border bg-background/50 backdrop-blur-md">
+        <div className="flex items-center gap-2">
+          {isSuccess && (
+            <div className="flex items-center gap-2 text-xs font-medium text-green-500 bg-green-500/10 px-3 py-1.5 rounded-full">
+              <CheckCircle2 className="w-4 h-4" />
+              Product Updated
+            </div>
           )}
-        </Button>
+        </div>
+        <div className="flex items-center gap-3">
+          {showCancel && onCancel && (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={onCancel}
+              disabled={isLoading || isUploadingImage}
+              className="hover:bg-muted font-medium"
+            >
+              Cancel
+            </Button>
+          )}
+          <Button 
+            type="submit" 
+            disabled={isLoading || isUploadingImage} 
+            className="min-w-[140px] shadow-lg shadow-primary/20 font-bold"
+          >
+            {isUploadingImage ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Uploading...
+              </>
+            ) : isLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              submitText
+            )}
+          </Button>
+        </div>
       </div>
     </form>
   );

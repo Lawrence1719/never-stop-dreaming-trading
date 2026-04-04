@@ -16,7 +16,7 @@ export function Footer() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const storeName = settings?.general?.storeName || 'Never Stop Dreaming';
-  const tagline = settings?.general?.tagline || 'Premium trading tools and education for serious investors.';
+  const tagline = settings?.general?.tagline || 'Your trusted online grocery for daily essentials.';
   const contactEmail = settings?.general?.contactEmail || 'contact@example.com';
   const contactPhone = settings?.general?.contactPhone || '+1 234 567 8900';
   const businessAddress = settings?.general?.businessAddress || '123 Main Street, City, State 12345';
@@ -56,7 +56,7 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12 pb-12 border-b border-border">
           <div>
             <h3 className="text-xl font-bold mb-2">Subscribe to our newsletter</h3>
-            <p className="text-muted-foreground font-light">Get the latest trading tips, market analysis, and exclusive product updates delivered to your inbox.</p>
+            <p className="text-muted-foreground font-light">Get deals, new arrivals, and grocery promos delivered to your inbox.</p>
           </div>
           <form onSubmit={handleSubscribe} className="flex gap-2 items-start">
             <div className="flex-1">
