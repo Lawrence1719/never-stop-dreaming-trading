@@ -25,17 +25,27 @@ export default function ContactPage() {
     setIsLoading(true);
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(typeof data.error === "string" ? data.error : "Failed to send message.");
+      }
+
       toast({
         title: "Success",
-        description: "Message sent successfully!",
+        description: "Message sent successfully! We'll reply within 24-48 hours.",
         variant: "success",
       });
       setFormData({ name: "", email: "", subject: "", message: "" });
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to send message. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to send message. Please try again.",
         variant: "destructive",
       });
     } finally {

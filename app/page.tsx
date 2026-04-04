@@ -7,6 +7,7 @@ import { ProductGrid } from "@/components/ecommerce/product-grid";
 import { Product } from "@/lib/types";
 import { BannerHero } from '@/components/marketing/BannerHero';
 import { supabase } from '@/lib/supabase/client';
+import { enrichProductsWithApprovedReviewStats } from '@/lib/utils/product-review-stats';
 import { ProminentSearchBar } from "@/components/layout/prominent-search-bar";
 import { ShopEngagementBelowFold } from "@/components/marketing/shop-engagement-below-fold";
 
@@ -42,7 +43,8 @@ export default function Home() {
               featured: row.featured ?? false,
             })) as Product[];
 
-          setFeaturedProducts(mapped);
+          const withReviews = await enrichProductsWithApprovedReviewStats(supabase, mapped);
+          setFeaturedProducts(withReviews);
           setIsLoading(false);
           return;
         }
@@ -92,7 +94,8 @@ export default function Home() {
           };
         }) as Product[];
 
-        setFeaturedProducts(mapped);
+        const withReviews = await enrichProductsWithApprovedReviewStats(supabase, mapped);
+        setFeaturedProducts(withReviews);
       }
     } catch (err) {
       console.error('Failed to fetch featured products:', err);

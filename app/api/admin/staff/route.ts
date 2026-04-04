@@ -119,21 +119,37 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    try {
-      await sendStaffWelcomeEmail(normalizedEmail, trimmedName, normalizedRole);
-    } catch (emailError) {
-      console.error('Failed to send staff welcome email', emailError);
+    const emailResult = await sendStaffWelcomeEmail(normalizedEmail, trimmedName, normalizedRole);
+
+    const staffPayload = {
+      id: createdUser.id,
+      name: trimmedName,
+      email: normalizedEmail,
+      phone: trimmedPhone,
+      role: normalizedRole,
+    };
+
+    if (!emailResult.success) {
+      const errMsg =
+        emailResult.error instanceof Error
+          ? emailResult.error.message
+          : String(emailResult.error ?? 'Unknown error');
+      console.error('[staff-welcome-email] Welcome email failed to send', {
+        staffEmail: normalizedEmail,
+        errorMessage: errMsg,
+        rawError: emailResult.error,
+      });
     }
 
     return NextResponse.json({
       success: true,
-      data: {
-        id: createdUser.id,
-        name: trimmedName,
-        email: normalizedEmail,
-        phone: trimmedPhone,
-        role: normalizedRole,
-      },
+      staff: staffPayload,
+      ...(emailResult.success
+        ? {}
+        : {
+            emailWarning:
+              'Staff account created successfully but welcome email failed to send. Please notify the staff member manually.',
+          }),
     });
   } catch (error) {
     console.error('Failed to create staff account', error);

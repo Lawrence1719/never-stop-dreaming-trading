@@ -6,7 +6,13 @@ import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { TrackingData, TrackingUpdate } from "@/lib/types";
 import { formatDate } from "@/lib/utils/formatting";
-import { MapPin, Truck, Phone, Image as ImageIcon, ShieldCheck, Clock } from 'lucide-react';
+import { cn } from "@/lib/utils";
+import { MapPin, Truck, Phone, Copy, Check } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { supabase } from "@/lib/supabase/client";
 import { BackButton } from "./back-button";
 import { useAuth } from "@/lib/context/auth-context";
@@ -55,7 +61,7 @@ async function fetchOrderTracking(orderId: string, userId: string): Promise<Trac
     // Fetch status history for tracking timeline
     const { data: statusHistory, error: historyError } = await supabase
       .from('order_status_history')
-      .select('old_status, new_status, changed_at, notes, tracking_number, courier')
+      .select('id, old_status, new_status, changed_at, notes, tracking_number, courier')
       .eq('order_id', orderId)
       .order('changed_at', { ascending: false });
 
@@ -67,19 +73,22 @@ async function fetchOrderTracking(orderId: string, userId: string): Promise<Trac
     const updates: TrackingUpdate[] = [];
     
     if (statusHistory && statusHistory.length > 0) {
-      statusHistory.forEach((history) => {
-        const statusLabel = history.new_status.charAt(0).toUpperCase() + history.new_status.slice(1);
+      statusHistory.forEach((history: { id?: string; new_status: string; changed_at: string; notes: string | null }) => {
+        const statusKey = String(history.new_status || '').toLowerCase();
         updates.push({
-          status: statusLabel,
+          id: history.id,
+          status: formatTrackingStatusLabel(history.new_status),
+          statusKey,
           location: history.notes || getDefaultLocationForStatus(history.new_status, order.courier),
           timestamp: history.changed_at,
           description: getDescriptionForStatus(history.new_status, order.courier, order.tracking_number),
         });
       });
     } else {
-      // If no status history, create a default update based on current order status
+      const statusKey = String(order.status || '').toLowerCase();
       updates.push({
-        status: order.status.charAt(0).toUpperCase() + order.status.slice(1),
+        status: formatTrackingStatusLabel(order.status),
+        statusKey,
         location: getDefaultLocationForStatus(order.status, order.courier),
         timestamp: order.created_at,
         description: getDescriptionForStatus(order.status, order.courier, order.tracking_number),
@@ -104,6 +113,7 @@ async function fetchOrderTracking(orderId: string, userId: string): Promise<Trac
       location: currentLocation,
       estimatedDelivery: estimatedDelivery.toISOString(),
       updates: updates,
+      trackingNumber: order.tracking_number ?? null,
       courierName: (order.courier_profile as any)?.name || null,
       courierPhone: (order.courier_profile as any)?.phone || null,
       proofImageUrl: (order.courier_deliveries?.[0] as any)?.proof_image_url || null,
@@ -141,6 +151,115 @@ function getDefaultLocationForStatus(status: string, courier?: string | null): s
   }
 }
 
+function formatTrackingStatusLabel(raw: string): string {
+  const s = raw.toLowerCase();
+  if (s === 'paid') return 'Payment Confirmed';
+  if (s === 'completed') return 'Delivered';
+  return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
+}
+
+/** Dot, label, connector line, and accent border — hex-aligned where noted (shipped uses sky-500 = #0ea5e9) */
+function getTrackingStatusStyles(statusKey: string): {
+  dot: string;
+  label: string;
+  line: string;
+  borderAccent: string;
+} {
+  const s = statusKey.toLowerCase();
+  if (s === 'delivered' || s === 'completed')
+    return {
+      dot: 'bg-emerald-500',
+      label: 'text-emerald-500',
+      line: 'bg-emerald-500/55',
+      borderAccent: 'border-emerald-500',
+    };
+  if (s === 'shipped')
+    return {
+      dot: 'bg-sky-500',
+      label: 'text-sky-500',
+      line: 'bg-sky-500/55',
+      borderAccent: 'border-sky-500',
+    };
+  if (s === 'processing')
+    return {
+      dot: 'bg-blue-500',
+      label: 'text-blue-500',
+      line: 'bg-blue-500/55',
+      borderAccent: 'border-blue-500',
+    };
+  if (s === 'pending')
+    return {
+      dot: 'bg-amber-500',
+      label: 'text-amber-500',
+      line: 'bg-amber-500/55',
+      borderAccent: 'border-amber-500',
+    };
+  if (s === 'cancelled')
+    return {
+      dot: 'bg-red-500',
+      label: 'text-red-500',
+      line: 'bg-red-500/55',
+      borderAccent: 'border-red-500',
+    };
+  if (s === 'paid')
+    return {
+      dot: 'bg-violet-500',
+      label: 'text-violet-400',
+      line: 'bg-violet-500/55',
+      borderAccent: 'border-violet-500',
+    };
+  return {
+    dot: 'bg-muted-foreground',
+    label: 'text-foreground',
+    line: 'bg-border',
+    borderAccent: 'border-muted-foreground',
+  };
+}
+
+type TimelineDotVariant = 'current' | 'past' | 'future';
+
+function TimelineStepDot({
+  statusKey,
+  variant,
+}: {
+  statusKey: string;
+  variant: TimelineDotVariant;
+}) {
+  const styles = getTrackingStatusStyles(statusKey);
+
+  if (variant === 'future') {
+    return (
+      <div
+        className="h-4 w-4 shrink-0 rounded-full border-2 border-muted-foreground/45 bg-transparent"
+        aria-hidden
+      />
+    );
+  }
+
+  if (variant === 'current') {
+    return (
+      <div
+        className={cn(
+          'flex h-4 w-4 shrink-0 items-center justify-center rounded-full animate-pulse',
+          styles.dot,
+        )}
+        aria-hidden
+      >
+        <span className="h-1.5 w-1.5 rounded-full bg-white shadow-sm" />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={cn('flex h-4 w-4 shrink-0 items-center justify-center rounded-full', styles.dot)}
+      aria-hidden
+    >
+      <Check className="h-2.5 w-2.5 text-white" strokeWidth={2.75} />
+    </div>
+  );
+}
+
 function getDescriptionForStatus(status: string, courier?: string | null, trackingNumber?: string | null): string {
   const courierName = courier || 'courier';
   const trackingInfo = trackingNumber ? ` Tracking number: ${trackingNumber}` : '';
@@ -171,6 +290,8 @@ export default function OrderTrackingPage({ params }: { params: Promise<{ orderI
   const [tracking, setTracking] = useState<TrackingData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [trackingCopied, setTrackingCopied] = useState(false);
+  const [proofLightboxOpen, setProofLightboxOpen] = useState(false);
 
   useEffect(() => {
     async function loadTracking() {
@@ -246,114 +367,146 @@ export default function OrderTrackingPage({ params }: { params: Promise<{ orderI
     );
   }
 
+  const proofUrl = tracking.proofImageUrl;
+
+  const proofThumbnail = proofUrl ? (
+    <div className="w-full h-fit">
+      <p className="text-xs font-medium text-muted-foreground mb-2">PROOF OF DELIVERY</p>
+      <button
+        type="button"
+        onClick={() => setProofLightboxOpen(true)}
+        className="relative block w-full h-32 overflow-hidden rounded-lg border border-border bg-muted text-left ring-offset-background transition hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        aria-label="View proof of delivery full size"
+      >
+        <img src={proofUrl} alt="" className="h-full w-full object-cover object-top" />
+      </button>
+    </div>
+  ) : null;
+
   return (
     <div className="flex flex-col min-h-screen">
       <Navbar />
 
-      <main className="flex-1">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 min-h-0">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-2 pb-3 sm:pb-4">
           <BackButton />
 
-          <h1 className="text-3xl font-bold mb-8">Track Your Order</h1>
+          <h1 className="text-2xl font-bold mb-3 sm:mb-4">Track Your Order</h1>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Main Tracking */}
-            <div className="lg:col-span-2">
-              {/* Delivery Confirmation Section */}
-              {tracking.status === 'delivered' && tracking.proofImageUrl && (
-                <div className="bg-card border border-border rounded-lg p-6 mb-8 shadow-sm">
-                  <h2 className="font-bold text-lg mb-4 flex items-center gap-2 text-green-700 dark:text-green-400">
-                    <ImageIcon className="w-5 h-5" />
-                    Delivery Confirmation
-                  </h2>
-                  <div className="flex flex-col md:flex-row gap-6">
-                    <div className="w-full md:w-1/2">
-                      <div className="relative aspect-video rounded-lg overflow-hidden bg-muted border border-border group cursor-zoom-in">
-                        <img 
-                          src={tracking.proofImageUrl} 
-                          alt="Proof of Delivery" 
-                          className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                          onClick={() => window.open(tracking.proofImageUrl || '', '_blank')}
-                        />
-                        <div className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                          Click to enlarge
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex-1 space-y-4">
-                      {tracking.deliveryNotes && (
-                        <div className="bg-muted/50 p-4 rounded-xl border border-border/50">
-                          <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Courier Notes</p>
-                          <p className="text-sm italic text-foreground leading-relaxed">"{tracking.deliveryNotes}"</p>
-                        </div>
+          <div className="flex flex-col items-start gap-3 lg:grid lg:grid-cols-3 lg:gap-4 lg:items-start">
+            {/* Left: compact timeline — mobile order 1 */}
+            <div className="order-1 h-fit w-full min-w-0 self-start lg:col-span-2">
+              <div className="flex h-fit w-full flex-col rounded-lg border border-border bg-card p-4">
+                <div className="flex shrink-0 items-start justify-between gap-3 border-b border-border pb-3">
+                  <div className="min-w-0">
+                    <p className="text-xs text-muted-foreground">Current Status</p>
+                    <p
+                      className={cn(
+                        'text-lg font-bold capitalize',
+                        getTrackingStatusStyles(tracking.status).label,
                       )}
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground bg-secondary/20 p-2 rounded-lg w-fit">
-                        <ShieldCheck className="w-4 h-4 text-green-600" />
-                        <span>Verified Delivery at {tracking.deliveredAt ? formatDate(tracking.deliveredAt) : 'Pending'}</span>
-                      </div>
-                    </div>
+                    >
+                      {formatTrackingStatusLabel(tracking.status)}
+                    </p>
                   </div>
-                </div>
-              )}
-
-              <div className="bg-card border border-border rounded-lg p-6 mb-8">
-                <div className="flex items-center justify-between mb-6">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Current Status</p>
-                    <p className="text-2xl font-bold capitalize">{tracking.status}</p>
-                  </div>
-                  <div className="text-4xl">
-                    {tracking.status === "delivered" ? "✓" : <Truck className="w-12 h-12 text-primary" />}
+                  <div className="shrink-0 text-2xl leading-none pt-0.5">
+                    {tracking.status === 'delivered' || tracking.status === 'completed' ? (
+                      <span className="text-emerald-500" aria-hidden>
+                        ✓
+                      </span>
+                    ) : (
+                      <Truck className="w-8 h-8 text-primary" aria-hidden />
+                    )}
                   </div>
                 </div>
 
-                <div className="space-y-6">
-                  {tracking.updates.map((update: TrackingUpdate, i: number) => (
-                    <div key={i} className="flex gap-4">
-                      <div className="flex flex-col items-center">
-                        <div className={`w-4 h-4 rounded-full ${i === 0 ? "bg-primary" : "bg-secondary"}`} />
-                        {i < tracking.updates.length - 1 && <div className="w-0.5 h-12 bg-border mt-2" />}
+                <div className="mt-4 flex flex-col">
+                  {tracking.updates.map((update: TrackingUpdate, i: number) => {
+                    const key = update.id ?? `${update.timestamp}-${update.statusKey ?? update.status}-${i}`;
+                    const sk = update.statusKey ?? update.status.toLowerCase();
+                    const styles = getTrackingStatusStyles(sk);
+                    const isLast = i === tracking.updates.length - 1;
+                    const isCurrent = i === 0;
+                    const dotVariant: TimelineDotVariant = isCurrent ? 'current' : 'past';
+
+                    return (
+                      <div
+                        key={key}
+                        className={cn('relative flex items-start gap-3', !isLast && 'pb-4')}
+                      >
+                        <div className="flex w-4 shrink-0 flex-col items-center">
+                          <TimelineStepDot statusKey={sk} variant={dotVariant} />
+                          {!isLast && (
+                            <div
+                              className={cn('mt-0.5 h-4 w-0.5 shrink-0', styles.line)}
+                              aria-hidden
+                            />
+                          )}
+                        </div>
+                        <div
+                          className={cn(
+                            'min-w-0 flex-1 rounded-r-md border-l-2 pl-3',
+                            isCurrent
+                              ? cn('bg-muted/10 py-2', styles.borderAccent)
+                              : 'border-transparent py-0.5',
+                          )}
+                        >
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                            <span
+                              className={cn(
+                                styles.label,
+                                isCurrent ? 'text-sm font-bold' : 'text-sm font-semibold',
+                              )}
+                            >
+                              {update.status}
+                            </span>
+                            <span className="text-xs text-muted-foreground">{formatDate(update.timestamp)}</span>
+                          </div>
+                          <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                            <MapPin className="h-3 w-3 shrink-0 opacity-80" aria-hidden />
+                            <span className="min-w-0 truncate">{update.location}</span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="pb-6">
-                        <p className="font-semibold">{update.status}</p>
-                        <p className="text-sm text-muted-foreground">{formatDate(update.timestamp)}</p>
-                        <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
-                          <MapPin className="w-4 h-4" />
-                          {update.location}
-                        </p>
-                        <p className="text-sm mt-2">{update.description}</p>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>
 
-            {/* Summary Sidebar */}
-            <div className="lg:col-span-1">
-              <div className="bg-card border border-border rounded-lg p-6 sticky top-8 space-y-6">
+            {/* Proof — mobile order 2, desktop inside sidebar via duplicate placement */}
+            {proofUrl && (
+              <div className="order-2 w-full min-w-0 self-start lg:hidden h-fit">{proofThumbnail}</div>
+            )}
+
+            {/* Right column — mobile order 3 */}
+            <div className="order-3 h-fit w-full min-w-0 self-start lg:col-span-1">
+              <div className="flex h-fit w-full flex-col gap-4 rounded-lg border border-border bg-card p-4 lg:sticky lg:top-20">
                 <div>
                   <p className="text-xs font-medium text-muted-foreground mb-1">ESTIMATED DELIVERY</p>
-                  <p className="text-lg font-bold">{formatDate(tracking.estimatedDelivery)}</p>
+                  <p className="text-base font-bold sm:text-lg">{formatDate(tracking.estimatedDelivery)}</p>
                 </div>
+
+                <div className="hidden lg:block">{proofThumbnail}</div>
 
                 <div>
                   <p className="text-xs font-medium text-muted-foreground mb-1">CURRENT LOCATION</p>
-                  <p className="font-medium">{tracking.location}</p>
+                  <p className="text-sm font-medium leading-snug">{tracking.location}</p>
                 </div>
 
-                {/* Your Courier Section */}
                 {['shipped', 'delivered', 'completed'].includes(tracking.status) && tracking.courierName && (
-                  <div className="border-t border-border pt-6 space-y-4">
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">YOUR COURIER</p>
-                    <div className="flex items-center gap-3 bg-muted/40 p-3 rounded-lg border border-border/50">
-                      <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center text-primary">
-                        <Truck className="w-5 h-5" />
+                  <div className="border-t border-border pt-4">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                      YOUR COURIER
+                    </p>
+                    <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-muted/40 p-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <Truck className="h-5 w-5" />
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-sm truncate">{tracking.courierName}</p>
-                        <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                          <Phone className="w-3 h-3" />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-bold">{tracking.courierName}</p>
+                        <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                          <Phone className="h-3 w-3 shrink-0" />
                           {tracking.courierPhone || 'N/A'}
                         </p>
                       </div>
@@ -361,29 +514,47 @@ export default function OrderTrackingPage({ params }: { params: Promise<{ orderI
                   </div>
                 )}
 
-                <div className="border-t border-border pt-6">
-                  <p className="text-xs font-medium text-muted-foreground mb-3">SHIPMENT STATUS</p>
-                  <div className="space-y-2">
-                    {[
-                      { label: "Order Placed", status: "pending", done: true },
-                      { label: "Payment Confirmed", status: "paid", done: ["paid", "processing", "shipped", "delivered", "completed"].includes(tracking.status) },
-                      { label: "Processing", status: "processing", done: ["processing", "shipped", "delivered", "completed"].includes(tracking.status) },
-                      { label: "Shipped", status: "shipped", done: ["shipped", "delivered", "completed"].includes(tracking.status) },
-                      { label: "Delivered", status: "delivered", done: ["delivered", "completed"].includes(tracking.status) },
-                    ].map((step, i) => (
-                      <div key={i} className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${step.done ? "bg-green-500" : "bg-muted"}`} />
-                        <span className={`text-xs ${step.done ? "font-medium" : "text-muted-foreground"}`}>
-                          {step.label}
-                        </span>
+                <div className="border-t border-border pt-4">
+                  <p className="text-xs font-medium text-muted-foreground mb-1">TRACKING INFO</p>
+                  <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    TRACKING NUMBER
+                  </p>
+                  {tracking.trackingNumber ? (
+                    <div className="flex min-w-0 items-center gap-2">
+                      <div className="min-w-0 flex-1 overflow-x-auto">
+                        <p className="whitespace-nowrap font-mono text-xs font-medium">
+                          {tracking.trackingNumber}
+                        </p>
                       </div>
-                    ))}
-                  </div>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(tracking.trackingNumber!);
+                            setTrackingCopied(true);
+                            window.setTimeout(() => setTrackingCopied(false), 2000);
+                          } catch {
+                            setTrackingCopied(false);
+                          }
+                        }}
+                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        aria-label="Copy tracking number"
+                      >
+                        {trackingCopied ? (
+                          <Check className="h-4 w-4 text-emerald-500" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Not yet assigned</p>
+                  )}
                 </div>
 
                 <Link
                   href={`/orders/${orderId}`}
-                  className="w-full block text-center px-4 py-2 border border-primary text-primary rounded-lg hover:bg-primary/10 transition-colors text-sm font-medium"
+                  className="block w-full rounded-lg border border-primary px-4 py-2 text-center text-sm font-medium text-primary transition-colors hover:bg-primary/10"
                 >
                   View Order Details
                 </Link>
@@ -394,6 +565,22 @@ export default function OrderTrackingPage({ params }: { params: Promise<{ orderI
       </main>
 
       <Footer />
+
+      {proofUrl && (
+        <Dialog open={proofLightboxOpen} onOpenChange={setProofLightboxOpen}>
+          <DialogContent
+            className="max-h-[90vh] max-w-[min(90vw,56rem)] border-zinc-800 bg-zinc-950 p-2 sm:p-4"
+            showCloseButton
+          >
+            <DialogTitle className="sr-only">Proof of delivery</DialogTitle>
+            <img
+              src={proofUrl}
+              alt="Proof of delivery"
+              className="mx-auto max-h-[85vh] w-full rounded-md object-contain"
+            />
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

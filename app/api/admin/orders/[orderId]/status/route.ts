@@ -35,10 +35,8 @@ export async function PUT(
       return NextResponse.json({ error: 'Order ID is required' }, { status: 400 });
     }
 
-    // Log minimal debug info about incoming request for troubleshooting
-    const authHeader = request.headers.get('authorization') || '';
     const hasToken = !!authHeader;
-    const tokenPreview = authHeader.startsWith('Bearer ') ? `${(authHeader.length - 7)} chars` : 'none';
+    const tokenPreview = authHeader.startsWith('Bearer ') ? `${authHeader.length - 7} chars` : 'none';
     console.log('[admin][orders][status] incoming request', { orderId, hasToken, tokenPreview });
 
     const supabaseAdmin = getClient();
@@ -218,19 +216,9 @@ export async function PUT(
       // Continue - history logging is optional
     }
 
-    return NextResponse.json({
-      success: true,
-      order_id: orderId,
-      previous_status: currentStatus,
-      new_status: status,
-      updated_at: updatedOrder.updated_at,
-      tracking_number: updatedOrder.tracking_number,
-      courier: updatedOrder.courier,
-    });
-    
-    // Trigger status email if shipped or delivered
+    // Fire-and-forget: must run before returning — a prior early return here left this unreachable.
     if (status === 'shipped' || status === 'delivered') {
-      sendOrderStatusEmail(orderId).catch((err: any) => {
+      sendOrderStatusEmail(orderId).catch((err: unknown) => {
         console.error('Failed to send order status email:', err);
       });
     }

@@ -104,6 +104,17 @@ export interface Address {
   default: boolean;
 }
 
+/** Single row from order_status_history for customer-facing timeline */
+export interface OrderStatusHistoryEntry {
+  id: string;
+  oldStatus: string | null;
+  newStatus: string;
+  changedAt: string;
+  notes: string | null;
+  trackingNumber: string | null;
+  courier: string | null;
+}
+
 export interface OrderItem {
   variantId: string;             // Reference to product_variants.id (primary identifier)
   productId?: string;            // Reference to product (optional, for context)
@@ -139,6 +150,8 @@ export interface Order {
   courierPhone?: string | null;
   proofImageUrl?: string | null;
   deliveryNotes?: string | null;
+  /** Newest first; omitted or empty when no history */
+  statusHistory?: OrderStatusHistoryEntry[];
 }
 
 export interface Profile {
@@ -194,7 +207,11 @@ export interface StockData {
 }
 
 export interface TrackingUpdate {
+  /** Stable id from order_status_history when present */
+  id?: string;
   status: string;
+  /** Lowercase DB status for styling (e.g. paid, shipped) */
+  statusKey?: string;
   location: string;
   timestamp: string;
   description: string;
@@ -206,6 +223,7 @@ export interface TrackingData {
   location: string;
   estimatedDelivery: string;
   updates: TrackingUpdate[];
+  trackingNumber?: string | null;
   courierName?: string | null;
   courierPhone?: string | null;
   proofImageUrl?: string | null;

@@ -1,7 +1,11 @@
 import nodemailer from 'nodemailer';
 
-const user = process.env.GMAIL_USER || process.env.SMTP_USER || process.env.NEXT_PUBLIC_SMTP_USER;
-const pass = process.env.GMAIL_APP_PASSWORD || process.env.SMTP_PASS || process.env.SMTP_PASSWORD;
+const userRaw = process.env.GMAIL_USER || process.env.SMTP_USER || process.env.NEXT_PUBLIC_SMTP_USER;
+const passRaw = process.env.GMAIL_APP_PASSWORD || process.env.SMTP_PASS || process.env.SMTP_PASSWORD;
+
+/** Gmail app passwords are 16 chars; pasted with spaces must be stripped or auth fails. */
+const user = typeof userRaw === 'string' ? userRaw.trim() : userRaw;
+const pass = typeof passRaw === 'string' ? passRaw.replace(/\s+/g, '') : passRaw;
 
 /**
  * Centered mail transporter for the application.

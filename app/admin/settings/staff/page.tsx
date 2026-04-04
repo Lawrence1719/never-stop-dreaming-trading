@@ -221,7 +221,11 @@ export default function StaffManagementPage() {
   const getStatusBadge = (status: StaffStatus) =>
     status === 'active' ? <Badge variant="success">active</Badge> : <Badge variant="destructive">inactive</Badge>;
 
-  const updateStaff = async (url: string, options: RequestInit, successMessage: string) => {
+  const updateStaff = async (
+    url: string,
+    options: RequestInit,
+    successMessage: string
+  ): Promise<{ ok: boolean; payload?: Record<string, unknown> }> => {
     setIsSubmitting(true);
 
     try {
@@ -235,10 +239,10 @@ export default function StaffManagementPage() {
         },
       });
 
-      const payload = await res.json().catch(() => ({}));
+      const payload = (await res.json().catch(() => ({}))) as Record<string, unknown>;
 
       if (!res.ok) {
-        throw new Error(payload.error || 'Request failed');
+        throw new Error(typeof payload.error === 'string' ? payload.error : 'Request failed');
       }
 
       toast({
@@ -248,7 +252,7 @@ export default function StaffManagementPage() {
       });
 
       await fetchStaff();
-      return true;
+      return { ok: true, payload };
     } catch (err) {
       console.error('Staff action failed', err);
       toast({
@@ -256,14 +260,14 @@ export default function StaffManagementPage() {
         description: err instanceof Error ? err.message : 'Request failed',
         variant: 'destructive',
       });
-      return false;
+      return { ok: false };
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleAddStaff = async () => {
-    const success = await updateStaff(
+    const result = await updateStaff(
       '/api/admin/staff',
       {
         method: 'POST',
@@ -272,7 +276,15 @@ export default function StaffManagementPage() {
       'Staff account created successfully.'
     );
 
-    if (success) {
+    if (result.ok) {
+      const warning = result.payload?.emailWarning;
+      if (typeof warning === 'string' && warning.length > 0) {
+        toast({
+          title: 'Welcome email not sent',
+          description: warning,
+          variant: 'warning',
+        });
+      }
       setAddDialogOpen(false);
       setAddForm(emptyForm);
     }
@@ -290,7 +302,7 @@ export default function StaffManagementPage() {
       'Staff member updated successfully.'
     );
 
-    if (success) {
+    if (success.ok) {
       setEditDialogOpen(false);
       setSelectedStaff(null);
     }
@@ -305,7 +317,7 @@ export default function StaffManagementPage() {
       'Staff account deleted successfully.'
     );
 
-    if (success) {
+    if (success.ok) {
       setDeleteDialogOpen(false);
       setSelectedStaff(null);
     }
@@ -325,7 +337,7 @@ export default function StaffManagementPage() {
         : 'Staff account activated successfully.'
     );
 
-    if (success) {
+    if (success.ok) {
       setStatusDialogOpen(false);
       setSelectedStaff(null);
     }
@@ -348,7 +360,7 @@ export default function StaffManagementPage() {
         : 'Staff member demoted to Admin.'
     );
 
-    if (success) {
+    if (success.ok) {
       setRoleDialogOpen(false);
       setPendingRole(null);
       setPasswordConfirm('');

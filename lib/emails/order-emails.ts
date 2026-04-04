@@ -106,10 +106,19 @@ export async function sendOrderConfirmationEmail(orderId: string) {
       </div>
     `;
 
+    const textPlain = [
+      `Thank you for your order! Your order ${displayOrderNumber} has been successfully placed.`,
+      '',
+      'Order items and total are included in the HTML version of this email.',
+      '',
+      `View your order: ${getAppUrl()}/orders/${order.id}`,
+    ].join('\n');
+
     await transporter.sendMail({
       from: defaultFrom,
       to: userEmail,
       subject: 'Order Confirmed - Never Stop Dreaming Trading',
+      text: textPlain,
       html
     });
 
@@ -131,12 +140,22 @@ export async function sendOrderStatusEmail(orderId: string) {
       .eq('id', orderId)
       .single();
 
-    if (orderError || !order) return;
+    if (orderError || !order) {
+      console.error('[order-status-email] Missing order', { orderId, orderError: orderError?.message });
+      return;
+    }
 
     // Try to get the email from the shipping address first, then fallback to user profile
     const userEmail = order.shipping_address?.email || (await supabaseAdmin.auth.admin.getUserById(order.user_id)).data.user?.email;
 
-    if (!userEmail) return;
+    if (!userEmail) {
+      console.error('[order-status-email] No recipient email', {
+        orderId,
+        hasShippingEmail: !!order.shipping_address?.email,
+        hasUserId: !!order.user_id,
+      });
+      return;
+    }
 
     // Compute global sequence number for human-readable order number (#00047)
     const { count: seqCount } = await supabaseAdmin
@@ -155,8 +174,11 @@ export async function sendOrderStatusEmail(orderId: string) {
       statusTitle = 'Your Order Has Been Delivered!';
       statusMessage = `Your order <strong>${displayOrderNumber}</strong> has arrived. We hope you love it!`;
     } else {
-      // Don't send emails for other status updates
-      return; 
+      console.warn('[order-status-email] Skipping send — order status is not shipped/delivered', {
+        orderId,
+        status: order.status,
+      });
+      return;
     }
 
     const html = `
@@ -183,10 +205,22 @@ export async function sendOrderStatusEmail(orderId: string) {
       </div>
     `;
 
+    const textLines = [
+      statusTitle,
+      '',
+      `Order ${displayOrderNumber}: ${order.status === 'shipped' ? 'Your order is on its way.' : 'Your order has been delivered. We hope you love it!'}`,
+    ];
+    if (order.status === 'shipped' && order.tracking_number) {
+      textLines.push('', `Tracking number: ${order.tracking_number}`);
+      if (order.courier) textLines.push(`Courier: ${order.courier}`);
+    }
+    textLines.push('', `View order: ${getAppUrl()}/orders/${order.id}`);
+
     await transporter.sendMail({
       from: defaultFrom,
       to: userEmail,
       subject: `${statusTitle} - Never Stop Dreaming Trading`,
+      text: textLines.join('\n'),
       html
     });
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState, useEffect, useCallback } from "react";
+import { use, useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from 'next/navigation';
 import Link from "next/link";
 import { Navbar } from "@/components/layout/navbar";
@@ -8,9 +8,9 @@ import { Footer } from "@/components/layout/footer";
 import { Order } from "@/lib/types";
 import { formatPrice, formatDate } from "@/lib/utils/formatting";
 import { 
-  ChevronLeft, Download, CheckCircle, Clock, Star, 
+  ChevronLeft, Download, Clock, Star, 
   AlertCircle, Phone, Truck, CreditCard, Wallet, 
-  Store, ShoppingCart, ArrowRight, XCircle 
+  Store, ArrowRight, ImageIcon, X, History
 } from 'lucide-react';
 import { useAuth } from "@/lib/context/auth-context";
 import { supabase } from "@/lib/supabase/client";
@@ -19,7 +19,6 @@ import { RatingModal } from "@/components/orders/RatingModal";
 import { ProductImage } from "@/components/shared/ProductImage";
 import { useCart } from "@/lib/context/cart-context";
 import { generateInvoicePDF } from "@/lib/utils/invoice";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
@@ -33,31 +32,6 @@ const paymentLabels: Record<string, { label: string, icon: any }> = {
   card: { label: "Credit / Debit Card", icon: CreditCard },
 };
 
-// Status Timeline Configuration
-const STEPS = [
-  { id: 'placed', label: 'Order Placed', icon: ShoppingCart },
-  { id: 'processing', label: 'Processing', icon: Clock },
-  { id: 'shipped', label: 'Shipped', icon: Truck },
-  { id: 'delivered', label: 'Delivered', icon: CheckCircle },
-];
-
-const getStatusStep = (status: string) => {
-  if (status === 'pending') return 0;
-  if (['processing', 'paid'].includes(status)) return 1;
-  if (status === 'shipped') return 2;
-  if (['delivered', 'completed'].includes(status)) return 3;
-  return -1; // Cancelled or other
-};
-
-const statusBannerColors: Record<string, string> = {
-  pending: "border-blue-500",
-  processing: "border-purple-500",
-  shipped: "border-amber-500",
-  delivered: "border-emerald-500",
-  completed: "border-emerald-500",
-  cancelled: "border-rose-500",
-};
-
 const CANCEL_REASONS = [
   "Changed my mind",
   "Ordered by mistake",
@@ -67,6 +41,44 @@ const CANCEL_REASONS = [
   "Duplicate order",
   "Other"
 ];
+
+function formatTimelineTimestamp(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  const datePart = new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(d);
+  const timePart = new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(d);
+  return `${datePart} at ${timePart}`;
+}
+
+function statusTimelineLabel(status: string): string {
+  const s = status.toLowerCase();
+  if (s === "paid") return "Processing";
+  if (s === "completed") return "Delivered";
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function statusTimelineColors(status: string): { dot: string; label: string } {
+  const s = status.toLowerCase();
+  if (s === "pending")
+    return { dot: "bg-amber-500", label: "text-amber-500" };
+  if (s === "processing" || s === "paid")
+    return { dot: "bg-blue-500", label: "text-blue-400" };
+  if (s === "shipped")
+    return { dot: "bg-cyan-500", label: "text-cyan-400" };
+  if (s === "delivered" || s === "completed")
+    return { dot: "bg-emerald-500", label: "text-emerald-400" };
+  if (s === "cancelled")
+    return { dot: "bg-red-500", label: "text-red-400" };
+  return { dot: "bg-muted-foreground", label: "text-muted-foreground" };
+}
 
 function renderEntityLabel(value: string) {
   const match = value.match(/^(.*?)(\s\((?:Removed|Deleted Account)\))$/);
@@ -97,6 +109,7 @@ export default function OrderDetailsPage({ params }: { params: Promise<{ orderId
   const [cancelReason, setCancelReason] = useState<string>("");
   const [cancelNote, setCancelNote] = useState<string>("");
   const [isOrderingAgain, setIsOrderingAgain] = useState(false);
+  const [showProofModal, setShowProofModal] = useState(false);
 
   const fetchOrder = useCallback(async () => {
     if (!user || !orderId) {
@@ -136,6 +149,15 @@ export default function OrderDetailsPage({ params }: { params: Promise<{ orderId
     fetchOrder();
   }, [fetchOrder]);
 
+  useEffect(() => {
+    if (!showProofModal) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowProofModal(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showProofModal]);
+
   // Support deep linking to review modal
   useEffect(() => {
     if (order && order.status === 'delivered' && !order.hasRated) {
@@ -144,6 +166,38 @@ export default function OrderDetailsPage({ params }: { params: Promise<{ orderId
         setShowRatingModal(true);
       }
     }
+  }, [order]);
+
+  const layout = useMemo(() => {
+    if (!order) {
+      return {
+        hasProof: false,
+        hasTrack: false,
+        deliveryRow: 1,
+        proofRow: null as number | null,
+        trackRow: null as number | null,
+        shippingRow: 2,
+        summarySpan: 1,
+      };
+    }
+    const hasProof = !!(order.proofImageUrl && ['delivered', 'completed'].includes(order.status));
+    const hasTrack = !!order.trackingNumber;
+    let row = 0;
+    const next = () => ++row;
+    const deliveryRow = next();
+    const proofRow = hasProof ? next() : null;
+    const trackRow = hasTrack ? next() : null;
+    const shippingRow = next();
+    const summarySpan = row;
+    return {
+      hasProof,
+      hasTrack,
+      deliveryRow,
+      proofRow,
+      trackRow,
+      shippingRow,
+      summarySpan,
+    };
   }, [order]);
 
   const handleRatingSuccess = (rating: number, reviewText: string) => {
@@ -175,7 +229,7 @@ export default function OrderDetailsPage({ params }: { params: Promise<{ orderId
     setIsConfirming(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const response = await fetch(`/api/orders/${orderId}/confirm`, {
+      const response = await fetch(`/api/orders/${orderId}/confirm-receipt`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${session?.access_token}` },
       });
@@ -245,285 +299,379 @@ export default function OrderDetailsPage({ params }: { params: Promise<{ orderId
     );
   }
 
-  const currentStep = getStatusStep(order.status);
-  const isCancelled = order.status === 'cancelled';
   const payment = paymentLabels[order.paymentMethod] || { label: order.paymentMethod.toUpperCase(), icon: CreditCard };
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <Navbar />
 
-      <main className="flex-1 pb-20 pt-8">
+      <main className="flex-1 pb-10 pt-4 md:pt-6">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Header Section */}
-          <div className="mb-8 space-y-6">
+          {/* Header — order title, badge, invoice */}
+          <div className="mb-4 space-y-3">
             <Link 
               href="/orders"
-              className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors font-bold text-sm"
+              className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-primary transition-colors font-semibold text-xs"
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-3.5 h-3.5" />
               Back to Orders
             </Link>
             
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-              <div className="space-y-1">
-                <h1 className="text-3xl md:text-4xl font-black tracking-tight uppercase">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="space-y-0.5 min-w-0">
+                <h1 className="text-xl sm:text-2xl font-black tracking-tight uppercase truncate">
                   Order <span className="text-primary">{order.orderNumber}</span>
                 </h1>
-                <p className="text-muted-foreground font-medium text-sm">
+                <p className="text-muted-foreground text-xs">
                   Placed on {formatDate(order.date)}
                 </p>
               </div>
-              <div className="flex gap-3">
+              <div className="flex items-center gap-2 shrink-0">
                 <Badge 
                   variant="outline" 
-                  className={cn("px-4 py-1.5 rounded-full border-2 text-[10px] font-black uppercase tracking-widest flex items-center gap-2", 
-                    order.status === 'delivered' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
-                    order.status === 'cancelled' ? "bg-rose-50 text-rose-600 border-rose-100" :
-                    "bg-blue-50 text-blue-600 border-blue-100"
+                  className={cn(
+                    "px-2.5 py-0.5 rounded-full border text-[10px] font-bold uppercase tracking-wide flex items-center gap-1.5",
+                    order.status === 'delivered' || order.status === 'completed'
+                      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                      : order.status === 'cancelled'
+                        ? "border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                        : "border-primary/40 bg-primary/10 text-primary"
                   )}
                 >
-                  <div className={cn("w-1.5 h-1.5 rounded-full", 
-                    order.status === 'delivered' ? "bg-emerald-500" :
-                    order.status === 'cancelled' ? "bg-rose-500" :
-                    "bg-blue-500"
+                  <span className={cn(
+                    "w-1.5 h-1.5 rounded-full",
+                    order.status === 'delivered' || order.status === 'completed' ? "bg-emerald-500" :
+                    order.status === 'cancelled' ? "bg-rose-500" : "bg-primary"
                   )} />
-                  {order.status.toUpperCase()}
+                  {order.status}
                 </Badge>
                 <button 
+                  type="button"
                   onClick={() => generateInvoicePDF(order)}
-                  className="flex items-center gap-2 px-4 py-2 border border-border rounded-xl hover:bg-muted font-bold text-xs transition-all"
+                  className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg hover:bg-muted text-xs font-semibold transition-colors"
                 >
-                  <Download className="w-4 h-4" />
+                  <Download className="w-3.5 h-3.5" />
                   Invoice
                 </button>
               </div>
             </div>
-
-            {/* Fix 1: Order Progress Stepper */}
-            {!isCancelled && (
-              <div className="bg-card border border-border rounded-3xl p-6 md:p-8 shadow-sm">
-                <div className="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-8 md:gap-0">
-                  <div className="hidden md:absolute md:block top-[19px] left-[5%] right-[5%] h-[2px] bg-muted z-0">
-                    <div 
-                      className="h-full bg-emerald-500 transition-all duration-1000" 
-                      style={{ width: `${currentStep === -1 ? 0 : (currentStep / 3) * 100}%` }}
-                    />
-                  </div>
-                  
-                  {STEPS.map((step, idx) => {
-                    const isCompleted = currentStep >= idx;
-                    const isCurrent = currentStep === idx;
-                    const isPassed = currentStep > idx;
-                    const Icon = step.icon;
-
-                    return (
-                      <div key={idx} className="relative z-10 flex md:flex-col items-center gap-4 md:gap-3 flex-1">
-                        <div className={cn(
-                          "w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all duration-500",
-                          isPassed || (step.id === 'delivered' && isCompleted) ? "bg-emerald-500 border-emerald-500 text-white" : 
-                          isCurrent ? "bg-background border-primary text-primary shadow-lg shadow-primary/20 scale-110 ring-4 ring-primary/10" :
-                          "bg-background border-muted text-muted-foreground"
-                        )}>
-                          {isPassed || (step.id === 'delivered' && isCompleted) ? <CheckCircle className="w-5 h-5" /> : <Icon className="w-4 h-4" />}
-                        </div>
-                        <div className="text-left md:text-center space-y-0.5">
-                          <p className={cn(
-                            "text-[10px] md:text-xs font-black uppercase tracking-widest",
-                            isCompleted ? "text-foreground" : "text-muted-foreground opacity-50"
-                          )}>
-                            {step.label}
-                          </p>
-                          {isCompleted && (
-                            <p className="text-[9px] font-bold text-muted-foreground uppercase opacity-80">
-                              {idx === 0 ? formatDate(order.date) : idx === 3 && order.deliveredAt ? formatDate(order.deliveredAt) : ''}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            {/* Left Column: Order Summary */}
-            <div className="lg:col-span-8 bg-card border border-border shadow-sm rounded-3xl overflow-hidden">
-              <div className="p-6 md:p-8">
-                <h2 className="text-xl font-black tracking-tight mb-8">Order Summary</h2>
-                
-                {/* Fix 2: Items List with Thumbnails */}
-                <div className="space-y-6">
-                  {order.items.map((item, i) => (
-                    <div key={i} className="flex items-center gap-4 md:gap-6 group">
-                      <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl overflow-hidden border border-border/50 bg-muted/30 shrink-0">
-                        <ProductImage 
-                          src={item.image} 
-                          alt={item.name} 
-                          className="w-full h-full object-cover transition-transform group-hover:scale-110"
-                          containerClassName="!p-0"
-                        />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-black text-sm md:text-base leading-tight uppercase truncate">{renderEntityLabel(item.name)}</p>
-                        <div className="flex items-center gap-3 mt-1.5">
-                          <span className="text-[10px] font-bold text-muted-foreground uppercase bg-muted px-2 py-0.5 rounded">Qty: {item.quantity}</span>
-                          {item.variantLabel && (
-                            <span className="text-[10px] font-bold text-primary uppercase bg-primary/5 px-2 py-0.5 rounded border border-primary/10">{item.variantLabel}</span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="font-black text-sm md:text-base">{formatPrice(item.price * item.quantity)}</p>
-                      </div>
-                    </div>
-                  ))}
+          {/* Main: mobile flex + order; lg: 5-col grid with dynamic rows for proof/track */}
+          <div className="flex flex-col gap-3 lg:grid lg:grid-cols-5 lg:gap-x-5 lg:gap-y-3 items-start">
+            {/* Delivery info — mobile order-2, desktop top-right */}
+            <div
+              className="order-2 lg:order-[0] bg-card border border-border rounded-2xl p-4 space-y-3 w-full"
+              style={{
+                gridColumn: '4 / 6',
+                gridRow: layout.deliveryRow,
+              }}
+            >
+              <h3 className="text-sm font-black tracking-tight">Delivery Info</h3>
+              <div className="space-y-3 text-sm">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">
+                    {order.status === 'delivered' || order.status === 'completed' ? 'Delivered on' : 'Expected delivery'}
+                  </p>
+                  <p className="font-bold">{formatDate(order.deliveredAt || order.date)}</p>
                 </div>
-
-                {/* Tightened Totals */}
-                <div className="mt-10 pt-8 border-t border-border/50 space-y-4">
-                  <div className="flex justify-between text-xs font-bold">
-                    <span className="text-muted-foreground uppercase tracking-widest">Subtotal</span>
-                    <span>{formatPrice(order.subtotal)}</span>
-                  </div>
-                  <div className="flex justify-between text-xs font-bold">
-                    <span className="text-muted-foreground uppercase tracking-widest">Shipping Fee</span>
-                    <span className={cn(order.shipping === 0 ? "text-emerald-600" : "text-foreground")}>
-                      {order.shipping === 0 ? "FREE" : formatPrice(order.shipping)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center pt-6 border-t-2 border-border/50 mt-2">
-                    <span className="text-base font-black uppercase tracking-tighter">Total Price</span>
-                    <span className="text-3xl font-black tracking-tighter text-foreground">{formatPrice(order.total)}</span>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Current status</p>
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] font-bold uppercase border-border bg-muted/40"
+                  >
+                    {order.status}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Payment method</p>
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-md bg-primary/10 text-primary flex items-center justify-center border border-primary/20">
+                      <payment.icon className="w-3.5 h-3.5" />
+                    </div>
+                    <span className="text-xs font-semibold">{payment.label}</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Right Column: Information Sidebar */}
-            <div className="lg:col-span-4 space-y-6">
-              {/* Fix 3: Delivery Info Card */}
-              <div className="bg-card border border-border shadow-sm rounded-3xl p-6 md:p-8 space-y-8">
-                <h3 className="text-xl font-black tracking-tight">Delivery Info</h3>
-                
-                <div className="space-y-6">
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 leading-none mb-1">
-                      {order.status === 'delivered' ? 'Delivered on' : 'Expected Delivery'}
-                    </p>
-                    <p className="text-lg font-black tracking-tight">
-                      {formatDate(order.deliveredAt || order.date)}
-                    </p>
-                  </div>
-
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 leading-none mb-2">Current Status</p>
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                        <CheckCircle className="w-5 h-5" />
-                      </div>
-                      <p className="text-base font-black tracking-tight uppercase opacity-80">{order.status}</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 leading-none mb-2">Payment Method</p>
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-primary/5 text-primary flex items-center justify-center border border-primary/10">
-                        <payment.icon className="w-4 h-4" />
-                      </div>
-                      <p className="text-sm font-bold uppercase tracking-tight">{payment.label}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Track My Delivery (In sidebar) */}
-                {order.trackingNumber && (
-                  <div className="pt-4">
-                    <Link
-                      href={`/order-tracking/${order.id}`}
-                      className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-primary text-primary-foreground rounded-2xl hover:shadow-xl hover:shadow-primary/20 transition-all font-black text-xs uppercase tracking-widest shadow-lg shadow-primary/20"
-                    >
-                      <Truck className="w-4 h-4" />
-                      Track My Delivery
-                    </Link>
-                  </div>
+            {/* Proof thumbnail — mobile order-3 */}
+            {layout.hasProof && order.proofImageUrl && (
+              <div
+                className="order-3 lg:order-[0] bg-card border border-border rounded-2xl p-4 space-y-2 w-full"
+                style={{
+                  gridColumn: '4 / 6',
+                  gridRow: layout.proofRow ?? undefined,
+                }}
+              >
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <ImageIcon className="w-3 h-3" />
+                  Proof of delivery
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowProofModal(true)}
+                  className="block rounded-xl border border-border overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ring-offset-2 ring-offset-background"
+                  aria-label="View proof of delivery full size"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={order.proofImageUrl}
+                    alt=""
+                    className="h-24 w-24 object-cover bg-muted"
+                  />
+                </button>
+                {order.deliveryNotes?.trim() && (
+                  <p className="text-xs text-muted-foreground pt-1">
+                    <span className="font-semibold text-foreground/90">Courier note: </span>
+                    {order.deliveryNotes.trim()}
+                  </p>
                 )}
               </div>
+            )}
 
-              {/* Shipping To Card */}
-              <div className="bg-muted/30 border border-border rounded-3xl p-6 md:p-8 space-y-6">
-                <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Shipping To</h3>
-                <div className="space-y-4">
-                  <div className="space-y-1">
-                    <p className="font-black text-base uppercase tracking-tight">{order.shippingAddress.fullName}</p>
-                    <p className="text-xs text-muted-foreground leading-relaxed font-medium">
-                      {order.shippingAddress.street}, {order.shippingAddress.city}<br />
-                      {order.shippingAddress.province}, {order.shippingAddress.zip}
-                    </p>
+            {/* Track — mobile order-4 */}
+            {layout.hasTrack && (
+              <div
+                className="order-4 lg:order-[0] w-full"
+                style={{
+                  gridColumn: '4 / 6',
+                  gridRow: layout.trackRow ?? undefined,
+                }}
+              >
+                <Link
+                  href={`/order-tracking/${order.id}`}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-colors font-bold text-[10px] uppercase tracking-widest"
+                >
+                  <Truck className="w-3.5 h-3.5" />
+                  Track My Delivery
+                </Link>
+              </div>
+            )}
+
+            {/* Order summary — mobile order-5, desktop left column */}
+            <div
+              className="order-5 lg:order-[0] bg-card border border-border rounded-2xl overflow-hidden w-full flex flex-col"
+              style={{
+                gridColumn: '1 / 4',
+                gridRow: `1 / span ${layout.summarySpan}`,
+              }}
+            >
+              <div className="p-4 md:p-5">
+                <h2 className="text-sm font-black tracking-tight mb-4">Order Summary</h2>
+                <div className="space-y-3">
+                  {order.items.map((item, i) => (
+                    <div key={i} className="flex items-center gap-3 group">
+                      <div className="w-11 h-11 rounded-xl overflow-hidden border border-border/50 bg-muted/30 shrink-0">
+                        <ProductImage 
+                          src={item.image} 
+                          alt={item.name} 
+                          className="w-full h-full object-cover"
+                          containerClassName="!p-0"
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-xs uppercase truncate">{renderEntityLabel(item.name)}</p>
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                          <span className="text-[10px] font-semibold text-muted-foreground uppercase bg-muted px-1.5 py-0.5 rounded">Qty {item.quantity}</span>
+                          {item.variantLabel && (
+                            <span className="text-[10px] font-semibold text-primary uppercase bg-primary/5 px-1.5 py-0.5 rounded border border-primary/10">{item.variantLabel}</span>
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-sm font-bold shrink-0">{formatPrice(item.price * item.quantity)}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-5 pt-4 border-t border-border/50 space-y-2">
+                  <div className="flex justify-between text-xs font-semibold">
+                    <span className="text-muted-foreground uppercase tracking-wide">Subtotal</span>
+                    <span>{formatPrice(order.subtotal)}</span>
                   </div>
-                  <div className="pt-4 border-t border-border/50">
-                    <p className="text-[9px] font-black uppercase text-muted-foreground/40 mb-1">Contact Number</p>
-                    <p className="text-sm font-bold text-primary flex items-center gap-2">
-                      <Phone className="w-4 h-4" />
-                      {order.shippingAddress.phone}
-                    </p>
+                  <div className="flex justify-between text-xs font-semibold">
+                    <span className="text-muted-foreground uppercase tracking-wide">Shipping</span>
+                    <span className={cn(order.shipping === 0 ? "text-emerald-600 dark:text-emerald-400" : "")}>
+                      {order.shipping === 0 ? "FREE" : formatPrice(order.shipping)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-baseline pt-3 border-t border-border/50">
+                    <span className="text-sm font-black uppercase">Total</span>
+                    <span className="text-xl font-black text-primary">{formatPrice(order.total)}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Fix 4 & 5: Contextual Action Buttons */}
-              <div className="space-y-3">
+              {order.statusHistory && order.statusHistory.length > 0 && (
+                <div className="px-4 md:px-5 pb-4 pt-0 border-t border-border/50">
+                  <h3 className="flex items-center gap-2 text-sm font-black tracking-tight mt-4 mb-3">
+                    <History className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                    Order Timeline
+                  </h3>
+                  <div className="rounded-xl border border-border/60 bg-muted/20 p-3 md:p-4">
+                    <ul className="relative space-y-0">
+                      {order.statusHistory.map((entry, i) => {
+                        const { dot, label } = statusTimelineColors(entry.newStatus);
+                        const isLast = i === order.statusHistory!.length - 1;
+                        return (
+                          <li key={entry.id} className="relative flex gap-3 pb-4 last:pb-0">
+                            {!isLast && (
+                              <span
+                                className="absolute left-[6px] top-[14px] bottom-0 w-px bg-border"
+                                aria-hidden
+                              />
+                            )}
+                            <span
+                              className={cn(
+                                "relative z-[1] mt-1 h-3 w-3 shrink-0 rounded-full ring-2 ring-card",
+                                dot
+                              )}
+                              aria-hidden
+                            />
+                            <div className="min-w-0 flex-1 pt-0.5">
+                              <p className={cn("text-xs font-bold uppercase tracking-wide", label)}>
+                                {statusTimelineLabel(entry.newStatus)}
+                              </p>
+                              <p className="text-[11px] text-muted-foreground mt-0.5">
+                                {formatTimelineTimestamp(entry.changedAt)}
+                              </p>
+                              {(entry.notes?.trim() || entry.trackingNumber || entry.courier) && (
+                                <div className="mt-1.5 space-y-1 text-[11px] text-muted-foreground leading-snug">
+                                  {entry.trackingNumber && (
+                                    <p>
+                                      <span className="font-semibold text-foreground/80">Tracking: </span>
+                                      <span className="font-mono">{entry.trackingNumber}</span>
+                                      {entry.courier && (
+                                        <span className="text-muted-foreground"> · {entry.courier}</span>
+                                      )}
+                                    </p>
+                                  )}
+                                  {!entry.trackingNumber && entry.courier && (
+                                    <p>
+                                      <span className="font-semibold text-foreground/80">Courier: </span>
+                                      {entry.courier}
+                                    </p>
+                                  )}
+                                  {entry.notes?.trim() && (
+                                    <p className="italic">{entry.notes.trim()}</p>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              {(['delivered', 'completed'].includes(order.status) ||
+                ['pending', 'processing', 'paid'].includes(order.status)) && (
+              <div className="px-4 md:px-5 pb-4 pt-2 border-t border-border/50 mt-auto">
                 {['delivered', 'completed'].includes(order.status) && (
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-wrap gap-2">
                     {!order.hasRated && (
                       <button
+                        type="button"
                         onClick={() => setShowRatingModal(true)}
-                        className="flex items-center justify-center gap-2 px-4 py-4 border-2 border-primary text-primary rounded-2xl hover:bg-primary/5 transition-all font-black text-[10px] uppercase tracking-widest"
+                        className="inline-flex flex-1 min-w-[100px] items-center justify-center gap-1.5 px-3 py-2.5 border-2 border-primary text-primary rounded-xl hover:bg-primary/10 transition-colors font-bold text-[10px] uppercase tracking-wider"
                       >
-                        <Star className="w-4 h-4" />
+                        <Star className="w-3.5 h-3.5" />
                         Review
                       </button>
                     )}
                     <button
+                      type="button"
                       onClick={handleOrderAgain}
                       disabled={isOrderingAgain}
                       className={cn(
-                        "flex items-center justify-center gap-2 px-4 py-4 bg-foreground text-background rounded-2xl hover:bg-foreground/90 transition-all font-black text-[10px] uppercase tracking-widest",
-                        !order.hasRated ? "col-span-1" : "col-span-2"
+                        "inline-flex flex-1 min-w-[100px] items-center justify-center gap-1.5 px-3 py-2.5 bg-foreground text-background rounded-xl hover:opacity-90 transition-opacity font-bold text-[10px] uppercase tracking-wider",
+                        order.hasRated && "flex-[2]"
                       )}
                     >
-                      {isOrderingAgain ? <Clock className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
+                      {isOrderingAgain ? <Clock className="w-3.5 h-3.5 animate-spin" /> : <ArrowRight className="w-3.5 h-3.5" />}
                       Buy Again
                     </button>
+                    {order.status === 'delivered' && !order.confirmedByCustomerAt && (
+                      <button
+                        type="button"
+                        onClick={handleConfirmReceipt}
+                        disabled={isConfirming}
+                        className="inline-flex flex-1 min-w-full sm:min-w-[140px] basis-full sm:basis-auto items-center justify-center gap-1.5 px-3 py-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors font-bold text-[10px] uppercase tracking-wider"
+                      >
+                        {isConfirming ? "Confirming..." : "Confirm Receipt"}
+                      </button>
+                    )}
                   </div>
                 )}
 
                 {['pending', 'processing', 'paid'].includes(order.status) && (
                   <button
+                    type="button"
                     onClick={() => setShowCancelDialog(true)}
-                    className="w-full px-6 py-4 border-2 border-rose-100 text-rose-500 bg-rose-50 hover:bg-rose-100 rounded-2xl transition-all font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-sm"
+                    className="w-full px-4 py-2.5 border border-rose-500/40 text-rose-600 dark:text-rose-400 bg-rose-500/5 hover:bg-rose-500/10 rounded-xl font-bold text-[10px] uppercase tracking-wider flex items-center justify-center gap-2"
                   >
-                    <AlertCircle className="w-4 h-4" />
+                    <AlertCircle className="w-3.5 h-3.5" />
                     Cancel Order
                   </button>
                 )}
+              </div>
+              )}
+            </div>
 
-                {order.status === 'delivered' && !order.confirmedByCustomerAt && (
-                  <button
-                    onClick={handleConfirmReceipt}
-                    disabled={isConfirming}
-                    className="w-full px-6 py-4 bg-emerald-600 text-white rounded-2xl hover:bg-emerald-700 transition-all font-black text-xs uppercase tracking-widest shadow-lg shadow-emerald-600/20"
-                  >
-                    {isConfirming ? "Confirming..." : "Confirm Receipt"}
-                  </button>
-                )}
+            {/* Shipping To — mobile order-6 */}
+            <div
+              className="order-6 lg:order-[0] bg-muted/30 border border-border rounded-2xl p-4 space-y-3 w-full"
+              style={{
+                gridColumn: '4 / 6',
+                gridRow: layout.shippingRow,
+              }}
+            >
+              <h3 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Shipping To</h3>
+              <p className="font-bold text-sm uppercase tracking-tight">{order.shippingAddress.fullName}</p>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {order.shippingAddress.street}, {order.shippingAddress.city}<br />
+                {order.shippingAddress.province}, {order.shippingAddress.zip}
+              </p>
+              <div className="pt-2 border-t border-border/50">
+                <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Contact</p>
+                <p className="text-xs font-semibold text-primary flex items-center gap-1.5">
+                  <Phone className="w-3.5 h-3.5 shrink-0" />
+                  {order.shippingAddress.phone}
+                </p>
               </div>
             </div>
+
           </div>
         </div>
+
+        {/* Proof lightbox */}
+        {showProofModal && order.proofImageUrl && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Proof of delivery"
+            className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+            onClick={() => setShowProofModal(false)}
+          >
+            <button
+              type="button"
+              onClick={() => setShowProofModal(false)}
+              className="absolute top-4 right-4 p-2 rounded-full bg-background/90 border border-border text-foreground hover:bg-muted z-10"
+              aria-label="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={order.proofImageUrl}
+              alt="Proof of delivery"
+              className="max-h-[90vh] max-w-full w-auto object-contain rounded-lg border border-border shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        )}
 
         {showRatingModal && (
           <RatingModal

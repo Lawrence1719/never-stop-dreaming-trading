@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getClient } from '@/lib/supabase/admin';
 import { createNotification } from '@/lib/notifications/service';
-import { createClient } from '@supabase/supabase-js';
+import { sendOrderStatusEmail } from '@/lib/emails/order-emails';
 
 // Reusable auth check from the project
 async function verifyCourier(request: NextRequest) {
@@ -116,6 +116,10 @@ export async function POST(
         .eq('id', orderId);
 
       if (orderUpdateError) throw orderUpdateError;
+
+      sendOrderStatusEmail(orderId).catch((err: unknown) => {
+        console.error('[proof/upload] Failed to send delivered confirmation email:', err);
+      });
     }
 
     // 6. Log to history

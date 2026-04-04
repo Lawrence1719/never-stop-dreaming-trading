@@ -339,27 +339,31 @@ export default function AdminDashboard() {
             ) : (
               <ResponsiveContainer width="100%" height={350}>
                 <LineChart data={salesData} margin={{ top: 10, right: 30, left: 10, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgb(var(--color-border))" />
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="var(--border)"
+                    strokeOpacity={0.85}
+                    vertical
+                  />
                   <XAxis
                     dataKey="period"
-                    stroke="rgb(var(--color-muted-foreground))"
-                    fontSize={12}
-                    tickLine={false}
-                    axisLine={false}
+                    tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
+                    tickLine={{ stroke: 'var(--border)' }}
+                    axisLine={{ stroke: 'var(--border)' }}
                   />
                   <YAxis
-                    stroke="rgb(var(--color-muted-foreground))"
-                    fontSize={12}
-                    tickLine={false}
-                    axisLine={false}
+                    tick={{ fill: 'var(--muted-foreground)', fontSize: 12 }}
+                    tickLine={{ stroke: 'var(--border)' }}
+                    axisLine={{ stroke: 'var(--border)' }}
                     tickFormatter={(value) => activeMetric === 'revenue' ? formatPrice(value).replace('₱', '') : value}
                   />
                   <Tooltip
-                    cursor={{ stroke: 'rgb(var(--color-border))', strokeWidth: 1 }}
+                    cursor={{ stroke: 'var(--border)', strokeWidth: 1 }}
                     contentStyle={{
-                      backgroundColor: 'rgb(var(--color-card))',
-                      border: '1px solid rgb(var(--color-border))',
+                      backgroundColor: 'var(--card)',
+                      border: '1px solid var(--border)',
                       borderRadius: '8px',
+                      color: 'var(--foreground)',
                       boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
                     }}
                     formatter={(value: any) => [activeMetric === 'revenue' ? formatPrice(value) : value, activeMetric === 'revenue' ? 'Revenue' : 'Orders']}
@@ -413,9 +417,9 @@ export default function AdminDashboard() {
                   </Pie>
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: 'hsl(var(--card))',
-                      borderColor: 'hsl(var(--border))',
-                      color: 'hsl(var(--foreground))',
+                      backgroundColor: 'var(--card)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--foreground)',
                       borderRadius: '12px',
                       fontSize: '13px',
                       boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'

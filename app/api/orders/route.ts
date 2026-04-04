@@ -67,6 +67,7 @@ export async function GET(request: NextRequest) {
         reviews(id, rating, comment, created_at),
         courier_profile:profiles!courier_id(name, phone),
         courier_deliveries(proof_image_url, delivery_notes, delivered_at),
+        order_status_history(id, old_status, new_status, changed_at, notes, tracking_number, courier),
         order_items(
           *,
           product_variants:variant_id(variant_label),
@@ -202,8 +203,33 @@ export async function GET(request: NextRequest) {
         ratedAt: row.reviews?.[0]?.created_at || null,
         courierName: (row.courier_profile as any)?.name || null,
         courierPhone: (row.courier_profile as any)?.phone || null,
-        proofImageUrl: (row.courier_deliveries?.[0] as any)?.proof_image_url || null,
-        deliveryNotes: (row.courier_deliveries?.[0] as any)?.delivery_notes || null,
+        ...(() => {
+          const raw = row.courier_deliveries;
+          const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
+          const d = list.find((x: any) => x?.proof_image_url) || list[0];
+          return {
+            proofImageUrl: d?.proof_image_url || null,
+            deliveryNotes: d?.delivery_notes || null,
+          };
+        })(),
+        ...(() => {
+          const raw = row.order_status_history;
+          const hist = Array.isArray(raw) ? raw : raw ? [raw] : [];
+          const sorted = [...hist].sort(
+            (a: any, b: any) =>
+              new Date(b.changed_at).getTime() - new Date(a.changed_at).getTime()
+          );
+          const statusHistory = sorted.map((h: any) => ({
+            id: h.id,
+            oldStatus: h.old_status ?? null,
+            newStatus: h.new_status,
+            changedAt: h.changed_at,
+            notes: h.notes ?? null,
+            trackingNumber: h.tracking_number ?? null,
+            courier: h.courier ?? null,
+          }));
+          return statusHistory.length > 0 ? { statusHistory } : {};
+        })(),
       };
     });
 

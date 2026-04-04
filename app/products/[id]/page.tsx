@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, useParams } from 'next/navigation';
 import { useSettings } from "@/lib/hooks/use-settings";
@@ -25,6 +25,30 @@ import { Heart, Share2, ChevronLeft, Users, Shield, ShoppingCart, AlertCircle } 
 import { supabase } from '@/lib/supabase/client';
 import { VariantConfirmationModal } from "@/components/ecommerce/variant-confirmation-modal";
 
+/** Summary shown in the hero must match approved reviews (products.rating / review_count are not always updated). */
+async function fetchApprovedReviewStatsForProduct(
+  productId: string,
+): Promise<{ rating: number; reviewCount: number } | null> {
+  const { data, error } = await supabase
+    .from('reviews')
+    .select('rating')
+    .eq('product_id', productId)
+    .eq('status', 'approved');
+
+  if (error) {
+    console.error('Failed to fetch approved review stats:', error);
+    return null;
+  }
+
+  const rows = data ?? [];
+  const reviewCount = rows.length;
+  if (reviewCount === 0) {
+    return { rating: 0, reviewCount: 0 };
+  }
+  const sum = rows.reduce((acc, row) => acc + (Number(row.rating) || 0), 0);
+  return { rating: sum / reviewCount, reviewCount };
+}
+
 export default function ProductDetailPage() {
   const { id } = useParams();
   console.log('ProductDetailPage id:', id);
@@ -34,6 +58,14 @@ export default function ProductDetailPage() {
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const refreshReviewStats = useCallback(async () => {
+    if (!id || typeof id !== 'string') return;
+    const stats = await fetchApprovedReviewStatsForProduct(id);
+    if (stats) {
+      setProduct((p) => (p ? { ...p, rating: stats.rating, reviewCount: stats.reviewCount } : null));
+    }
+  }, [id]);
 
   useEffect(() => {
     let mounted = true;
@@ -111,6 +143,11 @@ export default function ProductDetailPage() {
             is_active: data.is_active ?? undefined,
             variants: data.product_variants?.filter((v: any) => v.is_active) || [],
           };
+          const reviewStats = await fetchApprovedReviewStatsForProduct(data.id);
+          if (reviewStats) {
+            mapped.rating = reviewStats.rating;
+            mapped.reviewCount = reviewStats.reviewCount;
+          }
           setProduct(mapped);
           
           // Set first active variant as selected only if there's only one
@@ -694,7 +731,7 @@ export default function ProductDetailPage() {
           {/* Customer Reviews */}
           {settings?.system.enableProductReviews !== false && (
             <div className="mb-10">
-              <ProductReviews product={product} />
+              <ProductReviews product={product} onReviewSubmitted={refreshReviewStats} />
             </div>
           )}
 

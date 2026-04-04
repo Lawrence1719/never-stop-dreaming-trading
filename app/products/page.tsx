@@ -8,6 +8,7 @@ import { ProductGrid } from "@/components/ecommerce/product-grid";
 import { ProductFilter } from "@/components/ecommerce/product-filter";
 import { CATEGORY_TREE } from "@/lib/data/categories";
 import { supabase } from '@/lib/supabase/client';
+import { enrichProductsWithApprovedReviewStats } from '@/lib/utils/product-review-stats';
 import { Product } from "@/lib/types";
 import { PlacementBanner } from '@/components/marketing/PlacementBanner';
 import { SlidersHorizontal, SearchX } from "lucide-react";
@@ -73,7 +74,8 @@ function ProductsContent() {
               variants: row.variants || [],
             })) as Product[];
 
-            setProducts(mapped);
+            const withReviews = await enrichProductsWithApprovedReviewStats(supabase, mapped);
+            setProducts(withReviews);
             setIsLoadingProducts(false);
             return;
           }
@@ -126,7 +128,8 @@ function ProductsContent() {
             };
           }) as Product[];
 
-          setProducts(mapped);
+          const withReviews = await enrichProductsWithApprovedReviewStats(supabase, mapped);
+          setProducts(withReviews);
           setIsLoadingProducts(false);
         }
       } catch (err) {

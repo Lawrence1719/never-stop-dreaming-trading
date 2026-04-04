@@ -1,6 +1,6 @@
 "use client";
 
-import { Heart } from 'lucide-react';
+import { Heart, Star } from 'lucide-react';
 import Link from "next/link";
 import { Product } from "@/lib/types";
 import { formatPrice } from "@/lib/utils/formatting";
@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { ProductImage } from "@/components/shared/ProductImage";
+import { cn } from "@/lib/utils";
 
 interface ProductCardProps {
   product: Product;
@@ -62,8 +63,8 @@ export function ProductCard({ product }: ProductCardProps) {
   };
 
   return (
-    <Link href={`/products/${product.id}`}>
-      <div className="group cursor-pointer flex flex-col h-full">
+    <Link href={`/products/${product.id}`} className="block h-full">
+      <div className="group flex h-full cursor-pointer flex-col">
         <div className="relative bg-muted rounded-lg overflow-hidden mb-4">
           <ProductImage
             src={product.images?.[0]}
@@ -126,10 +127,41 @@ export function ProductCard({ product }: ProductCardProps) {
             )}
           </div>
         </div>
-        <div className="flex items-center gap-1" role="img" aria-label={`Rating: ${product.rating} out of 5 stars from ${product.reviewCount} reviews`}>
-          <span className="text-xs font-medium" aria-hidden="true">{product.rating}</span>
-          <span className="text-xs text-accent" aria-hidden="true">★</span>
-          <span className="text-xs text-muted-foreground" aria-hidden="true">({product.reviewCount})</span>
+        <div
+          className="mt-auto flex flex-wrap items-center gap-1.5 pt-1"
+          role="img"
+          aria-label={
+            (product.reviewCount ?? 0) > 0
+              ? `Rating: ${Number(product.rating ?? 0).toFixed(1)} out of 5 stars from ${product.reviewCount} reviews`
+              : 'No ratings yet'
+          }
+        >
+          <div className="flex items-center gap-0.5" aria-hidden="true">
+            {[1, 2, 3, 4, 5].map((i) => {
+              const hasReviews = (product.reviewCount ?? 0) > 0;
+              const filled = hasReviews && i <= Math.round(Number(product.rating ?? 0));
+              return (
+                <Star
+                  key={i}
+                  className={cn(
+                    'h-3.5 w-3.5 shrink-0',
+                    filled ? 'fill-accent text-accent' : 'text-muted-foreground/40',
+                  )}
+                  strokeWidth={filled ? 2 : 1.5}
+                />
+              );
+            })}
+          </div>
+          {(product.reviewCount ?? 0) > 0 ? (
+            <span className="text-xs tabular-nums text-muted-foreground" aria-hidden="true">
+              {Number(product.rating ?? 0).toFixed(1)}{' '}
+              <span className="text-muted-foreground/80">({product.reviewCount})</span>
+            </span>
+          ) : (
+            <span className="text-xs text-muted-foreground" aria-hidden="true">
+              No reviews
+            </span>
+          )}
         </div>
       </div>
     </Link>
