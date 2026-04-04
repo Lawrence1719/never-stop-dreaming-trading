@@ -20,7 +20,7 @@ export async function DELETE(
 
     // Revoke specifically this session via RPC
     // The RPC handles the auth.uid() ownership check internally
-    const { error } = await supabase.rpc('revoke_user_session', { session_id: sessionId })
+    const { error } = await supabase.rpc('revoke_user_session', { p_session_id: sessionId })
 
     if (error) {
        console.error('Revoke RPC Error:', error)

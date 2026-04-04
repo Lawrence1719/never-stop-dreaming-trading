@@ -18,7 +18,8 @@ import {
   Monitor,
   Tablet,
   Globe,
-  AlertCircle
+  AlertCircle,
+  History,
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +38,25 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+type SessionRow = {
+  id: string;
+  user_agent: string;
+  updated_at: string;
+  ip_address: string;
+  is_current: boolean;
+};
+
+type SessionHistoryRow = {
+  id: string;
+  session_id: string;
+  user_agent: string;
+  ip_address: string;
+  started_at: string;
+  ended_at: string | null;
+  status: string;
+  is_active_session: boolean;
+};
+
 export default function SecurityPage() {
   const router = useRouter();
   const { user, isLoading: authLoading, requestCustomerPasswordReset } = useAuth();
@@ -49,7 +69,8 @@ export default function SecurityPage() {
   const [isLoading, setIsLoading] = useState(false);
   
   // Session states
-  const [sessions, setSessions] = useState<any[]>([]);
+  const [sessions, setSessions] = useState<SessionRow[]>([]);
+  const [sessionHistory, setSessionHistory] = useState<SessionHistoryRow[]>([]);
   const [isFetchingSessions, setIsFetchingSessions] = useState(true);
   const [sessionFetchError, setSessionFetchError] = useState<{ message: string; setupRequired?: boolean } | null>(null);
   const [revokingId, setRevokingId] = useState<string | null>(null);
@@ -74,20 +95,22 @@ export default function SecurityPage() {
     try {
       setIsFetchingSessions(true);
       setSessionFetchError(null);
-      const response = await fetch('/api/profile/sessions');
+      const response = await fetch('/api/profile/sessions', {
+        credentials: 'include',
+        cache: 'no-store',
+      });
       const data = await response.json();
-      
+
       if (!response.ok) {
-        setSessionFetchError({ 
+        setSessionFetchError({
           message: data.error || 'Failed to load sessions',
-          setupRequired: data.setupRequired
+          setupRequired: data.setupRequired,
         });
         return;
       }
-      
-      if (data.sessions) {
-        setSessions(data.sessions);
-      }
+
+      setSessions(Array.isArray(data.sessions) ? data.sessions : []);
+      setSessionHistory(Array.isArray(data.sessionHistory) ? data.sessionHistory : []);
     } catch (error) {
       console.error('Failed to fetch sessions:', error);
       setSessionFetchError({ message: 'A network error occurred while loading sessions.' });
@@ -104,7 +127,7 @@ export default function SecurityPage() {
       });
       
       if (response.ok) {
-        setSessions(prev => prev.filter(s => s.id !== sessionId));
+        await fetchSessions();
         toast({
           title: "Session Revoked",
           description: "The device has been successfully logged out.",
@@ -425,6 +448,72 @@ export default function SecurityPage() {
               >
                 {isRevokingAll ? 'Revoking all...' : 'Revoke All Sessions'}
               </Button>
+            </div>
+
+            {/* Sign-in history (where you signed in; includes ended sessions) */}
+            <div className="bg-card border border-border rounded-lg p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <History className="w-5 h-5 text-primary" />
+                <h2 className="text-xl font-semibold">Sign-in history</h2>
+              </div>
+              <p className="text-sm text-muted-foreground mb-4">
+                Recent sign-ins and devices we have recorded. Open this page on each device once so IP and browser details stay up to date.
+              </p>
+              {isFetchingSessions ? (
+                <div className="flex flex-col gap-4">
+                  {[1, 2].map((i) => (
+                    <div key={i} className="h-16 bg-muted/50 rounded-lg animate-pulse" />
+                  ))}
+                </div>
+              ) : sessionFetchError ? null : sessionHistory.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6">
+                  No sign-in history yet. History is recorded when you load this page or use the site while signed in.
+                </p>
+              ) : (
+                <div className="space-y-3 max-h-[28rem] overflow-y-auto pr-1">
+                  {sessionHistory.map((row) => {
+                    const { browser, os, device } = parseUA(row.user_agent);
+                    return (
+                      <div
+                        key={row.id}
+                        className="flex items-start justify-between gap-3 p-4 bg-secondary/10 rounded-lg border border-border/60"
+                      >
+                        <div className="flex items-start gap-3 min-w-0">
+                          <div className="mt-0.5 p-2 bg-background rounded-full border border-border shrink-0">
+                            {getDeviceIcon(device)}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="font-semibold text-sm truncate">
+                                {os} • {browser}
+                              </p>
+                              {row.is_active_session ? (
+                                <Badge variant="default" className="text-[10px] h-4 shrink-0">
+                                  Active
+                                </Badge>
+                              ) : (
+                                <Badge variant="secondary" className="text-[10px] h-4 shrink-0">
+                                  Ended
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
+                              <Globe className="w-3 h-3 shrink-0" />
+                              {row.ip_address || "Unknown"}
+                            </p>
+                            <p className="text-[10px] font-medium text-muted-foreground/70 mt-1 uppercase tracking-widest">
+                              Signed in {formatDistanceToNow(new Date(row.started_at), { addSuffix: true })}
+                              {row.ended_at
+                                ? ` · Ended ${formatDistanceToNow(new Date(row.ended_at), { addSuffix: true })}`
+                                : ""}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Security Recommendations */}
