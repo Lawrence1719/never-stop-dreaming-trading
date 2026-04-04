@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
 import { validatePassword } from "@/lib/utils/validation";
-import { Lock, Eye, EyeOff, UserCircle } from 'lucide-react';
+import { Lock, UserCircle } from 'lucide-react';
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { supabase } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/context/auth-context";
 import { Logo } from "@/components/ui/logo";
@@ -19,8 +20,6 @@ function ResetPasswordContent() {
   const [resetEmail, setResetEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState<"weak" | "medium" | "strong" | "">("");
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -210,25 +209,16 @@ function ResetPasswordContent() {
                   <label className="block text-sm font-medium">New Password</label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
-                    <input
-                      type={showPassword ? "text" : "password"}
+                    <PasswordInput
                       name="password"
                       value={password}
                       onChange={handleChange}
                       placeholder="••••••••"
                       autoComplete="new-password"
-                      className={`w-full pl-10 pr-10 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
+                      className={`pl-10 ${
                         errors.password ? "border-destructive" : "border-border"
                       }`}
                     />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((prev) => !prev)}
-                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground"
-                      aria-label={showPassword ? "Hide password" : "Show password"}
-                    >
-                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                    </button>
                   </div>
                   {errors.password && <p className="text-xs text-destructive mt-1">{errors.password}</p>}
                   {passwordStrength && (
@@ -256,25 +246,16 @@ function ResetPasswordContent() {
                   <label className="block text-sm font-medium">Confirm New Password</label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
-                    <input
-                      type={showConfirmPassword ? "text" : "password"}
+                    <PasswordInput
                       name="confirmPassword"
                       value={confirmPassword}
                       onChange={handleChange}
                       placeholder="••••••••"
                       autoComplete="new-password"
-                      className={`w-full pl-10 pr-10 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
+                      className={`pl-10 ${
                         errors.confirmPassword ? "border-destructive" : "border-border"
                       }`}
                     />
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirmPassword((prev) => !prev)}
-                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground"
-                      aria-label={showConfirmPassword ? "Hide password" : "Show password"}
-                    >
-                      {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                    </button>
                   </div>
                   {errors.confirmPassword && <p className="text-xs text-destructive mt-1">{errors.confirmPassword}</p>}
                 </div>

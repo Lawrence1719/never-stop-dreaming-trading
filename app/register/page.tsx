@@ -8,7 +8,8 @@ import { Footer } from "@/components/layout/footer";
 import { useAuth } from "@/lib/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { validateEmail, validatePassword, validatePhoneNumber } from "@/lib/utils/validation";
-import { User, Mail, Lock, Phone, Eye, EyeOff } from 'lucide-react';
+import { User, Mail, Lock, Phone } from 'lucide-react';
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Logo } from "@/components/ui/logo";
 import { useSettings } from "@/lib/hooks/use-settings";
 
@@ -31,8 +32,6 @@ export default function RegisterPage() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState<"weak" | "medium" | "strong" | "">("");
   const [isSuccess, setIsSuccess] = useState(false);
   const [isResending, setIsResending] = useState(false);
@@ -406,22 +405,14 @@ export default function RegisterPage() {
                 <label className="block text-sm font-medium mb-2">Password</label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
-                  <input
-                    type={showPassword ? "text" : "password"}
+                  <PasswordInput
                     name="password"
                     value={formData.password}
                     onChange={handleChange}
                     placeholder="••••••••"
                     autoComplete="new-password"
-                    className={`w-full pl-10 pr-10 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${errors.password ? "border-destructive" : "border-border"}`}
+                    className={`pl-10 ${errors.password ? "border-destructive" : "border-border"}`}
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((prev) => !prev)}
-                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground"
-                  >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
                 </div>
                 {errors.password && <p className="text-xs text-destructive mt-1">{errors.password}</p>}
               </div>
@@ -430,22 +421,14 @@ export default function RegisterPage() {
                 <label className="block text-sm font-medium mb-2">Confirm Password</label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
-                  <input
-                    type={showConfirmPassword ? "text" : "password"}
+                  <PasswordInput
                     name="confirmPassword"
                     value={formData.confirmPassword}
                     onChange={handleChange}
                     placeholder="••••••••"
                     autoComplete="new-password"
-                    className={`w-full pl-10 pr-10 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${errors.confirmPassword ? "border-destructive" : "border-border"}`}
+                    className={`pl-10 ${errors.confirmPassword ? "border-destructive" : "border-border"}`}
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword((prev) => !prev)}
-                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground"
-                  >
-                    {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
                 </div>
                 {errors.confirmPassword && <p className="text-xs text-destructive mt-1">{errors.confirmPassword}</p>}
               </div>

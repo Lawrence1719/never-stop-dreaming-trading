@@ -6,6 +6,7 @@ import { CustomerRowActions } from '@/components/admin/customers/CustomerRowActi
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -974,8 +975,7 @@ export default function CustomersPage() {
                 </div>
                 <div>
                   <label className="text-sm font-medium mb-1 block">Password</label>
-                  <Input
-                    type="password"
+                  <PasswordInput
                     placeholder="Minimum 6 characters"
                     value={newCustomer.password}
                     onChange={(e) => handleNewCustomerChange('password', e.target.value)}

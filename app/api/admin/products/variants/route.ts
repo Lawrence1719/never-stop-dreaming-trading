@@ -146,12 +146,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Trigger low stock notification check for the new variant
-    if (data?.id) {
-      notifyIfVariantLowStock(data.id).catch(err => 
-        console.error(`[VariantAPI] Failed to trigger stock check for new variant ${data.id}:`, err)
-      );
-    }
+    // No stock check on creation - only on updates or orders
 
     return NextResponse.json({ data }, { status: 201 });
   } catch (error) {

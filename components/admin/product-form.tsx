@@ -6,9 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { AlertCircle, CheckCircle2, Loader2, Upload, X, Image as ImageIcon } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2, Upload, X, Image as ImageIcon, ArrowRight, Info, RefreshCw } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 
 /**
  * Product Form Data Type
@@ -28,15 +30,21 @@ export interface ProductFormData {
   }[];
   category: string;
   is_active: boolean;
+  // Added fields for quick setup
+  price: number;
+  stock: number;
+  sku: string;
 }
 
 interface ProductFormProps {
-  initialData?: Partial<ProductFormData> & { product_images?: any[] };
+  initialData?: Partial<ProductFormData> & { id?: string; product_images?: any[] };
   onSubmit: (data: ProductFormData) => Promise<void>;
   onCancel?: () => void;
   showCancel?: boolean;
   submitText?: string;
   isLoading?: boolean;
+  variantCount?: number;
+  onSwitchToVariants?: () => void;
 }
 
 export function ProductForm({
@@ -46,6 +54,8 @@ export function ProductForm({
   showCancel = true,
   submitText = "Save Product",
   isLoading = false,
+  variantCount = 0,
+  onSwitchToVariants,
 }: ProductFormProps) {
   // Use the category directly
   const initialCategory = initialData?.category || "";
@@ -61,6 +71,9 @@ export function ProductForm({
     })),
     category: initialData?.category || "",
     is_active: initialData?.is_active ?? true,
+    price: initialData?.price ?? 0,
+    stock: initialData?.stock ?? 0,
+    sku: initialData?.sku || "",
   });
 
   // Categories from DB
@@ -75,6 +88,11 @@ export function ProductForm({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // SKU Generation State
+  const [skuMode, setSkuMode] = useState<'auto' | 'manual'>(initialData?.sku ? 'manual' : 'auto');
+  const [isGeneratingSku, setIsGeneratingSku] = useState(false);
+  const [skuError, setSkuError] = useState<string | null>(null);
 
   // Validation errors
   const [errors, setErrors] = useState<Partial<Record<keyof ProductFormData | "mainCategory" | "imageFile", string>>>({});
@@ -129,6 +147,58 @@ export function ProductForm({
     }
   }, [mainCategory]);
 
+  // SKU Generation Utilities
+  const getCategoryCode = (catName: string) => {
+    const mapping: Record<string, string> = {
+      'Food & Pantry': 'FP',
+      'Household Essentials': 'HE',
+      'Beverages': 'BV',
+      'Personal Care': 'PC',
+      'Fresh Produce': 'FR',
+      'Dairy': 'DY',
+      'Snacks': 'SN'
+    };
+    return mapping[catName] || catName.substring(0, 2).toUpperCase();
+  };
+
+  const getAbbreviation = (name: string) => {
+    const skipWords = ['the', 'a', 'an', 'of', 'and'];
+    const words = name.toLowerCase().split(/\s+/).filter(w => !skipWords.includes(w) && w.length > 0);
+    let abbr = '';
+    for (const word of words) {
+      abbr += word.substring(0, Math.min(3, 6 - abbr.length));
+      if (abbr.length >= 6) break;
+    }
+    return abbr.toUpperCase();
+  };
+
+  // Debounced SKU Generation
+  useEffect(() => {
+    if (skuMode === 'manual' || !formData.name || !mainCategory) return;
+
+    const timer = setTimeout(async () => {
+      setIsGeneratingSku(true);
+      try {
+        const catCode = getCategoryCode(mainCategory);
+        const nameAbbr = getAbbreviation(formData.name);
+        const prefix = `${catCode}-${nameAbbr}`;
+        
+        const res = await fetch(`/api/admin/products/next-sku?prefix=${prefix}`);
+        const result = await res.json();
+        if (res.ok) {
+          setFormData(prev => ({ ...prev, sku: `${prefix}-${result.data.sequence}` }));
+          setSkuError(null);
+        }
+      } catch (err) {
+        console.error('Failed to auto-generate SKU:', err);
+      } finally {
+        setIsGeneratingSku(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [formData.name, mainCategory, skuMode]);
+
   // Handle main category change
   const handleMainCategoryChange = (value: string) => {
     setMainCategory(value);
@@ -142,8 +212,13 @@ export function ProductForm({
     
     setFormData((prev) => ({
       ...prev,
-      [name]: type === "number" ? parseFloat(value) || 0 : value,
+      [name]: type === "number" ? parseFloat(value) || 0 : (name === 'sku' ? value.toUpperCase() : value),
     }));
+
+    // Handle manual SKU edit
+    if (name === 'sku' && skuMode === 'auto') {
+      setSkuMode('manual');
+    }
 
     // Clear error for this field
     if (errors[name as keyof typeof errors]) {
@@ -153,6 +228,8 @@ export function ProductForm({
         return newErrors;
       });
     }
+    
+    if (name === 'sku') setSkuError(null);
   };
 
   // Handle checkbox change
@@ -367,6 +444,18 @@ export function ProductForm({
       return;
     }
 
+    // Uniqueness check for SKU
+    try {
+      const res = await fetch(`/api/admin/variants/check-sku?sku=${formData.sku}&productId=${initialData?.id || ''}`);
+      const result = await res.json();
+      if (!res.ok || result.exists) {
+        setSkuError("This SKU already exists. Please use a unique identifier.");
+        return;
+      }
+    } catch (err) {
+      console.error("SKU uniqueness check failed:", err);
+    }
+
     try {
       // 1. Upload images if needed
       const finalImages = await uploadImagesToSupabase();
@@ -388,6 +477,8 @@ export function ProductForm({
       throw err;
     }
   };
+  
+  const isSimpleProduct = variantCount <= 1;
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col h-full overflow-hidden">
@@ -396,7 +487,13 @@ export function ProductForm({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
           {/* Left Column: Basic Details */}
           <div className="space-y-6">
-            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Basic Information</h3>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Product Information</h3>
+              <div className="flex items-center gap-2 px-2 py-1 bg-primary/10 rounded-full border border-primary/20">
+                <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                <span className="text-[10px] font-bold text-primary uppercase">{isSimpleProduct ? 'Simple Product' : 'Variable Product'}</span>
+              </div>
+            </div>
             
             {/* Product Name */}
             <div className="space-y-2">
@@ -430,8 +527,8 @@ export function ProductForm({
                 value={formData.description}
                 onChange={handleInputChange}
                 placeholder="Describe your product in detail..."
-                rows={3}
-                className={`min-h-[100px] resize-none ${errors.description ? "border-destructive focus-visible:ring-destructive" : "focus-visible:ring-primary"}`}
+                rows={5}
+                className={`min-h-[160px] resize-none ${errors.description ? "border-destructive focus-visible:ring-destructive" : "focus-visible:ring-primary"}`}
               />
               {errors.description && (
                 <p className="text-sm text-destructive flex items-center gap-1">
@@ -478,177 +575,307 @@ export function ProductForm({
             </div>
 
             {/* Active Status */}
-            <div className="flex items-center space-x-3 p-4 border border-border rounded-lg bg-muted/10">
+            <div className="flex items-center space-x-3 p-4 border border-border rounded-lg bg-muted/10 shadow-sm transition-all hover:bg-muted/20">
               <input
                 type="checkbox"
                 id="is_active"
                 name="is_active"
                 checked={formData.is_active}
                 onChange={handleCheckboxChange}
-                className="w-5 h-5 rounded border-border text-primary focus:ring-2 focus:ring-primary shadow-sm"
+                className="w-5 h-5 rounded border-border text-primary focus:ring-2 focus:ring-primary shadow-sm cursor-pointer"
               />
-              <Label htmlFor="is_active" className="text-sm font-medium cursor-pointer">
+              <Label htmlFor="is_active" className="text-sm font-medium cursor-pointer flex-1">
                 Product is active and visible to customers
               </Label>
             </div>
           </div>
 
-          {/* Right Column: Media & Gallery */}
-          <div className="space-y-6">
-            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Product Gallery</h3>
-            
-            {/* Image Upload Gallery */}
+          {/* Right Column: Media, Inventory & Pricing */}
+          <div className="space-y-8">
             <div className="space-y-4">
-              <Label className="text-sm font-medium text-muted-foreground">
-                Manage Images ({formData.product_images.length}/10)
-              </Label>
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Product Gallery</h3>
               
-              {/* Gallery Grid */}
-              {formData.product_images.length > 0 && (
-                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                  {formData.product_images.map((img, index) => {
-                    const imageUrl = img.preview || (img.storage_path ? (
-                      img.storage_path.startsWith('http') 
-                        ? img.storage_path 
-                        : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-images/${img.storage_path}`
-                    ) : "/placeholder-image.jpg");
+              {/* Image Upload Gallery */}
+              <div className="space-y-4">
+                <Label className="text-sm font-medium text-muted-foreground">
+                  Manage Images ({formData.product_images.length}/10)
+                </Label>
+                
+                {/* Gallery Grid */}
+                {formData.product_images.length > 0 && (
+                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                    {formData.product_images.map((img, index) => {
+                      const imageUrl = img.preview || (img.storage_path ? (
+                        img.storage_path.startsWith('http') 
+                          ? img.storage_path 
+                          : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-images/${img.storage_path}`
+                      ) : "/placeholder-image.jpg");
 
-                    return (
-                      <div 
-                        key={index} 
-                        className={`relative group aspect-square border-2 rounded-xl overflow-hidden bg-muted/30 transition-all ${
-                          img.is_primary ? "border-primary shadow-md" : "border-border"
-                        }`}
-                      >
-                        <img
-                          src={imageUrl}
-                          alt={`Product ${index + 1}`}
-                          className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                        />
-                        
-                        {/* Actions Overlay */}
-                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 px-3">
-                          {!img.is_primary && (
+                      return (
+                        <div 
+                          key={index} 
+                          className={`relative group aspect-square border-2 rounded-xl overflow-hidden bg-muted/30 transition-all ${
+                            img.is_primary ? "border-primary shadow-md" : "border-border"
+                          }`}
+                        >
+                          <img
+                            src={imageUrl}
+                            alt={`Product ${index + 1}`}
+                            className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                          />
+                          
+                          {/* Actions Overlay */}
+                          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 px-3">
+                            {!img.is_primary && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="secondary"
+                                className="w-full text-[10px] h-8 font-bold"
+                                onClick={() => setPrimaryImage(index)}
+                              >
+                                SET PRIMARY
+                              </Button>
+                            )}
                             <Button
                               type="button"
                               size="sm"
-                              variant="secondary"
+                              variant="destructive"
                               className="w-full text-[10px] h-8 font-bold"
-                              onClick={() => setPrimaryImage(index)}
+                              onClick={() => removeImage(index)}
                             >
-                              SET PRIMARY
+                              REMOVE
                             </Button>
-                          )}
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="destructive"
-                            className="w-full text-[10px] h-8 font-bold"
-                            onClick={() => removeImage(index)}
-                          >
-                            REMOVE
-                          </Button>
-                        </div>
-
-                        {/* Badges */}
-                        {img.is_primary && (
-                          <div className="absolute top-2 left-2 bg-primary text-primary-foreground text-[9px] px-2 py-0.5 rounded-full font-black shadow-lg">
-                            PRIMARY
                           </div>
+
+                          {/* Badges */}
+                          {img.is_primary && (
+                            <div className="absolute top-2 left-2 bg-primary text-primary-foreground text-[9px] px-2 py-0.5 rounded-full font-black shadow-lg">
+                              PRIMARY
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    
+                    {/* Add More Button */}
+                    {formData.product_images.length < 10 && (
+                      <label
+                        htmlFor="image-upload-more"
+                        className="flex flex-col items-center justify-center aspect-square border-2 border-dashed border-border rounded-xl hover:border-primary/50 hover:bg-primary/5 cursor-pointer transition-all bg-muted/10 group"
+                      >
+                        <div className="p-2 rounded-full bg-muted border border-border group-hover:border-primary/30 group-hover:scale-110 transition-all">
+                          <Upload className="w-5 h-5 text-muted-foreground" />
+                        </div>
+                        <span className="text-[10px] mt-2 font-bold text-muted-foreground uppercase">Add Photo</span>
+                        <input
+                          id="image-upload-more"
+                          type="file"
+                          multiple
+                          accept="image/jpeg,image/png,image/webp"
+                          onChange={handleFileInputChange}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+                  </div>
+                )}
+
+                {/* Initial Upload Zone if empty */}
+                {formData.product_images.length === 0 && (
+                  <div className="space-y-0">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={handleFileInputChange}
+                      className="hidden"
+                      id="image-upload"
+                    />
+                    <label
+                      htmlFor="image-upload"
+                      onDragEnter={handleDrag}
+                      onDragLeave={handleDrag}
+                      onDragOver={handleDrag}
+                      onDrop={handleDrop}
+                      className={`block border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer ${
+                        dragActive 
+                          ? 'border-primary bg-primary/5' 
+                          : 'border-border hover:border-primary/40 hover:bg-muted/30'
+                      } ${errors.imageFile ? 'border-destructive' : ''}`}
+                    >
+                      <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-4 mx-auto border border-primary/20">
+                        {isUploadingImage ? (
+                          <Loader2 className="w-7 h-7 text-primary animate-spin" />
+                        ) : (
+                          <ImageIcon className="w-7 h-7 text-primary" />
                         )}
                       </div>
-                    );
-                  })}
-                  
-                  {/* Add More Button */}
-                  {formData.product_images.length < 10 && (
-                    <label
-                      htmlFor="image-upload-more"
-                      className="flex flex-col items-center justify-center aspect-square border-2 border-dashed border-border rounded-xl hover:border-primary/50 hover:bg-primary/5 cursor-pointer transition-all bg-muted/10 group"
-                    >
-                      <div className="p-2 rounded-full bg-muted border border-border group-hover:border-primary/30 group-hover:scale-110 transition-all">
-                        <Upload className="w-5 h-5 text-muted-foreground" />
-                      </div>
-                      <span className="text-[10px] mt-2 font-bold text-muted-foreground uppercase">Add Photo</span>
-                      <input
-                        id="image-upload-more"
-                        type="file"
-                        multiple
-                        accept="image/jpeg,image/png,image/webp"
-                        onChange={handleFileInputChange}
-                        className="hidden"
-                      />
+                      <p className="text-sm font-semibold">Drop your images here</p>
+                      <p className="text-xs text-muted-foreground mt-2 px-4">
+                        Upload up to 10 photos of your product.
+                      </p>
                     </label>
-                  )}
-                </div>
-              )}
+                  </div>
+                )}
 
-              {/* Initial Upload Zone if empty */}
-              {formData.product_images.length === 0 && (
-                <div className="space-y-0">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    accept="image/jpeg,image/png,image/webp"
-                    onChange={handleFileInputChange}
-                    className="hidden"
-                    id="image-upload"
-                  />
-                  <label
-                    htmlFor="image-upload"
-                    onDragEnter={handleDrag}
-                    onDragLeave={handleDrag}
-                    onDragOver={handleDrag}
-                    onDrop={handleDrop}
-                    className={`block border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer ${
-                      dragActive 
-                        ? 'border-primary bg-primary/5' 
-                        : 'border-border hover:border-primary/40 hover:bg-muted/30'
-                    } ${errors.imageFile ? 'border-destructive' : ''}`}
-                  >
-                    <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-4 mx-auto border border-primary/20">
-                      {isUploadingImage ? (
-                        <Loader2 className="w-7 h-7 text-primary animate-spin" />
-                      ) : (
-                        <ImageIcon className="w-7 h-7 text-primary" />
-                      )}
+                {errors.imageFile && (
+                  <p className="text-sm text-destructive flex items-center gap-1">
+                    <AlertCircle className="w-4 h-4" />
+                    {errors.imageFile}
+                  </p>
+                )}
+
+                {isUploadingImage && uploadProgress > 0 && (
+                  <div className="space-y-2 p-3 bg-muted/50 rounded-lg border border-border">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-[10px] font-bold uppercase text-muted-foreground">Uploading...</span>
+                      <span className="text-[10px] font-bold text-primary">{uploadProgress}%</span>
                     </div>
-                    <p className="text-sm font-semibold">Drop your images here</p>
-                    <p className="text-xs text-muted-foreground mt-2 px-4">
-                      Upload up to 10 photos of your product.
+                    <div className="w-full bg-background rounded-full h-1.5 overflow-hidden border border-border">
+                      <div 
+                        className="bg-primary h-full transition-all duration-300"
+                        style={{ width: `${uploadProgress}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-2 p-3 bg-blue-500/5 border border-blue-500/10 rounded-lg">
+                   <AlertCircle className="w-4 h-4 text-blue-500 shrink-0" />
+                   <p className="text-[11px] text-blue-500 leading-tight">
+                     First image will be used as the primary thumbnail across the store. Ensure high quality.
+                   </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Inventory & Pricing (Smart Section) */}
+            <div className="space-y-6 pt-6 border-t border-border">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Inventory & Pricing</h3>
+                
+                {!isSimpleProduct && (
+                  <Button 
+                    type="button" 
+                    variant="link" 
+                    size="sm" 
+                    className="h-auto p-0 text-primary font-bold text-xs gap-1 group"
+                    onClick={onSwitchToVariants}
+                  >
+                    View All Variants
+                    <ArrowRight className="w-3 h-3 transition-transform group-hover:translate-x-0.5" />
+                  </Button>
+                )}
+              </div>
+              
+              {isSimpleProduct ? (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Price */}
+                    <div className="space-y-2">
+                      <Label htmlFor="price" className="text-sm font-medium">Price (₱)</Label>
+                      <Input
+                        id="price"
+                        name="price"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={formData.price}
+                        onChange={handleInputChange}
+                        placeholder="0.00"
+                        className="bg-background focus-visible:ring-primary h-11"
+                      />
+                    </div>
+
+                    {/* Stock */}
+                    <div className="space-y-2">
+                      <Label htmlFor="stock" className="text-sm font-medium">Initial Stock</Label>
+                      <Input
+                        id="stock"
+                        name="stock"
+                        type="number"
+                        min="0"
+                        value={formData.stock}
+                        onChange={handleInputChange}
+                        placeholder="0"
+                        className="bg-background focus-visible:ring-primary h-11"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="p-3 bg-muted/30 border border-border rounded-lg">
+                    <p className="text-[11px] text-muted-foreground leading-relaxed italic">
+                      For simple products. Add variants in the <strong>Product Variants</strong> tab for multiple sizes or options.
                     </p>
-                  </label>
-                </div>
-              )}
-
-              {errors.imageFile && (
-                <p className="text-sm text-destructive flex items-center gap-1">
-                  <AlertCircle className="w-4 h-4" />
-                  {errors.imageFile}
-                </p>
-              )}
-
-              {isUploadingImage && uploadProgress > 0 && (
-                <div className="space-y-2 p-3 bg-muted/50 rounded-lg border border-border">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-[10px] font-bold uppercase text-muted-foreground">Uploading...</span>
-                    <span className="text-[10px] font-bold text-primary">{uploadProgress}%</span>
                   </div>
-                  <div className="w-full bg-background rounded-full h-1.5 overflow-hidden border border-border">
-                    <div 
-                      className="bg-primary h-full transition-all duration-300"
-                      style={{ width: `${uploadProgress}%` }}
-                    />
-                  </div>
-                </div>
+                </>
+              ) : (
+                <Alert className="bg-primary/5 border-primary/20">
+                  <Info className="h-4 w-4 text-primary" />
+                  <AlertTitle className="text-xs font-bold text-primary uppercase">Variable Product Mode</AlertTitle>
+                  <AlertDescription className="text-[11px] text-muted-foreground mt-1">
+                    Pricing and stock are managed per variant. Go to the <strong>Product Variants</strong> tab to update them.
+                  </AlertDescription>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm" 
+                    className="mt-3 w-full border-primary/30 hover:bg-primary/10 hover:text-primary h-8 font-bold text-[10px] uppercase tracking-wider"
+                    onClick={onSwitchToVariants}
+                  >
+                    Manage Variants
+                  </Button>
+                </Alert>
               )}
 
-              <div className="flex gap-2 p-3 bg-blue-500/5 border border-blue-500/10 rounded-lg mt-4">
-                 <AlertCircle className="w-4 h-4 text-blue-500 shrink-0" />
-                 <p className="text-[11px] text-blue-500 leading-tight">
-                   First image will be used as the primary thumbnail across the store. Ensure high quality.
-                 </p>
+              {/* SKU Section */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="sku" className="text-sm font-medium">SKU (Stock Keeping Unit)</Label>
+                  <div className="flex items-center gap-2">
+                    {isGeneratingSku ? (
+                      <span className="text-[10px] text-muted-foreground animate-pulse">Generating...</span>
+                    ) : (
+                      <Badge variant={skuMode === 'auto' ? "secondary" : "outline"} className={`text-[9px] uppercase h-4 px-1.5 ${skuMode === 'manual' ? 'text-cyan-500 border-cyan-500/30 font-bold' : 'text-muted-foreground'}`}>
+                        {skuMode === 'auto' ? 'Auto-generated' : 'Custom'}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+
+                <div className="relative group">
+                  <Input
+                    id="sku"
+                    name="sku"
+                    value={formData.sku}
+                    onChange={handleInputChange}
+                    placeholder="e.g., FP-JASRICE-001"
+                    className={`bg-background focus-visible:ring-primary h-11 pr-10 uppercase transition-all ${skuError ? 'border-destructive focus-visible:ring-destructive text-destructive' : ''}`}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-1 top-1 h-9 w-9 text-muted-foreground hover:text-primary transition-colors"
+                    onClick={() => setSkuMode('auto')}
+                    title="Regenerate SKU"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${isGeneratingSku ? 'animate-spin' : ''}`} />
+                  </Button>
+                </div>
+                
+                {skuError ? (
+                  <p className="text-[11px] text-destructive flex items-center gap-1 font-medium bg-destructive/5 p-1.5 rounded border border-destructive/10">
+                    <AlertCircle className="w-3 h-3" />
+                    {skuError}
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-muted-foreground">
+                    Auto-generated from product name and category. You can edit this manually.
+                  </p>
+                )}
               </div>
             </div>
           </div>

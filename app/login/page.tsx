@@ -11,6 +11,7 @@ import { useCart } from "@/lib/context/cart-context";
 import { useToast } from "@/hooks/use-toast";
 import { validateEmail, validatePassword } from "@/lib/utils/validation";
 import { Mail, Lock } from 'lucide-react';
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTheme } from "next-themes";
@@ -302,8 +303,7 @@ function LoginPageContent() {
                   <label className="block text-sm font-medium mb-2">Password</label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-3 w-5 h-5 text-muted-foreground" />
-                    <input
-                      type="password"
+                    <PasswordInput
                       value={password}
                       onChange={(e) => {
                         setPassword(e.target.value);
@@ -311,8 +311,7 @@ function LoginPageContent() {
                         if (errors.form) setErrors((prev) => ({ ...prev, form: "" }));
                       }}
                       placeholder="••••••••"
-                      className={`w-full pl-10 pr-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${errors.password ? "border-destructive" : "border-border"
-                        }`}
+                      className={`pl-10 ${errors.password ? "border-destructive" : "border-border"}`}
                       autoComplete="current-password"
                     />
                   </div>

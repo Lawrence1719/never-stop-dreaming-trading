@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,6 +44,8 @@ interface ManageVariantsPageProps {
 
 export function ManageVariantsPage({ productId, isTab = false }: ManageVariantsPageProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const highlightedVariantId = searchParams.get('variantId');
   const { toast } = useToast();
   const [product, setProduct] = useState<Product | null>(null);
   const [variants, setVariants] = useState<ProductVariant[]>([]);
@@ -360,9 +362,14 @@ export function ManageVariantsPage({ productId, isTab = false }: ManageVariantsP
               const isOutOfStock = variant.stock === 0;
 
               return (
-                <div 
+                 <div 
                   key={variant.id}
-                  className="group relative flex flex-col md:flex-row md:items-center justify-between p-4 bg-card border border-border/50 rounded-xl shadow-sm hover:border-primary/40 hover:shadow-md transition-all duration-200"
+                  id={`variant-${variant.id}`}
+                  className={`group relative flex flex-col md:flex-row md:items-center justify-between p-4 bg-card border rounded-xl shadow-sm transition-all duration-500 ${
+                    highlightedVariantId === variant.id 
+                      ? "border-primary ring-2 ring-primary/20 bg-primary/5 scale-[1.01] z-10" 
+                      : "border-border/50 hover:border-primary/40 hover:shadow-md"
+                  }`}
                 >
                   <div className="flex flex-1 items-start gap-4">
                     <div className="hidden sm:flex items-center justify-center w-10 h-10 rounded-lg bg-muted border border-border/30 text-muted-foreground font-black uppercase text-xs">

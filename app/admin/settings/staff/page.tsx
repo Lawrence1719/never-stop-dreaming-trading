@@ -25,6 +25,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   DropdownMenu,
@@ -587,9 +588,8 @@ export default function StaffManagementPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="staff-password">Password</Label>
-              <Input
+              <PasswordInput
                 id="staff-password"
-                type="password"
                 value={addForm.password}
                 onChange={(event) => setAddForm((prev) => ({ ...prev, password: event.target.value }))}
               />
@@ -792,9 +792,8 @@ export default function StaffManagementPage() {
           {pendingRole === 'super_admin' && (
             <div className="space-y-2">
               <Label htmlFor="confirm-password">Confirm with your password</Label>
-              <Input
+              <PasswordInput
                 id="confirm-password"
-                type="password"
                 value={passwordConfirm}
                 onChange={(event) => setPasswordConfirm(event.target.value)}
                 placeholder="Enter your current password"

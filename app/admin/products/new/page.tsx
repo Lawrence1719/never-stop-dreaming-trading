@@ -123,18 +123,20 @@ export default function CreateProductPage() {
           <CardDescription>Follow these steps to complete your product setup.</CardDescription>
         </CardHeader>
         <CardContent>
-          <ol className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-            <li className="flex gap-3 items-center p-3 bg-background rounded-md border border-border">
+          <ol className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <li className="flex gap-3 items-center p-3 bg-background rounded-md border border-primary/20 shadow-sm">
               <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-xs">1</span>
-              <span>General Info & Gallery</span>
+              <div>
+                <p className="font-semibold">General Info, Gallery & Pricing</p>
+                <p className="text-[10px] text-muted-foreground italic">Set up everything for simple products in one go.</p>
+              </div>
             </li>
-            <li className="flex gap-3 items-center p-3 bg-muted/50 rounded-md border border-dashed border-border text-muted-foreground">
+            <li className="flex gap-3 items-center p-3 bg-muted/30 rounded-md border border-dashed border-border text-muted-foreground">
               <span className="flex-shrink-0 w-6 h-6 rounded-full bg-muted text-muted-foreground flex items-center justify-center font-bold text-xs">2</span>
-              <span>Variants & Pricing</span>
-            </li>
-            <li className="flex gap-3 items-center p-3 bg-muted/50 rounded-md border border-dashed border-border text-muted-foreground">
-              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-muted text-muted-foreground flex items-center justify-center font-bold text-xs">3</span>
-              <span>Inventory & SKU</span>
+              <div>
+                <p className="font-semibold">Advanced Variants (Optional)</p>
+                <p className="text-[10px] text-muted-foreground italic">Add sizes, colors, or options later if needed.</p>
+              </div>
             </li>
           </ol>
         </CardContent>

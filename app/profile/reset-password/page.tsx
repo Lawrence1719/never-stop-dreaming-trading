@@ -4,9 +4,9 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
-import { Lock, Eye, EyeOff, Loader2, CheckCircle2, AlertCircle, ChevronLeft } from 'lucide-react';
+import { Lock, Loader2, CheckCircle2, AlertCircle, ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 import { Label } from '@/components/ui/label';
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
@@ -22,7 +22,6 @@ function ResetPasswordForm() {
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState('');
@@ -154,9 +153,8 @@ function ResetPasswordForm() {
           <div className="space-y-2">
             <Label htmlFor="new-password font-semibold">New Password</Label>
             <div className="relative">
-              <Input
+              <PasswordInput
                 id="new-password"
-                type={showPassword ? "text" : "password"}
                 value={newPassword}
                 onChange={(e) => {
                   setNewPassword(e.target.value);
@@ -167,22 +165,14 @@ function ResetPasswordForm() {
                 className={`py-6 pl-10 ${error.includes('characters') ? 'border-destructive' : ''}`}
               />
               <Lock className="absolute left-3 top-4 w-4 h-4 text-muted-foreground" />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-4 text-muted-foreground hover:text-foreground"
-              >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
             </div>
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="confirm-password font-semibold">Confirm Password</Label>
             <div className="relative">
-              <Input
+              <PasswordInput
                 id="confirm-password"
-                type="password"
                 value={confirmPassword}
                 onChange={(e) => {
                   setConfirmPassword(e.target.value);

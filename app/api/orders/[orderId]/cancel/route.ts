@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getClient } from '@/lib/supabase/admin';
-import { createNotification, notifyAdminsOrderCancelled } from '@/lib/notifications/service';
+import { createNotification, notifyAdminsOrderCancelled, notifyIfVariantLowStock } from '@/lib/notifications/service';
 
 /**
  * POST /api/orders/[orderId]/cancel
@@ -98,6 +98,11 @@ export async function POST(
             .from('product_variants')
             .update({ stock: variant.stock + quantity })
             .eq('id', variantId);
+          
+          // Trigger low stock check to auto-clear alerts if restocked (Fix 2)
+          notifyIfVariantLowStock(variantId).catch(err => 
+            console.error(`[OrderCancel] Failed to trigger stock check for variant ${variantId}:`, err)
+          );
         }
       }
     }

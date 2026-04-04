@@ -139,6 +139,50 @@ export async function PUT(
       }
     }
 
+    // Handle variant pricing/inventory update if provided
+    if (body.sku || body.price !== undefined || body.stock !== undefined) {
+      try {
+        const { data: variants } = await supabaseAdmin
+          .from('product_variants')
+          .select('id')
+          .eq('product_id', id)
+          .order('created_at', { ascending: true })
+          .limit(1);
+
+        if (variants && variants.length > 0) {
+          // Update existing variant
+          const updateObj: any = { updated_at: new Date().toISOString() };
+          if (body.sku) updateObj.sku = body.sku;
+          if (body.price !== undefined) updateObj.price = Number(body.price);
+          if (body.stock !== undefined) updateObj.stock = Number(body.stock);
+
+          const { error: vError } = await supabaseAdmin
+            .from('product_variants')
+            .update(updateObj)
+            .eq('id', variants[0].id);
+          
+          if (vError) console.error('Failed to update variant from product form:', vError);
+        } else {
+          // Create new variant
+          const { error: vError } = await supabaseAdmin
+            .from('product_variants')
+            .insert([{
+              product_id: id,
+              variant_label: 'Standard',
+              sku: body.sku || `NSD-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
+              price: Number(body.price) || 0,
+              stock: Number(body.stock) || 0,
+              reorder_threshold: 10,
+              is_active: true,
+            }]);
+          
+          if (vError) console.error('Failed to create default variant from product form:', vError);
+        }
+      } catch (err) {
+        console.error('Variant sync error:', err);
+      }
+    }
+
     return NextResponse.json({ data: product });
   } catch (error) {
     console.error('Failed to update product', error);

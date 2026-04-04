@@ -198,16 +198,17 @@ export async function checkLowStockAndNotify(items: any[]) {
 
 /**
  * Checks a single variant's stock level and notifies admins if it's low or out of stock.
- * Prevents redundant unread notifications for the same variant to avoid spamming admins.
+ * Prevents redundant unread notifications for the same variant using the variant ID link.
+ * Also auto-clears relevant unread stock alerts when the item is restocked.
  */
 export async function notifyIfVariantLowStock(variantId: string) {
   console.log(`[NotificationService] Checking stock status for variant ${variantId}`);
   const supabase = getClient();
 
-  // Fetch variant details (including product name)
+  // Fetch variant details (including product name and SKU)
   const { data: variant, error: fetchError } = await supabase
     .from('product_variants')
-    .select('id, variant_label, stock, reorder_threshold, product_id, products(id, name)')
+    .select('id, variant_label, sku, stock, reorder_threshold, product_id, products(id, name)')
     .eq('id', variantId)
     .single();
 
@@ -217,35 +218,62 @@ export async function notifyIfVariantLowStock(variantId: string) {
   }
 
   const productName = (variant.products as any)?.name || 'Unknown Product';
-  const label = variant.variant_label ? ` (${variant.variant_label})` : '';
-  const threshold = variant.reorder_threshold ?? 5; // Use 5 as default if not specified
+  const label = variant.variant_label ? ` - Variant '${variant.variant_label}'` : '';
+  const sku = variant.sku ? ` (SKU: ${variant.sku})` : '';
+  const threshold = variant.reorder_threshold ?? 5; 
 
-  // Status-based notification title and type
   const isOutOfStock = variant.stock === 0;
-  const isLowStockStatus = variant.stock <= threshold;
+  const isLowStock = variant.stock > 0 && variant.stock <= threshold;
+  const isAboveThreshold = variant.stock > threshold;
 
-  // Only notify if stock is low or zero
-  if (isLowStockStatus) {
-    const type = 'stock'; // Use dedicated stock type for all inventory alerts
+  // AUTO-CLEAR LOGIC (Fix 2)
+  // If stock is > 0, clear "Out of Stock Alert"
+  if (!isOutOfStock) {
+    console.log(`[NotificationService] Stock is ${variant.stock}, auto-clearing unread 'Out of Stock' alerts for variant ${variantId}`);
+    await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('link', `/admin/products/variants/${variantId}`)
+      .eq('is_read', false)
+      .eq('title', 'Out of Stock Alert')
+      .eq('type', 'stock');
+  }
+
+  // If stock is above threshold, clear "Low Stock Alert"
+  if (isAboveThreshold) {
+    console.log(`[NotificationService] Stock is ${variant.stock} (above ${threshold}), auto-clearing unread 'Low Stock' alerts for variant ${variantId}`);
+    await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('link', `/admin/products/variants/${variantId}`)
+      .eq('is_read', false)
+      .eq('title', 'Low Stock Alert')
+      .eq('type', 'stock');
+    
+    // Nothing more to do if we're above threshold
+    return;
+  }
+
+  // NOTIFICATION LOGIC (Fix 4, 5)
+  if (isOutOfStock || isLowStock) {
+    const type = 'stock';
     const title = isOutOfStock ? 'Out of Stock Alert' : 'Low Stock Alert';
     const message = isOutOfStock 
-      ? `CRITICAL: Product "${productName}"${label} is completely out of stock!`
-      : `Product "${productName}"${label} is running low (${variant.stock} remaining).`;
+      ? `Out of Stock Alert: Product "${productName}"${label}${sku} is completely out of stock.`
+      : `Low Stock Alert: Product "${productName}"${label}${sku} is running low. ${variant.stock} remaining.`;
     
-    // We link directly to the product edit page's variant tab if possible,
-    // otherwise the general product edit page.
-    const link = `/admin/products/${variant.product_id}/edit`;
+    // We use a structured link for unique variant identification (Fix 1)
+    const link = `/admin/products/variants/${variantId}`;
 
-    // Check for existing UNREAD notification for this variant/product to prevent duplicate spam
-    // We check if any unread stock notification exists that mentions this specific product and variant
+    // Fix 1 & 4: Stronger De-duplication Guard (check link and title)
     const { data: existingNotifications } = await supabase
       .from('notifications')
       .select('id')
       .eq('target_role', 'admin')
       .eq('is_read', false)
       .eq('type', 'stock')
-      .like('message', `%${productName}%`)
-      .like('message', `%${variant.variant_label || ''}%`)
+      .eq('title', title)
+      .eq('link', link)
       .limit(1);
 
     if (!existingNotifications || existingNotifications.length === 0) {
@@ -269,7 +297,7 @@ export async function notifyIfVariantLowStock(variantId: string) {
         }
       }
     } else {
-      console.log(`[NotificationService] Unread alert exists for "${productName}${label}". Skipping duplicate.`);
+      console.log(`[NotificationService] Unread ${title} exists for variant ${variantId}. Skipping duplicate.`);
     }
   }
 }

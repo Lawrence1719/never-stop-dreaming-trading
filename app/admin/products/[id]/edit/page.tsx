@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { ArrowLeft, AlertCircle, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ProductForm, ProductFormData } from '@/components/admin/product-form';
@@ -20,10 +20,12 @@ export default function EditProductPage() {
   const { toast } = useToast();
   const productId = params.id as string;
 
+  const searchParams = useSearchParams();
   const [initialData, setInitialData] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'general');
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -159,6 +161,14 @@ export default function EditProductPage() {
     );
   }
 
+  // Merge first variant data into initialData for the form
+  const productWithVariantData = initialData ? {
+    ...initialData,
+    price: initialData.product_variants?.[0]?.price ?? 0,
+    stock: initialData.product_variants?.[0]?.stock ?? 0,
+    sku: initialData.product_variants?.[0]?.sku ?? "",
+  } : null;
+
   return (
     <div className="flex flex-col h-[calc(100vh-110px)] space-y-4">
       <div className="flex-none flex items-center justify-between">
@@ -177,7 +187,7 @@ export default function EditProductPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="general" className="flex-1 flex flex-col overflow-hidden min-h-0">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden min-h-0">
         <TabsList className="bg-muted/50 p-1 rounded-xl w-full max-w-md grid grid-cols-2">
           <TabsTrigger value="general" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
             General Info
@@ -194,11 +204,13 @@ export default function EditProductPage() {
             </CardHeader>
             <CardContent className="flex-1 overflow-hidden p-0">
               <ProductForm 
-                initialData={initialData} 
+                initialData={productWithVariantData} 
                 onSubmit={handleSubmit}
                 isLoading={isSaving}
                 onCancel={() => router.push('/admin/products')}
                 submitText="Update Product"
+                variantCount={initialData?.product_variants?.length || 0}
+                onSwitchToVariants={() => setActiveTab('variants')}
               />
             </CardContent>
           </Card>

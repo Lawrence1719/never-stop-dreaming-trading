@@ -204,6 +204,27 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Handle default variant creation if SKU/Price/Stock provided
+    if (body.sku || body.price !== undefined || body.stock !== undefined) {
+      const { error: variantError } = await supabaseAdmin
+        .from('product_variants')
+        .insert([
+          {
+            product_id: data.id,
+            variant_label: 'Standard', // Default label
+            sku: body.sku || `NSD-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
+            price: Number(body.price) || 0,
+            stock: Number(body.stock) || 0,
+            reorder_threshold: 10, // Default reorder threshold
+            is_active: true,
+          },
+        ]);
+
+      if (variantError) {
+        console.error('Failed to create default variant', variantError);
+      }
+    }
+
     // Trigger notification for admins
     try {
       const { notifyNewProduct } = await import('@/lib/notifications/service');
