@@ -51,8 +51,8 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '10');
     const offset = (page - 1) * limit;
 
-    const allowedRoles = ['customer', 'courier'] as const;
-    const normalizedRoleFilter = role === 'customer' || role === 'courier' ? role : 'all';
+    const allowedRoles = ['customer'] as const;
+    const normalizedRoleFilter = role === 'customer' ? role : 'all';
 
     let query = supabaseAdmin
       .from('profiles')
@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
       const email = emailsMap[p.id] || '';
       const isBlocked = blockedMap[p.id] || false;
       const stats = orderStats[p.id] || { count: 0, total: 0 };
-      const role = p.role === 'courier' ? 'courier' : 'customer';
+      const role = 'customer';
       const isSuperAdmin = !!(superAdminEmail && email === superAdminEmail);
 
       return {
@@ -207,7 +207,7 @@ export async function POST(request: NextRequest) {
       .join(' ');
 
     const normalizedEmail = email.trim().toLowerCase();
-    const normalizedRole = role === 'courier' ? 'courier' : 'customer';
+    const normalizedRole = 'customer';
 
     // Password validation (min 6 chars to match registration)
     if (password.length < 6) {

@@ -13,9 +13,11 @@ import {
   XCircle, 
   AlertCircle,
   Loader2,
+  Shield,
   ChevronLeft,
   ChevronRight
 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate } from "@/lib/utils/formatting";
 import { 
   Card, 
@@ -208,22 +210,22 @@ export default function AdminReviewsPage() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Reviews & Ratings</h1>
-          <p className="text-muted-foreground">Manage customer feedback and moderation.</p>
+          <p className="text-muted-foreground mt-1">Manage customer feedback and moderation.</p>
         </div>
       </div>
 
       <Tabs defaultValue="approved" onValueChange={(val) => setStatus(val as any)}>
-        <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
+        <TabsList className="grid w-full grid-cols-2 max-w-lg">
           <TabsTrigger value="approved">Approved</TabsTrigger>
           <TabsTrigger value="rejected">Rejected</TabsTrigger>
         </TabsList>
 
-        <div className="mt-6 flex flex-col md:flex-row gap-4">
-          <div className="flex-1 flex gap-4">
+        <div className="mt-6 flex flex-wrap gap-4 items-center">
+          <div className="flex gap-4">
             <Select value={ratingFilter} onValueChange={setRatingFilter}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Filter by Rating" />
@@ -244,7 +246,7 @@ export default function AdminReviewsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Products</SelectItem>
-                {products.map(p => (
+                {products.map((p) => (
                   <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                 ))}
               </SelectContent>
@@ -254,9 +256,35 @@ export default function AdminReviewsPage() {
 
         <TabsContent value={status} className="mt-6">
           {loading ? (
-            <div className="flex flex-col items-center justify-center py-20 space-y-4">
-              <Loader2 className="w-10 h-10 animate-spin text-primary" />
-              <p className="text-muted-foreground">Loading reviews...</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                <Card key={i} className="flex flex-col h-[300px]">
+                  <CardHeader className="pb-4">
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex gap-1">
+                        {[1, 2, 3, 4, 5].map((s) => (
+                           <Skeleton key={s} className="h-4 w-4 rounded-full" />
+                        ))}
+                      </div>
+                      <Skeleton className="h-5 w-16" />
+                    </div>
+                    <Skeleton className="h-5 w-3/4 mb-1" />
+                    <Skeleton className="h-4 w-1/2" />
+                  </CardHeader>
+                  <CardContent className="flex-1 pb-4">
+                    <Skeleton className="h-4 w-full mb-2" />
+                    <Skeleton className="h-4 w-full mb-2" />
+                    <Skeleton className="h-4 w-2/3" />
+                  </CardContent>
+                  <CardFooter className="pt-4 border-t bg-muted/30 flex justify-between items-center">
+                    <Skeleton className="h-3 w-20" />
+                    <div className="flex gap-2">
+                       <Skeleton className="h-8 w-16" />
+                       <Skeleton className="h-8 w-16" />
+                    </div>
+                  </CardFooter>
+                </Card>
+              ))}
             </div>
           ) : reviews.length === 0 ? (
             <Card className="flex flex-col items-center justify-center py-20 text-center border-dashed">
@@ -265,7 +293,7 @@ export default function AdminReviewsPage() {
               <CardDescription>Try adjusting your filters or switching tabs.</CardDescription>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {reviews.map((review) => (
                 <Card key={review.id} className="flex flex-col overflow-hidden hover:shadow-lg transition-shadow">
                   <CardHeader className="pb-4">
@@ -375,7 +403,7 @@ export default function AdminReviewsPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setReplyReview(null)}>Cancel</Button>
             <Button onClick={handleReply} disabled={isReplying}>
-              {isReplying && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {isReplying && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Save Reply
             </Button>
           </DialogFooter>
@@ -394,7 +422,7 @@ export default function AdminReviewsPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteReview(null)}>Cancel</Button>
             <Button variant="destructive" onClick={handleDelete} disabled={isDeleting}>
-              {isDeleting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {isDeleting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Delete Permanently
             </Button>
           </DialogFooter>
@@ -417,7 +445,7 @@ export default function AdminReviewsPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setOverrideReview(null)}>Cancel</Button>
             <Button onClick={handleOverride} disabled={isOverriding}>
-              {isOverriding && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {isOverriding && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Confirm Override
             </Button>
           </DialogFooter>

@@ -56,7 +56,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Toaster } from '@/components/ui/toaster';
 
-type StaffRole = 'admin' | 'super_admin';
+type StaffRole = 'admin' | 'super_admin' | 'courier';
 type StaffStatus = 'active' | 'inactive';
 
 interface StaffMember {
@@ -97,7 +97,9 @@ const getInitials = (name: string) => {
 };
 
 const getAvatarColor = (role: StaffRole) => {
-  return role === 'super_admin' ? 'bg-purple-500' : 'bg-blue-500';
+  if (role === 'super_admin') return 'bg-purple-500';
+  if (role === 'courier') return 'bg-cyan-500';
+  return 'bg-blue-500';
 };
 
 const formatLastLogin = (lastLogin?: string) => {
@@ -208,15 +210,25 @@ export default function StaffManagementPage() {
       year: 'numeric',
     }).format(new Date(value));
 
-  const getRoleBadge = (role: StaffRole) =>
-    role === 'super_admin' ? (
-      <Badge className="bg-amber-600 hover:bg-amber-700 text-white flex items-center gap-1">
-        <Star className="w-3 h-3 fill-white" />
-        Super Admin
-      </Badge>
-    ) : (
-      <Badge variant="secondary">Admin</Badge>
-    );
+  const getRoleBadge = (role: StaffRole) => {
+    if (role === 'super_admin') {
+      return (
+        <Badge className="bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-1">
+          <Star className="w-3 h-3 fill-white" />
+          Super Admin
+        </Badge>
+      );
+    }
+    if (role === 'courier') {
+      return (
+        <Badge className="bg-cyan-600 hover:bg-cyan-700 text-white flex items-center gap-1">
+          <Shield className="w-3 h-3 fill-white" />
+          Courier
+        </Badge>
+      );
+    }
+    return <Badge variant="secondary">Admin</Badge>;
+  };
 
   const getStatusBadge = (status: StaffStatus) =>
     status === 'active' ? <Badge variant="success">active</Badge> : <Badge variant="destructive">inactive</Badge>;
@@ -386,7 +398,7 @@ export default function StaffManagementPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Staff Management</h1>
-          <p className="text-muted-foreground mt-1">Manage admin accounts and their permissions</p>
+          <p className="text-muted-foreground mt-1">Manage admin and courier accounts and their permissions</p>
         </div>
         <Button onClick={() => setAddDialogOpen(true)}>
           <Plus className="h-4 w-4" />
@@ -397,7 +409,7 @@ export default function StaffManagementPage() {
       <Card>
         <CardHeader>
           <CardTitle>Staff Directory</CardTitle>
-          <CardDescription>Review admin and super admin accounts</CardDescription>
+          <CardDescription>Review admin, super admin, and courier accounts</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="relative max-w-md">
@@ -566,7 +578,7 @@ export default function StaffManagementPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add Staff</DialogTitle>
-            <DialogDescription>Create a new admin or super admin account.</DialogDescription>
+            <DialogDescription>Create a new admin, super admin, or courier account.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -618,6 +630,7 @@ export default function StaffManagementPage() {
                 <SelectContent>
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="super_admin">Super Admin</SelectItem>
+                  <SelectItem value="courier">Courier</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -26,6 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -273,7 +274,7 @@ export default function TestimonialsPage() {
             <CardTitle className="text-sm font-medium">Total Testimonials</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.total}</div>
+            {isLoading ? <Skeleton className="h-8 w-20" /> : <div className="text-2xl font-bold">{stats.total}</div>}
           </CardContent>
         </Card>
 
@@ -282,10 +283,19 @@ export default function TestimonialsPage() {
             <CardTitle className="text-sm font-medium">Published</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.published}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {stats.total > 0 ? Math.round((stats.published / stats.total) * 100) : 0}% of total
-            </p>
+            {isLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-8 w-20" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{stats.published}</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {stats.total > 0 ? Math.round((stats.published / stats.total) * 100) : 0}% of total
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -294,8 +304,17 @@ export default function TestimonialsPage() {
             <CardTitle className="text-sm font-medium">Pending Review</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.pending}</div>
-            {stats.pending > 0 && <p className="text-xs text-yellow-600 mt-1">Requires attention</p>}
+            {isLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-8 w-20" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{stats.pending}</div>
+                {stats.pending > 0 && <p className="text-xs text-yellow-600 mt-1">Requires attention</p>}
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -304,8 +323,17 @@ export default function TestimonialsPage() {
             <CardTitle className="text-sm font-medium">Avg. Rating</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.avgRating}</div>
-            <p className="text-xs text-green-600 mt-1">Out of 5.0</p>
+            {isLoading ? (
+              <div className="space-y-2">
+                <Skeleton className="h-8 w-20" />
+                <Skeleton className="h-3 w-24" />
+              </div>
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{stats.avgRating}</div>
+                <p className="text-xs text-green-600 mt-1">Out of 5.0</p>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -332,12 +360,17 @@ export default function TestimonialsPage() {
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8">
-                      <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
-                      <p className="mt-2 text-sm text-muted-foreground">Loading testimonials...</p>
-                    </TableCell>
-                  </TableRow>
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={i}>
+                      <TableCell><Skeleton className="h-4 w-[100px]" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-[120px]" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-[80px]" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-[200px]" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-[80px]" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-[100px]" /></TableCell>
+                      <TableCell className="text-right"><Skeleton className="h-8 w-16 ml-auto" /></TableCell>
+                    </TableRow>
+                  ))
                 ) : testimonials.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
@@ -376,7 +409,7 @@ export default function TestimonialsPage() {
                       </TableCell>
                       <TableCell>
                         <Badge 
-                          variant={
+                           variant={
                             testimonial.status === 'published' ? 'default' : 
                             testimonial.status === 'pending' ? 'secondary' : 'outline'
                           }

@@ -1,6 +1,6 @@
 import { getClient } from '@/lib/supabase/admin';
 
-export type StaffRole = 'admin' | 'super_admin';
+export type StaffRole = 'admin' | 'super_admin' | 'courier';
 
 export function isSuperAdminIdentity(user: {
   email?: string | null;
@@ -17,7 +17,9 @@ export function resolveStaffRole(user: {
   email?: string | null;
   user_metadata?: Record<string, any> | null;
 }) {
-  return isSuperAdminIdentity(user) ? 'super_admin' : 'admin';
+  if (isSuperAdminIdentity(user)) return 'super_admin';
+  if (user.user_metadata?.role === 'courier') return 'courier';
+  return 'admin';
 }
 
 export async function verifyStaffAccess(token: string | null, requireSuperAdmin = false) {
@@ -42,7 +44,7 @@ export async function verifyStaffAccess(token: string | null, requireSuperAdmin 
       .eq('id', user.id)
       .single();
 
-    if (profileError || profile?.role !== 'admin') {
+    if (profileError || !['admin', 'courier'].includes(profile?.role || '')) {
       return { error: 'Forbidden', status: 403, user: null, isSuperAdmin: false };
     }
 

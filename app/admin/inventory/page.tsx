@@ -163,13 +163,12 @@ export default function Dashboard() {
 
 // ================= UI =================
 return (
-  <div className="bg-background min-h-screen text-foreground p-6">
+  <div className="space-y-6">
 
-    {/* ── TOP BAR ── */}
-    <div className="flex items-center justify-between mb-6 max-w-6xl mx-auto">
+    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
       <div>
-        <h1 className="text-xl font-black tracking-tight">NSD SmartWeigh</h1>
-        <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest mt-0.5">
+        <h1 className="text-3xl font-bold tracking-tight">NSD SmartWeigh</h1>
+        <p className="text-muted-foreground mt-1">
           Automatic Inventory System
         </p>
       </div>
@@ -194,8 +193,7 @@ return (
       </div>
     </div>
 
-    {/* ── MAIN LAYOUT ── */}
-    <div className="flex flex-col gap-6 max-w-6xl mx-auto">
+    <div className="flex flex-col gap-6">
 
       {/* ── INVENTORY CARDS ROW — side by side ── */}
       <div className="flex gap-6">

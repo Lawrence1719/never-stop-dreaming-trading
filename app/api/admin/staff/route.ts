@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     const { data: profiles, error: profilesError } = await supabaseAdmin
       .from('profiles')
       .select('id, name, phone, role, created_at, deleted_at')
-      .eq('role', 'admin')
+      .in('role', ['admin', 'courier'])
       .is('deleted_at', null)
       .order('created_at', { ascending: false });
 
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Name, email, and password are required.' }, { status: 400 });
     }
 
-    if (role && !['admin', 'super_admin'].includes(role)) {
+    if (role && !['admin', 'super_admin', 'courier'].includes(role)) {
       return NextResponse.json({ error: 'Invalid staff role.' }, { status: 400 });
     }
 
@@ -107,8 +107,8 @@ export async function POST(request: NextRequest) {
       user_metadata: {
         name: trimmedName,
         phone: trimmedPhone,
-        role: 'admin',
-        isSuperAdmin: normalizedRole === 'super_admin',
+        role: role === 'courier' ? 'courier' : 'admin',
+        isSuperAdmin: role === 'super_admin',
       },
     });
 
