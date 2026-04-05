@@ -4,16 +4,28 @@ import { getClient } from '@/lib/supabase/admin';
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createServerClient();
-    
-    // 1. Verify Authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
+    const authHeader = request.headers.get('authorization') || '';
+    const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
+
+    const supabaseAdmin = getClient();
+
+    // 1. Resolve user: prefer Bearer (matches client fetch) so this works without cookie session in the handler
+    let user: { id: string } | null = null;
+    if (bearer) {
+      const { data: { user: u }, error: bearerErr } = await supabaseAdmin.auth.getUser(bearer);
+      if (!bearerErr && u) user = u;
+    }
+    if (!user) {
+      const supabase = await createServerClient();
+      const { data: { user: cookieUser }, error: authError } = await supabase.auth.getUser();
+      if (!authError && cookieUser) user = cookieUser;
+    }
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 2. Verify Role (Courier or Admin)
-    const { data: profile } = await supabase
+    // 2. Verify Role (Courier or Admin) — admin client so RLS is not required when only Bearer was sent
+    const { data: profile } = await supabaseAdmin
       .from('profiles')
       .select('role')
       .eq('id', user.id)
@@ -24,7 +36,6 @@ export async function GET(request: NextRequest) {
     }
 
     // 3. Fetch global order sequence using admin client (bypasses RLS)
-    const supabaseAdmin = getClient();
     const { data: allOrders, error: fetchError } = await supabaseAdmin
       .from('orders')
       .select('id')

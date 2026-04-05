@@ -170,6 +170,31 @@ export const validateProvince = (province: string): { valid: boolean; error?: st
  * - Must contain at least one letter
  * - Cannot be all numbers
  */
+/**
+ * Validates a name field (First, Middle, or Last)
+ * Rules:
+ * - Minimum 1 character (for required fields)
+ * - Only letters (including accented/unicode), spaces, hyphens, and apostrophes
+ */
+export const validateName = (name: string, fieldName: string = 'Name'): { valid: boolean; error?: string } => {
+  if (!name || typeof name !== 'string') {
+    return { valid: false, error: `${fieldName} is required` };
+  }
+
+  const trimmed = name.trim();
+  if (trimmed.length === 0) {
+    return { valid: false, error: `${fieldName} is required` };
+  }
+
+  // Regex allows letters (including accented), spaces, hyphens, and apostrophes
+  const nameRegex = /^[a-zA-ZÀ-ÖØ-öø-ÿ\s'\-]+$/;
+  if (!nameRegex.test(trimmed)) {
+    return { valid: false, error: `${fieldName} must contain letters only` };
+  }
+
+  return { valid: true };
+};
+
 export const validateFullName = (name: string): { valid: boolean; error?: string } => {
   if (!name || typeof name !== 'string') {
     return { valid: false, error: 'Full name is required' };

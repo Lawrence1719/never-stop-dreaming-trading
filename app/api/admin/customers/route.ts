@@ -175,6 +175,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const { validateName } = await import('@/lib/utils/validation');
+    
+    const firstNameValidation = validateName(firstName, 'First name');
+    if (!firstNameValidation.valid) {
+      return NextResponse.json({ error: firstNameValidation.error }, { status: 400 });
+    }
+
+    if (middleName) {
+      const middleNameValidation = validateName(middleName, 'Middle name');
+      if (!middleNameValidation.valid) {
+        return NextResponse.json({ error: middleNameValidation.error }, { status: 400 });
+      }
+    }
+
+    const lastNameValidation = validateName(lastName, 'Last name');
+    if (!lastNameValidation.valid) {
+      return NextResponse.json({ error: lastNameValidation.error }, { status: 400 });
+    }
+
     const fullName = [firstName, middleName, lastName]
       .map((part) => (typeof part === 'string' ? part.trim() : ''))
       .filter(Boolean)

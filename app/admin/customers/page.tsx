@@ -36,6 +36,7 @@ import { supabase } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Toaster } from '@/components/ui/toaster';
 import { formatPrice } from '@/lib/utils/formatting';
+import { validateName } from '@/lib/utils/validation';
 
 interface Customer {
   id: string;
@@ -90,6 +91,7 @@ export default function CustomersPage() {
   const [isAddingCustomer, setIsAddingCustomer] = useState(false);
   const [addCustomerSuccess, setAddCustomerSuccess] = useState(false);
   const [createdCustomerInfo, setCreatedCustomerInfo] = useState<{ name: string; email: string } | null>(null);
+  const [nameErrors, setNameErrors] = useState<{ firstName?: string; middleName?: string; lastName?: string }>({});
 
   // Debounce search term
   useEffect(() => {
@@ -356,20 +358,48 @@ export default function CustomersPage() {
       <Badge variant="destructive">Blocked</Badge>
     );
 
-  const handleNewCustomerChange = (field: keyof typeof newCustomer, value: string) => {
+  const handleNewCustomerChange = async (field: keyof typeof newCustomer, value: string) => {
     let newValue = value;
     if (field === 'phone') {
       newValue = value.replace(/\D/g, '');
     }
     setNewCustomer((prev) => ({ ...prev, [field]: newValue }));
     if (addCustomerError) setAddCustomerError(null);
+
+    // Real-time name validation
+    if (field === 'firstName' || field === 'middleName' || field === 'lastName') {
+      if (field === 'middleName' && !value.trim()) {
+        setNameErrors((prev) => ({ ...prev, middleName: undefined }));
+      } else {
+        const fieldDisplayName = field === 'firstName' ? 'First name' : field === 'middleName' ? 'Middle name' : 'Last name';
+        const result = validateName(value, fieldDisplayName);
+        setNameErrors((prev) => ({ 
+          ...prev, 
+          [field]: result.valid ? undefined : result.error 
+        }));
+      }
+    }
   };
 
   const handleCreateCustomer = async () => {
-    const { firstName, lastName, email, phone, password } = newCustomer;
+    const { firstName, middleName, lastName, email, phone, password } = newCustomer;
   
-    if (!firstName.trim() || !lastName.trim() || !email.trim() || !password.trim()) {
-      setAddCustomerError('First name, last name, email, and password are required.');
+    const fNameVal = validateName(firstName, 'First name');
+    const lNameVal = validateName(lastName, 'Last name');
+    const mNameVal = middleName.trim() ? validateName(middleName, 'Middle name') : { valid: true };
+
+    if (!fNameVal.valid || !lNameVal.valid || !mNameVal.valid) {
+      setNameErrors({
+        firstName: fNameVal.error,
+        lastName: lNameVal.error,
+        middleName: mNameVal.error,
+      });
+      setAddCustomerError('Please fix the errors in the name fields.');
+      return;
+    }
+  
+    if (!email.trim() || !password.trim()) {
+      setAddCustomerError('Email and password are required.');
       return;
     }
   
@@ -928,21 +958,33 @@ export default function CustomersPage() {
                         placeholder="First name"
                         value={newCustomer.firstName}
                         onChange={(e) => handleNewCustomerChange('firstName', e.target.value)}
+                        className={nameErrors.firstName ? 'border-destructive' : ''}
                       />
+                      {nameErrors.firstName && (
+                        <p className="text-[10px] text-destructive mt-1">{nameErrors.firstName}</p>
+                      )}
                     </div>
                     <div>
                       <Input
                         placeholder="Middle name"
                         value={newCustomer.middleName}
                         onChange={(e) => handleNewCustomerChange('middleName', e.target.value)}
+                        className={nameErrors.middleName ? 'border-destructive' : ''}
                       />
+                      {nameErrors.middleName && (
+                        <p className="text-[10px] text-destructive mt-1">{nameErrors.middleName}</p>
+                      )}
                     </div>
                     <div>
                       <Input
                         placeholder="Last name"
                         value={newCustomer.lastName}
                         onChange={(e) => handleNewCustomerChange('lastName', e.target.value)}
+                        className={nameErrors.lastName ? 'border-destructive' : ''}
                       />
+                      {nameErrors.lastName && (
+                        <p className="text-[10px] text-destructive mt-1">{nameErrors.lastName}</p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1009,7 +1051,10 @@ export default function CustomersPage() {
               </div>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <Button onClick={handleCreateCustomer} disabled={isAddingCustomer}>
+                <Button 
+                  onClick={handleCreateCustomer} 
+                  disabled={isAddingCustomer || !!nameErrors.firstName || !!nameErrors.lastName || !!nameErrors.middleName}
+                >
                   {isAddingCustomer ? 'Creating...' : 'Create Customer'}
                 </Button>
               </AlertDialogFooter>

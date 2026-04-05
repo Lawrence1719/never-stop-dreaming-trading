@@ -108,8 +108,10 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
-  // 3. Courier Protection: Lock down /courier
-  if (isCourierPage) {
+  // 3. Courier Protection: Lock down /courier pages only (not /api/courier — those return JSON from handlers).
+  // Including /api/courier in isCourierPage caused middleware to redirect API fetches to /login (HTML) when
+  // cookie session was not visible here, breaking fetch().json() on the courier dashboard.
+  if (url.pathname.startsWith('/courier')) {
     if (!user) {
       const loginUrl = new URL('/login', request.url)
       loginUrl.searchParams.set('next', url.pathname)
