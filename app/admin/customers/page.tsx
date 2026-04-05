@@ -65,6 +65,8 @@ export default function CustomersPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [blockDialogOpen, setBlockDialogOpen] = useState(false);
   const [unblockDialogOpen, setUnblockDialogOpen] = useState(false);
+  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
+  const [isPermanentDelete, setIsPermanentDelete] = useState(false);
   const [roleChangeDialogOpen, setRoleChangeDialogOpen] = useState(false);
   const [pendingRoleChange, setPendingRoleChange] = useState<CustomerRole | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -255,7 +257,11 @@ export default function CustomersPage() {
     
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`/api/admin/customers/${selectedCustomer.id}`, {
+      const url = isPermanentDelete 
+        ? `/api/admin/customers/${selectedCustomer.id}?hard=true` 
+        : `/api/admin/customers/${selectedCustomer.id}`;
+
+      const res = await fetch(url, {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${session?.access_token}`,
@@ -268,10 +274,13 @@ export default function CustomersPage() {
       }
 
       setDeleteDialogOpen(false);
+      setIsPermanentDelete(false);
       setSelectedCustomer(null);
       toast({
-        title: 'Customer archived',
-        description: 'Customer has been marked as deleted successfully.',
+        title: isPermanentDelete ? 'Customer permanently deleted' : 'Customer archived',
+        description: isPermanentDelete 
+          ? 'Account and data have been removed forever.' 
+          : 'Customer has been marked as deleted successfully.',
         variant: 'success',
       });
       refreshCustomers();
@@ -280,6 +289,41 @@ export default function CustomersPage() {
       toast({
         title: 'Error',
         description: err instanceof Error ? err.message : 'Failed to delete customer',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleRestoreCustomer = async () => {
+    if (!selectedCustomer) return;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/admin/customers/${selectedCustomer.id}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to restore customer');
+      }
+
+      setRestoreDialogOpen(false);
+      setSelectedCustomer(null);
+      toast({
+        title: 'Customer restored',
+        description: 'The account is now active again.',
+        variant: 'success',
+      });
+      refreshCustomers();
+    } catch (err) {
+      console.error('Failed to restore customer', err);
+      toast({
+        title: 'Error',
+        description: err instanceof Error ? err.message : 'Failed to restore customer',
         variant: 'destructive',
       });
     }
@@ -623,6 +667,16 @@ export default function CustomersPage() {
                           }}
                           onDelete={() => {
                             setSelectedCustomer(customer);
+                            setIsPermanentDelete(false);
+                            setDeleteDialogOpen(true);
+                          }}
+                          onRestore={() => {
+                            setSelectedCustomer(customer);
+                            setRestoreDialogOpen(true);
+                          }}
+                          onPermanentDelete={() => {
+                            setSelectedCustomer(customer);
+                            setIsPermanentDelete(true);
                             setDeleteDialogOpen(true);
                           }}
                         />
@@ -672,20 +726,44 @@ export default function CustomersPage() {
       </Card>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      <AlertDialog open={deleteDialogOpen} onOpenChange={(open) => {
+        setDeleteDialogOpen(open);
+        if (!open) setIsPermanentDelete(false);
+      }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {selectedCustomer?.role === 'courier' ? 'Delete Courier' : 'Delete Customer'}
+            <AlertDialogTitle className={isPermanentDelete ? 'text-destructive' : ''}>
+              {isPermanentDelete ? 'PERMANENT DELETE' : selectedCustomer?.role === 'courier' ? 'Delete Courier' : 'Delete Customer'}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete {selectedCustomer?.name}'s account and all associated data. This action cannot be undone.
+              {isPermanentDelete 
+                ? `WARNING: This will permanently erase ${selectedCustomer?.name} and ALL associated data from the system. This action is irreversible and restricted to spam/fraud cases.`
+                : `This will mark ${selectedCustomer?.name}'s account as deleted. They will have 30 days to restore it before final cleanup.`
+              }
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteCustomer} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Delete
+              {isPermanentDelete ? 'Permanently Delete' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Restore Confirmation Dialog */}
+      <AlertDialog open={restoreDialogOpen} onOpenChange={setRestoreDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restore Account</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to restore {selectedCustomer?.name}'s account? This will reactivate their access immediately.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRestoreCustomer} className="bg-blue-600 hover:bg-blue-700">
+              Restore Account
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

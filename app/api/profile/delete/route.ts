@@ -17,14 +17,33 @@ export async function POST() {
     }
 
     // Mark as deleted
-    const { error: updateError } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .update({ deleted_at: new Date().toISOString() })
-      .eq('id', user.id);
+      .eq('id', user.id)
+      .select('name, email')
+      .single();
 
-    if (updateError) {
-      console.error('Update Error:', updateError);
+    if (profileError || !profile) {
+      console.error('Update Error:', profileError);
       return NextResponse.json({ error: 'Failed to mark account for deletion' }, { status: 500 });
+    }
+
+    // Record Audit Log
+    await supabase.from('audit_logs').insert({
+      actor_id: user.id,
+      target_id: user.id,
+      target_type: 'profile',
+      action: 'soft_delete',
+      metadata: { source: 'customer_self' }
+    });
+
+    // Send Deletion Requested Email
+    try {
+      const { sendDeletionRequestedEmail } = await import('@/lib/email/service');
+      await sendDeletionRequestedEmail(profile.email || user.email || '', profile.name);
+    } catch (emailErr) {
+      console.error('Failed to send deletion confirmation email:', emailErr);
     }
 
     return NextResponse.json({ success: true, message: 'Account marked for deletion' });

@@ -18,6 +18,7 @@ interface AuthContextType {
   resendConfirmationEmail: (email: string) => Promise<{ error: Error | null }>;
   updatePreferences: (preferences: User['notification_preferences']) => Promise<{ error: Error | null }>;
   restoreAccount: () => Promise<{ error: Error | null }>;
+  isDeletionPending: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -556,7 +557,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     changePassword,
     resendConfirmationEmail,
     updatePreferences,
-    restoreAccount
+    restoreAccount,
+    isDeletionPending: !!user?.deleted_at
   }), [user, isLoading]);
 
   return (

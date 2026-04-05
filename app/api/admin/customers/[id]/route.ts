@@ -218,6 +218,53 @@ export async function PATCH(
   }
 }
 
+/**
+ * ADMIN RESTORE
+ */
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const authHeader = request.headers.get('authorization') || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
+
+  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  try {
+    const { id } = await params;
+    const supabaseAdmin = getClient();
+    
+    // Auth check (ensure requester is admin)
+    const { data: { user: actor }, error: authError } = await supabaseAdmin.auth.getUser(token);
+    if (authError || !actor) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const { data: profile } = await supabaseAdmin.from('profiles').select('role').eq('id', actor.id).single();
+    if (profile?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+    // Restore
+    const { error: updateError } = await supabaseAdmin
+      .from('profiles')
+      .update({ deleted_at: null })
+      .eq('id', id);
+
+    if (updateError) throw updateError;
+
+    // Audit Log
+    await supabaseAdmin.from('audit_logs').insert({
+      actor_id: actor.id,
+      target_id: id,
+      target_type: 'profile',
+      action: 'restore',
+      metadata: { source: 'admin_action' }
+    });
+
+    return NextResponse.json({ success: true, message: 'Customer restored successfully' });
+  } catch (error: any) {
+    console.error('Failed to restore customer', error);
+    return NextResponse.json({ error: error.message || 'Failed to restore customer' }, { status: 500 });
+  }
+}
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -289,37 +336,56 @@ export async function DELETE(
       return NextResponse.json({ error: 'Cannot delete super admin account' }, { status: 403 });
     }
     
-    // Fetch customer name for notification before deletion
+    // Fetch customer name for notification before actions
     const { data: profileToDelete } = await supabaseAdmin
       .from('profiles')
       .select('name')
       .eq('id', id)
       .single();
 
-    const deletedAt = new Date().toISOString();
+    const { notifyDeletedUser } = await import('@/lib/notifications/service');
+    const isHardDelete = request.nextUrl.searchParams.get('hard') === 'true';
 
-    const { error: deleteError } = await supabaseAdmin
-      .from('profiles')
-      .update({ deleted_at: deletedAt })
-      .eq('id', id);
+    if (isHardDelete) {
+      // HARD DELETE: Remove everything
+      const { error: hardDeleteError } = await supabaseAdmin.auth.admin.deleteUser(id);
+      if (hardDeleteError) throw hardDeleteError;
 
-    if (deleteError) {
-      return NextResponse.json({ error: deleteError.message }, { status: 500 });
+      // Audit Log for Hard Delete
+      await supabaseAdmin.from('audit_logs').insert({
+        actor_id: user.id,
+        target_id: id,
+        target_type: 'profile',
+        action: 'hard_delete',
+        metadata: { source: 'admin_action' }
+      });
+
+      if (profileToDelete) await notifyDeletedUser(`${profileToDelete.name} (Permanently Deleted)`);
+      return NextResponse.json({ success: true, message: 'Customer permanently deleted' });
+    } else {
+      // SOFT DELETE: Archive
+      const deletedAt = new Date().toISOString();
+      const { error: softDeleteError } = await supabaseAdmin
+        .from('profiles')
+        .update({ deleted_at: deletedAt })
+        .eq('id', id);
+
+      if (softDeleteError) throw softDeleteError;
+
+      // Audit Log for Soft Delete
+      await supabaseAdmin.from('audit_logs').insert({
+        actor_id: user.id,
+        target_id: id,
+        target_type: 'profile',
+        action: 'soft_delete',
+        metadata: { source: 'admin_action' }
+      });
+
+      if (profileToDelete) await notifyDeletedUser(profileToDelete.name);
+      return NextResponse.json({ success: true, message: 'Customer archived successfully' });
     }
-
-    // Trigger notification
-    if (profileToDelete) {
-      try {
-        const { notifyDeletedUser } = await import('@/lib/notifications/service');
-        await notifyDeletedUser(profileToDelete.name);
-      } catch (notifErr) {
-        console.error('Failed to trigger customer deletion notification:', notifErr);
-      }
-    }
-
-    return NextResponse.json({ success: true, message: 'Customer archived successfully' });
-  } catch (error) {
-    console.error('Failed to delete customer', error);
-    return NextResponse.json({ error: 'Failed to delete customer' }, { status: 500 });
+  } catch (error: any) {
+    console.error('Failed to delete/archive customer', error);
+    return NextResponse.json({ error: error.message || 'Failed to delete customer' }, { status: 500 });
   }
 }
