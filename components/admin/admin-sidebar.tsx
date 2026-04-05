@@ -224,10 +224,10 @@ function SidebarItem({
             </div>
             {item.badge !== undefined && item.badge > 0 && (
               <Badge 
-                variant={isActive ? "secondary" : "destructive"} 
+                variant={isActive ? "outline" : "destructive"} 
                 className={cn(
-                  "h-4 min-w-[16px] px-1 text-[10px] flex items-center justify-center", 
-                  isActive && "bg-white text-primary",
+                  "h-4 min-w-[16px] px-1 text-[10px] flex items-center justify-center font-bold border-none", 
+                  isActive && "!bg-white !text-black",
                   !isOpen && "absolute top-1 right-1"
                 )}
               >

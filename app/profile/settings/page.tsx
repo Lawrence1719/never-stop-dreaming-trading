@@ -398,8 +398,13 @@ export default function SettingsPage() {
                     <p className="font-medium text-destructive">Delete Account</p>
                     <p className="text-sm text-muted-foreground">Permanently delete your account and all data</p>
                   </div>
-                  <Button variant="destructive" size="sm" onClick={() => setReauthAction("delete")}>
-                    Delete
+                  <Button 
+                    variant="destructive" 
+                    size="sm" 
+                    onClick={() => setReauthAction("delete")}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? "Processing..." : "Delete"}
                   </Button>
                 </div>
               </div>

@@ -54,12 +54,18 @@ export async function GET(request: NextRequest) {
     const allowedRoles = ['customer', 'courier'] as const;
     const normalizedRoleFilter = role === 'customer' || role === 'courier' ? role : 'all';
 
-    // Fetch only customer and courier profiles for the customer management page.
-    let { data: allProfiles, error: profilesError } = await supabaseAdmin
+    let query = supabaseAdmin
       .from('profiles')
-      .select('id, name, phone, role, created_at')
-      .in('role', allowedRoles)
-      .is('deleted_at', null)
+      .select('id, name, phone, role, created_at, deleted_at')
+      .in('role', allowedRoles);
+
+    if (status === 'deleted') {
+      query = query.not('deleted_at', 'is', null);
+    } else {
+      query = query.is('deleted_at', null);
+    }
+
+    let { data: allProfiles, error: profilesError } = await query
       .order('created_at', { ascending: false });
 
     if (profilesError) {
@@ -108,8 +114,9 @@ export async function GET(request: NextRequest) {
         phone: p.phone || '-',
         orders: stats.count,
         totalSpent: stats.total,
-        status: isBlocked ? 'blocked' : 'active',
+        status: p.deleted_at ? 'deleted' : isBlocked ? 'blocked' : 'active',
         joinDate: new Date(p.created_at).toISOString().split('T')[0],
+        deletedAt: p.deleted_at,
         role,
         isSuperAdmin,
       };

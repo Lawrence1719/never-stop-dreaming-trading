@@ -51,6 +51,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search') || '';
     const status = searchParams.get('status') || 'all';
     const category = searchParams.get('category') || 'all';
+    const isArchived = searchParams.get('archived') === 'true';
 
     // Build query to fetch products (base info only, no price/stock at product level)
     let query = supabaseAdmin
@@ -82,9 +83,15 @@ export async function GET(request: NextRequest) {
           is_primary
         )
         `
-      )
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false });
+      );
+
+    if (isArchived) {
+      query = query.not('deleted_at', 'is', null);
+    } else {
+      query = query.is('deleted_at', null);
+    }
+
+    query = query.order('created_at', { ascending: false });
 
     // Apply filters
     if (search) {
@@ -99,15 +106,26 @@ export async function GET(request: NextRequest) {
       query = query.eq('category', category);
     }
 
-    const { data, error } = await query;
+    const { data: rawData, error } = await query;
 
     if (error) {
       console.error('Failed to fetch products', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // Get separate counts for badges
+    const { count: activeCount } = await supabaseAdmin
+      .from('products')
+      .select('id', { count: 'exact', head: true })
+      .is('deleted_at', null);
+    
+    const { count: archivedCount } = await supabaseAdmin
+      .from('products')
+      .select('id', { count: 'exact', head: true })
+      .not('deleted_at', 'is', null);
+
     // Transform the data for the admin UI
-    const products = (data || []).map((row: any) => {
+    const products = (rawData || []).map((row: any) => {
       const variants = row.product_variants || [];
       const totalStock = variants.reduce((sum: number, v: any) => sum + (v.stock ?? 0), 0);
       const activeVariants = variants.filter((v: any) => v.is_active);
@@ -132,10 +150,18 @@ export async function GET(request: NextRequest) {
         status: row.is_active ? 'active' : 'inactive',
         image_url: row.image_url,
         variant_names: variants.map((v: any) => v.variant_label),
+        deleted_at: row.deleted_at,
       };
     });
 
-    return NextResponse.json({ data: products });
+    return NextResponse.json({ 
+      data: products,
+      meta: {
+        activeCount: activeCount || 0,
+        archivedCount: archivedCount || 0
+      }
+    });
+
   } catch (error) {
     console.error('Failed to load products', error);
     return NextResponse.json({ error: 'Failed to load products' }, { status: 500 });

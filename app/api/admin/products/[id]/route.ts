@@ -208,6 +208,42 @@ export async function DELETE(
 
   try {
     const supabaseAdmin = getClient();
+
+    // Check if identifying as archived vs active
+    const { data: product, error: fetchError } = await supabaseAdmin
+      .from('products')
+      .select('id, name, deleted_at')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !product) {
+       return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+    }
+
+    // IF already archived (deleted_at IS NOT NULL), then we do a PERMANENT HARD DELETE
+    if (product.deleted_at) {
+      // 1. Log the hard delete
+      await supabaseAdmin.rpc('log_hard_delete', {
+        actor_id: authResult.user?.id,
+        target_id: id,
+        target_type: 'product'
+      });
+
+      // 2. Perform the hard delete
+      const { error: hardDeleteError } = await supabaseAdmin
+        .from('products')
+        .delete()
+        .eq('id', id);
+
+      if (hardDeleteError) {
+        console.error('Failed to hard delete product', hardDeleteError);
+        return NextResponse.json({ error: 'Failed to permanently delete product' }, { status: 500 });
+      }
+
+      return NextResponse.json({ message: 'Product permanently deleted successfully' });
+    }
+
+    // OTHERWISE (deleted_at IS NULL), we do a SOFT DELETE (Archive)
     const { data: deleted, error } = await supabaseAdmin
       .from('products')
       .update({
@@ -220,11 +256,8 @@ export async function DELETE(
       .single();
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        return NextResponse.json({ error: 'Product not found' }, { status: 404 });
-      }
-      console.error('Failed to delete product', error);
-      return NextResponse.json({ error: 'Failed to delete product' }, { status: 500 });
+      console.error('Failed to archive product', error);
+      return NextResponse.json({ error: 'Failed to archive product' }, { status: 500 });
     }
 
     if (deleted) {
@@ -236,9 +269,10 @@ export async function DELETE(
       }
     }
 
-    return NextResponse.json({ message: 'Product archived successfully' });
+    return NextResponse.json({ message: 'Product moved to recycle bin' });
   } catch (error) {
-    console.error('Failed to delete product', error);
-    return NextResponse.json({ error: 'Failed to delete product' }, { status: 500 });
+    console.error('Failed to process product deletion', error);
+    return NextResponse.json({ error: 'Failed to process product deletion' }, { status: 500 });
   }
 }
+

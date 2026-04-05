@@ -49,6 +49,7 @@ interface Customer {
   joinDate: string;
   role: string;
   isSuperAdmin?: boolean;
+  deletedAt?: string;
 }
 
 type CustomerRole = 'customer' | 'courier';
@@ -395,12 +396,11 @@ export default function CustomersPage() {
       .slice(0, 2)
       .join('');
 
-  const getStatusBadge = (status: string) =>
-    status === 'active' ? (
-      <Badge variant="success">Active</Badge>
-    ) : (
-      <Badge variant="destructive">Blocked</Badge>
-    );
+  const getStatusBadge = (status: string) => {
+    if (status === 'active') return <Badge variant="success">Active</Badge>;
+    if (status === 'deleted') return <Badge variant="destructive">Deleted</Badge>;
+    return <Badge variant="destructive">Blocked</Badge>;
+  };
 
   const handleNewCustomerChange = async (field: keyof typeof newCustomer, value: string) => {
     let newValue = value;
@@ -538,6 +538,7 @@ export default function CustomersPage() {
                 <SelectItem value="all">All Status</SelectItem>
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="blocked">Blocked</SelectItem>
+                <SelectItem value="deleted">Deleted</SelectItem>
               </SelectContent>
             </Select>
             <Select value={roleFilter} onValueChange={setRoleFilter}>
@@ -550,14 +551,16 @@ export default function CustomersPage() {
                 <SelectItem value="courier">Courier</SelectItem>
               </SelectContent>
             </Select>
-            <Button 
-              variant="default" 
-              className="gap-2"
-              onClick={() => setAddCustomerOpen(true)}
-            >
-              <Plus className="h-4 w-4" />
-              Add Customer
-            </Button>
+            {statusFilter !== 'deleted' && (
+              <Button 
+                variant="default" 
+                className="gap-2"
+                onClick={() => setAddCustomerOpen(true)}
+              >
+                <Plus className="h-4 w-4" />
+                Add Customer
+              </Button>
+            )}
             <Button variant="outline" className="gap-2">
               <Download className="h-4 w-4" />
               Export
@@ -579,8 +582,17 @@ export default function CustomersPage() {
                   <TableHead>Customer</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Phone</TableHead>
-                  <TableHead>Orders</TableHead>
-                  <TableHead>Total Spent</TableHead>
+                  {statusFilter === 'deleted' ? (
+                    <>
+                      <TableHead>Deleted On</TableHead>
+                      <TableHead>Days Remaining</TableHead>
+                    </>
+                  ) : (
+                    <>
+                      <TableHead>Orders</TableHead>
+                      <TableHead>Total Spent</TableHead>
+                    </>
+                  )}
                   <TableHead>Status</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Join Date</TableHead>
@@ -619,16 +631,36 @@ export default function CustomersPage() {
                       }}
                     >
                       <TableCell className="font-medium">{customer.name}</TableCell>
-                      <TableCell className="text-sm">{customer.email}</TableCell>
-                      <TableCell className="text-sm">{customer.phone}</TableCell>
-                      <TableCell>{customer.orders}</TableCell>
-                      <TableCell className="font-medium">
-                        {formatPrice(Number(customer.totalSpent))}
+                      <TableCell className="text-sm truncate max-w-[200px]" title={customer.email}>
+                        {customer.email}
                       </TableCell>
+                      <TableCell className="text-sm">{customer.phone}</TableCell>
+                      {statusFilter === 'deleted' ? (
+                        <>
+                          <TableCell className="text-sm">
+                            {customer.deletedAt ? new Date(customer.deletedAt).toLocaleDateString() : '-'}
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {customer.deletedAt && (() => {
+                              const daysLeft = Math.ceil((new Date(customer.deletedAt).getTime() + 30 * 86400000 - Date.now()) / 86400000);
+                              return (
+                                <span className={daysLeft <= 7 ? "text-destructive font-bold" : ""}>
+                                  {daysLeft} days
+                                </span>
+                              );
+                            })()}
+                          </TableCell>
+                        </>
+                      ) : (
+                        <>
+                          <TableCell>{customer.orders}</TableCell>
+                          <TableCell className="font-medium">
+                            {formatPrice(Number(customer.totalSpent))}
+                          </TableCell>
+                        </>
+                      )}
                       <TableCell>
-                        <Badge variant={customer.status === 'active' ? 'default' : 'destructive'}>
-                          {customer.status}
-                        </Badge>
+                        {getStatusBadge(customer.status)}
                       </TableCell>
                       <TableCell>
                         {getRoleBadge(customer.role)}
@@ -790,9 +822,11 @@ export default function CustomersPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="flex items-start gap-3">
                   <Mail className="h-5 w-5 text-muted-foreground" />
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <p className="text-xs text-muted-foreground uppercase tracking-wide">Email</p>
-                    <p className="font-medium">{selectedCustomer.email}</p>
+                    <p className="font-medium truncate" title={selectedCustomer.email}>
+                      {selectedCustomer.email}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
