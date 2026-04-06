@@ -12,14 +12,28 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: authResult.error }, { status: authResult.status });
   }
 
+  const { searchParams } = new URL(request.url);
+  const status = searchParams.get('status') || 'active';
+
+  if (status === 'deleted' && !authResult.isSuperAdmin) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   try {
     const supabaseAdmin = getClient();
 
-    const { data: profiles, error: profilesError } = await supabaseAdmin
+    let query = supabaseAdmin
       .from('profiles')
       .select('id, name, phone, role, created_at, deleted_at')
-      .in('role', ['admin', 'courier'])
-      .is('deleted_at', null)
+      .in('role', ['admin', 'courier']);
+
+    if (status === 'deleted') {
+      query = query.not('deleted_at', 'is', null);
+    } else {
+      query = query.is('deleted_at', null);
+    }
+
+    const { data: profiles, error: profilesError } = await query
       .order('created_at', { ascending: false });
 
     if (profilesError) {
@@ -49,6 +63,7 @@ export async function GET(request: NextRequest) {
           status: isBlocked ? 'inactive' : 'active',
           joinDate: profile.created_at,
           isCurrentUser: profile.id === authResult.user?.id,
+          deletedAt: profile.deleted_at,
         };
       })
       .filter((member) => member.email);

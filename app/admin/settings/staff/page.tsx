@@ -18,6 +18,7 @@ import {
   Calendar,
   Clock,
   X,
+  RotateCcw,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -27,6 +28,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { PasswordInput } from '@/components/ui/PasswordInput';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -70,6 +72,7 @@ interface StaffMember {
   isCurrentUser: boolean;
   lastLogin?: string;
   totalOrdersManaged?: number;
+  deletedAt?: string;
 }
 
 interface StaffFormState {
@@ -137,6 +140,9 @@ export default function StaffManagementPage() {
   const [pendingRole, setPendingRole] = useState<StaffRole | null>(null);
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState<'active' | 'deleted'>('active');
+  const [isPermanentDelete, setIsPermanentDelete] = useState(false);
+  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
   const [addForm, setAddForm] = useState<StaffFormState>(emptyForm);
   const [editForm, setEditForm] = useState({ name: '', phone: '' });
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -162,7 +168,7 @@ export default function StaffManagementPage() {
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch('/api/admin/staff', {
+      const res = await fetch(`/api/admin/staff?status=${activeTab}`, {
         headers: session?.access_token
           ? { Authorization: `Bearer ${session.access_token}` }
           : undefined,
@@ -193,7 +199,7 @@ export default function StaffManagementPage() {
 
   useEffect(() => {
     fetchStaff();
-  }, []);
+  }, [activeTab]);
 
   const filteredStaff = useMemo(() => {
     if (!debouncedSearch) return staff;
@@ -323,14 +329,36 @@ export default function StaffManagementPage() {
   const handleDeleteStaff = async () => {
     if (!selectedStaff) return;
 
+    const url = isPermanentDelete
+      ? `/api/admin/staff/${selectedStaff.id}?hard=true`
+      : `/api/admin/staff/${selectedStaff.id}`;
+
     const success = await updateStaff(
-      `/api/admin/staff/${selectedStaff.id}`,
+      url,
       { method: 'DELETE' },
-      'Staff account deleted successfully.'
+      isPermanentDelete
+        ? 'Staff account permanently deleted.'
+        : 'Staff account moved to deleted tab.'
     );
 
     if (success.ok) {
       setDeleteDialogOpen(false);
+      setIsPermanentDelete(false);
+      setSelectedStaff(null);
+    }
+  };
+
+  const handleRestoreStaff = async () => {
+    if (!selectedStaff) return;
+
+    const success = await updateStaff(
+      `/api/admin/staff/${selectedStaff.id}`,
+      { method: 'POST' },
+      'Staff account restored successfully.'
+    );
+
+    if (success.ok) {
+      setRestoreDialogOpen(false);
       setSelectedStaff(null);
     }
   };
@@ -400,13 +428,26 @@ export default function StaffManagementPage() {
           <h1 className="text-3xl font-bold tracking-tight">Staff Management</h1>
           <p className="text-muted-foreground mt-1">Manage admin and courier accounts and their permissions</p>
         </div>
-        <Button onClick={() => setAddDialogOpen(true)}>
-          <Plus className="h-4 w-4" />
-          Add Staff
-        </Button>
+        {activeTab === 'active' && (
+          <Button onClick={() => setAddDialogOpen(true)}>
+            <Plus className="h-4 w-4" />
+            Add Staff
+          </Button>
+        )}
       </div>
 
-      <Card>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="active">Active Staff</TabsTrigger>
+          {currentUserIsSuperAdmin && (
+            <TabsTrigger value="deleted" className="flex items-center gap-2">
+              <Trash2 className="h-4 w-4" />
+              Deleted
+            </TabsTrigger>
+          )}
+        </TabsList>
+
+        <Card>
         <CardHeader>
           <CardTitle>Staff Directory</CardTitle>
           <CardDescription>Review admin, super admin, and courier accounts</CardDescription>
@@ -437,7 +478,14 @@ export default function StaffManagementPage() {
                   <TableHead>Phone</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Join Date</TableHead>
+                  {activeTab === 'active' ? (
+                    <TableHead>Join Date</TableHead>
+                  ) : (
+                    <>
+                      <TableHead>Deleted On</TableHead>
+                      <TableHead>Days Left</TableHead>
+                    </>
+                  )}
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -480,7 +528,29 @@ export default function StaffManagementPage() {
                         <TableCell>{member.phone}</TableCell>
                         <TableCell>{getRoleBadge(member.role)}</TableCell>
                         <TableCell>{getStatusBadge(member.status)}</TableCell>
-                        <TableCell>{formatJoinDate(member.joinDate)}</TableCell>
+                        {activeTab === 'active' ? (
+                          <TableCell>{formatJoinDate(member.joinDate)}</TableCell>
+                        ) : (
+                          <>
+                            <TableCell>{member.deletedAt ? formatJoinDate(member.deletedAt) : '-'}</TableCell>
+                            <TableCell>
+                              {member.deletedAt ? (
+                                (() => {
+                                  const daysLeft = Math.ceil(
+                                    (new Date(member.deletedAt).getTime() + 30 * 86400000 - Date.now()) / 86400000
+                                  );
+                                  return (
+                                    <span className={daysLeft <= 7 ? 'font-bold text-destructive' : 'font-medium'}>
+                                      {daysLeft} days
+                                    </span>
+                                  );
+                                })()
+                              ) : (
+                                '-'
+                              )}
+                            </TableCell>
+                          </>
+                        )}
                         <TableCell onClick={(event) => event.stopPropagation()}>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -488,80 +558,114 @@ export default function StaffManagementPage() {
                                 <MoreVertical className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                className="gap-2"
-                                onClick={() => {
-                                  setSelectedStaff(member);
-                                  setViewDetailsOpen(true);
-                                }}
-                              >
-                                <Eye className="h-4 w-4" />
-                                View Details
-                              </DropdownMenuItem>
-                              <DropdownMenuItem className="gap-2" onClick={() => openEditDialog(member)}>
-                                <Edit className="h-4 w-4" />
-                                Edit Staff
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              {member.role === 'admin' ? (
-                                <DropdownMenuItem
-                                  className="gap-2"
-                                  onClick={() => {
-                                    setSelectedStaff(member);
-                                    setPendingRole('super_admin');
-                                    setPasswordConfirm('');
-                                    setRoleDialogOpen(true);
-                                  }}
-                                >
-                                  <Shield className="h-4 w-4" />
-                                  Promote to Super Admin
-                                </DropdownMenuItem>
-                              ) : (
-                                <DropdownMenuItem
-                                  className="gap-2"
-                                  onClick={() => {
-                                    setSelectedStaff(member);
-                                    setPendingRole('admin');
-                                    setPasswordConfirm('');
-                                    setRoleDialogOpen(true);
-                                  }}
-                                >
-                                  <Shield className="h-4 w-4" />
-                                  Demote to Admin
-                                </DropdownMenuItem>
-                              )}
-                              <DropdownMenuSeparator />
-                              {canDeactivate ? (
-                                <DropdownMenuItem
-                                  className={member.status === 'active' ? 'gap-2 text-destructive' : 'gap-2'}
-                                  onClick={() => {
-                                    setSelectedStaff(member);
-                                    setStatusDialogOpen(true);
-                                  }}
-                                >
-                                  {member.status === 'active' ? <Ban className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
-                                  {member.status === 'active' ? 'Deactivate' : 'Activate'}
-                                </DropdownMenuItem>
-                              ) : (
-                                <DropdownMenuItem disabled className="gap-2 text-muted-foreground">
-                                  <Ban className="h-4 w-4" />
-                                  Deactivate
-                                </DropdownMenuItem>
-                              )}
-                              {showDelete && (
-                                <DropdownMenuItem
-                                  className="gap-2 text-destructive"
-                                  onClick={() => {
-                                    setSelectedStaff(member);
-                                    setDeleteDialogOpen(true);
-                                  }}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                  Delete
-                                </DropdownMenuItem>
-                              )}
-                            </DropdownMenuContent>
+                             <DropdownMenuContent align="end">
+                                {activeTab === 'active' ? (
+                                  <>
+                                    <DropdownMenuItem
+                                      className="gap-2"
+                                      onClick={() => {
+                                        setSelectedStaff(member);
+                                        setViewDetailsOpen(true);
+                                      }}
+                                    >
+                                      <Eye className="h-4 w-4" />
+                                      View Details
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem className="gap-2" onClick={() => openEditDialog(member)}>
+                                      <Edit className="h-4 w-4" />
+                                      Edit Staff
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    {member.role === 'admin' ? (
+                                      <DropdownMenuItem
+                                        className="gap-2"
+                                        onClick={() => {
+                                          setSelectedStaff(member);
+                                          setPendingRole('super_admin');
+                                          setPasswordConfirm('');
+                                          setRoleDialogOpen(true);
+                                        }}
+                                      >
+                                        <Shield className="h-4 w-4" />
+                                        Promote to Super Admin
+                                      </DropdownMenuItem>
+                                    ) : (
+                                      <DropdownMenuItem
+                                        className="gap-2"
+                                        onClick={() => {
+                                          setSelectedStaff(member);
+                                          setPendingRole('admin');
+                                          setPasswordConfirm('');
+                                          setRoleDialogOpen(true);
+                                        }}
+                                      >
+                                        <Shield className="h-4 w-4" />
+                                        Demote to Admin
+                                      </DropdownMenuItem>
+                                    )}
+                                    <DropdownMenuSeparator />
+                                    {canDeactivate ? (
+                                      <DropdownMenuItem
+                                        className={member.status === 'active' ? 'gap-2 text-destructive' : 'gap-2'}
+                                        onClick={() => {
+                                          setSelectedStaff(member);
+                                          setStatusDialogOpen(true);
+                                        }}
+                                      >
+                                        {member.status === 'active' ? (
+                                          <Ban className="h-4 w-4" />
+                                        ) : (
+                                          <UserCheck className="h-4 w-4" />
+                                        )}
+                                        {member.status === 'active' ? 'Deactivate' : 'Activate'}
+                                      </DropdownMenuItem>
+                                    ) : (
+                                      <DropdownMenuItem disabled className="gap-2 text-muted-foreground">
+                                        <Ban className="h-4 w-4" />
+                                        Deactivate
+                                      </DropdownMenuItem>
+                                    )}
+                                    {showDelete && currentUserIsSuperAdmin && (
+                                      <DropdownMenuItem
+                                        className="gap-2 text-destructive"
+                                        onClick={() => {
+                                          setSelectedStaff(member);
+                                          setIsPermanentDelete(false);
+                                          setDeleteDialogOpen(true);
+                                        }}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                        Delete
+                                      </DropdownMenuItem>
+                                    )}
+                                  </>
+                                ) : (
+                                  <>
+                                    <DropdownMenuItem
+                                      className="gap-2"
+                                      onClick={() => {
+                                        setSelectedStaff(member);
+                                        setRestoreDialogOpen(true);
+                                      }}
+                                    >
+                                      <RotateCcw className="h-4 w-4" />
+                                      Restore Access
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      className="gap-2 text-destructive font-semibold"
+                                      onClick={() => {
+                                        setSelectedStaff(member);
+                                        setIsPermanentDelete(true);
+                                        setDeleteDialogOpen(true);
+                                      }}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                      Permanent Delete
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                              </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>
                       </TableRow>
@@ -573,6 +677,7 @@ export default function StaffManagementPage() {
           </div>
         </CardContent>
       </Card>
+      </Tabs>
 
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
         <DialogContent>
@@ -834,6 +939,52 @@ export default function StaffManagementPage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className={isPermanentDelete ? 'text-destructive' : ''}>
+              {isPermanentDelete ? (
+                <div className="flex items-center gap-2">
+                  <Trash2 className="h-5 w-5" />
+                  PERMANENT DELETE
+                </div>
+              ) : (
+                'Delete Staff Member'
+              )}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {isPermanentDelete
+                ? `WARNING: This will permanently erase ${selectedStaff?.name} and ALL their associated data from the system. This action is irreversible.`
+                : `Are you sure you want to delete ${selectedStaff?.name}? Their account will be moved to the deleted tab for 30 days.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleDeleteStaff}
+            >
+              {isPermanentDelete ? 'Permanently Delete' : 'Delete Member'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={restoreDialogOpen} onOpenChange={setRestoreDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restore Staff Access</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to restore {selectedStaff?.name}&apos;s access? They will be able to log in again immediately.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRestoreStaff}>Restore Account</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -850,27 +1001,6 @@ export default function StaffManagementPage() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleToggleStatus} disabled={isSubmitting}>
               Confirm
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Staff</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete {selectedStaff?.name}? This action will remove the account from active staff management.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteStaff}
-              disabled={isSubmitting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

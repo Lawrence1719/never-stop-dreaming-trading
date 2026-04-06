@@ -94,19 +94,12 @@ export async function POST(
     }
 
     // Check if the order has already been rated by querying reviews
-    const { data: existingReview, error: existingReviewError } = await supabaseClient
+    const { data: existingReview } = await supabaseClient
       .from("reviews")
       .select("id")
       .eq("order_id", orderId)
       .eq("user_id", user.id)
       .maybeSingle();
-
-    if (existingReview) {
-      return NextResponse.json(
-        { error: "You have already rated this order" },
-        { status: 400 }
-      );
-    }
 
     // Determine the product_id and variant_name. The order.items is a jsonb array.
     let targetProductId = null;
@@ -136,15 +129,25 @@ export async function POST(
     if (rejectionReason) insertData.rejection_reason = rejectionReason;
     insertData.moderated_at = moderatedAt;
 
-    const { error: insertError } = await supabaseClient
-      .from("reviews")
-      .insert(insertData);
+    let saveError;
+    if (existingReview) {
+      const { error } = await supabaseClient
+        .from("reviews")
+        .update(insertData)
+        .eq("id", existingReview.id);
+      saveError = error;
+    } else {
+      const { error } = await supabaseClient
+        .from("reviews")
+        .insert(insertData);
+      saveError = error;
+    }
 
-    if (insertError) {
-      console.error("Failed to save rating:", insertError);
+    if (saveError) {
+      console.error("Failed to save rating:", saveError);
       return NextResponse.json({ 
-        error: `Database error: ${insertError.message}. Please ensure the migration script (036) has been run in the Supabase SQL Editor.`,
-        details: insertError 
+        error: `Database error: ${saveError.message}. Please ensure the migration script (036) has been run in the Supabase SQL Editor.`,
+        details: saveError 
       }, { status: 500 });
     }
 
