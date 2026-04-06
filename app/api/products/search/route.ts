@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     const adminClient = getClient();
     const searchTerm = `%${q}%`;
 
-    // Search active products by name, description, category, and variant SKU
+    // Search active products by name, description, and category
     const { data, error } = await adminClient
       .from('products')
       .select(`
@@ -22,32 +22,44 @@ export async function GET(request: NextRequest) {
         description, 
         category, 
         image_url, 
-        price,
         rating,
         review_count,
-        product_variants!inner(sku)
+        product_variants(price, sku, is_active)
       `)
       .eq('is_active', true)
-      .or(`name.ilike.${searchTerm},description.ilike.${searchTerm},category.ilike.${searchTerm},product_variants.sku.ilike.${searchTerm}`)
-      .limit(8);
+      .is('deleted_at', null)
+      .or(`name.ilike.${searchTerm},description.ilike.${searchTerm},category.ilike.${searchTerm}`);
 
-    if (error) throw error;
+    if (error) {
+      console.error('[storefront-search] Supabase Error:', error);
+      throw error;
+    }
 
-    const products = (data || []).map((row: any) => ({
-      id: row.id,
-      name: row.name,
-      description: row.description || '',
-      category: row.category || '',
-      images: row.image_url ? [row.image_url] : [],
-      price: Number(row.price) || 0,
-      rating: row.rating ?? 0,
-      reviewCount: row.review_count ?? 0,
-      sku: row.product_variants?.[0]?.sku || '',
-    }));
+    const products = (data || []).map((row: any) => {
+      const activeVariants = (row.product_variants || []).filter((v: any) => v.is_active);
+      const prices = activeVariants.map((v: any) => Number(v.price)).filter((p: number) => !isNaN(p));
+      const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
+
+      return {
+        id: row.id,
+        name: row.name,
+        description: row.description || '',
+        category: row.category || '',
+        images: row.image_url ? [row.image_url] : [],
+        price: minPrice,
+        rating: row.rating ?? 0,
+        reviewCount: row.review_count ?? 0,
+        sku: activeVariants[0]?.sku || '',
+      };
+    });
 
     return NextResponse.json({ data: products });
-  } catch (error) {
-    console.error('[storefront-search] API Error:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  } catch (error: any) {
+    console.error('[storefront-search] API Error Catch:', error);
+    return NextResponse.json({ 
+      error: 'Internal Server Error', 
+      message: error.message,
+      details: error.details || error.hint || ''
+    }, { status: 500 });
   }
 }

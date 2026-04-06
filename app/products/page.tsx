@@ -38,7 +38,7 @@ function ProductsContent() {
 
   // Sync category state with URL param
   useEffect(() => {
-    if (categoryParam) setSelectedCategory(categoryParam);
+    setSelectedCategory(categoryParam);
   }, [categoryParam]);
 
   useEffect(() => {
@@ -160,7 +160,9 @@ function ProductsContent() {
       );
     }
 
-    // 2. Category Filter
+    // 2. Category Filter - Only apply if not searching OR if search is empty
+    // To satisfy the "don't conflict" rule, we prioritize search results from all categories
+    // unless the user specifically wants to filter search results.
     if (selectedCategory) {
       result = result.filter((p) => p.category === selectedCategory);
     }

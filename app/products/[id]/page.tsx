@@ -18,6 +18,7 @@ import { StickyAddToCart } from "@/components/ecommerce/sticky-add-to-cart";
 import { VariantSelector } from "@/components/ecommerce/variant-selector";
 import { useCart } from "@/lib/context/cart-context";
 import { useWishlist } from "@/lib/context/wishlist-context";
+import { useAuth } from "@/lib/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { Product, ProductVariant } from "@/lib/types";
 import { formatPrice } from "@/lib/utils/formatting";
@@ -244,6 +245,7 @@ export default function ProductDetailPage() {
   const router = useRouter();
   const { addItem } = useCart();
   const { addItem: addToWishlist, removeItem: removeFromWishlist, isInWishlist } = useWishlist();
+  const { user } = useAuth();
   const { toast } = useToast();
   const { settings } = useSettings();
 
@@ -410,6 +412,33 @@ export default function ProductDetailPage() {
   const handleConfirmedAction = () => {
     if (!selectedVariant && variants.length > 0) return;
 
+    // Persist redirect for guest users
+    if (!user) {
+      const action = {
+        type: modalActionType,
+        productId: product?.id,
+        variantId: selectedVariant?.id || null,
+        quantity: quantity,
+        timestamp: Date.now()
+      };
+      
+      try {
+        localStorage.setItem('pending_ecommerce_action', JSON.stringify(action));
+        console.debug('[ProductDetail] Pending action saved:', action);
+      } catch (err) {
+        console.error('Failed to save pending action', err);
+      }
+
+      toast({
+        title: "Registration Required",
+        description: "Please sign in or create an account to process your order.",
+        variant: "warning",
+      });
+
+      router.push(`/login?next=${encodeURIComponent(window.location.pathname)}`);
+      return;
+    }
+
     if (modalActionType === 'add') {
       addItem(product as Product, quantity, selectedVariant || undefined);
       toast({
@@ -425,7 +454,54 @@ export default function ProductDetailPage() {
     setIsModalOpen(false);
   };
 
+  // Handle pending action from localStorage after login/register
+  useEffect(() => {
+    if (user && product && !loading) {
+      const pendingActionItem = localStorage.getItem('pending_ecommerce_action');
+      if (pendingActionItem) {
+        try {
+          const action = JSON.parse(pendingActionItem);
+          
+          // Only execute if it's for the current product
+          if (action.productId === product.id) {
+            console.info('[ProductDetail] Executing pending action:', action.type);
+            
+            const variant = action.variantId 
+              ? variants.find(v => v.id === action.variantId) 
+              : undefined;
+
+            if (action.type === 'add') {
+              addItem(product as Product, action.quantity, variant);
+              toast({
+                title: "Added to cart",
+                description: `${action.quantity} ${action.quantity === 1 ? 'item' : 'items'} added successfully${variant ? ` (${variant.variant_label})` : ''}`,
+                variant: 'success',
+              });
+            } else if (action.type === 'buy') {
+              router.push(`/checkout?product=${product.id}&quantity=${action.quantity}${action.variantId ? `&variant=${action.variantId}` : ''}`);
+            }
+            
+            // Clear pending action
+            localStorage.removeItem('pending_ecommerce_action');
+          }
+        } catch (err) {
+          console.error('Failed to process pending action:', err);
+          localStorage.removeItem('pending_ecommerce_action');
+        }
+      }
+    }
+  }, [user, product, loading, variants, addItem, router, toast]);
+
   const handleWishlist = () => {
+    if (!user) {
+      toast({
+        title: "Login Required",
+        description: "Please log in to add items to your wishlist.",
+        variant: "warning",
+      });
+      return;
+    }
+
     if (inWishlist) {
       removeFromWishlist(product.id);
       toast({

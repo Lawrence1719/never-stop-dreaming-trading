@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from "next/link";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
@@ -13,8 +13,10 @@ import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Logo } from "@/components/ui/logo";
 import { useSettings } from "@/lib/hooks/use-settings";
 
-export default function RegisterPage() {
+function RegisterPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const next = searchParams.get('next');
   const { register, user, isLoading: authLoading, resendConfirmationEmail } = useAuth();
   const { toast } = useToast();
   const { settings, isLoading: settingsLoading } = useSettings();
@@ -57,11 +59,13 @@ export default function RegisterPage() {
     if (!authLoading && user) {
       if (user.role === 'admin') {
         router.push('/admin/dashboard');
+      } else if (next) {
+        router.push(next);
       } else {
         router.push('/');
       }
     }
-  }, [user, authLoading, router]);
+  }, [user, authLoading, router, next]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -272,7 +276,7 @@ export default function RegisterPage() {
             </p>
             <div className="space-y-4">
               <Link
-                href="/login"
+                href={`/login${next ? `?next=${encodeURIComponent(next)}` : ''}`}
                 className="block w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-semibold"
               >
                 Go to Login
@@ -495,12 +499,34 @@ export default function RegisterPage() {
 
             <p className="text-center text-sm text-muted-foreground mt-6">
               Already have an account?{" "}
-              <Link href="/login" className="text-primary hover:underline font-semibold">Sign in here</Link>
+              <Link 
+                href={`/login${next ? `?next=${encodeURIComponent(next)}` : ''}`} 
+                className="text-primary hover:underline font-semibold"
+              >
+                Sign in here
+              </Link>
             </p>
           </div>
         )}
       </main>
       <Footer />
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex flex-col min-h-screen">
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-muted-foreground animate-pulse">Loading registration...</p>
+          </div>
+        </div>
+      </div>
+    }>
+      <RegisterPageContent />
+    </Suspense>
   );
 }

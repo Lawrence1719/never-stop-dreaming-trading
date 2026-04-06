@@ -2,10 +2,9 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { Plus, Search, Filter, Download, Trash2, Edit, Eye, AlertCircle, Package, Tag, Calendar, Clock, DollarSign, Loader2, RotateCcw, Archive } from 'lucide-react';
+import { Plus, Search, Filter, Download, Trash2, Edit, Eye, AlertCircle, Package, Tag, Calendar, Clock, DollarSign, Loader2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -56,7 +55,6 @@ interface Product {
   total_stock?: number;
   price_range?: string;
   variant_names?: string[];
-  deleted_at?: string;
 }
 
 const formatTimeAgo = (dateString?: string) => {
@@ -91,27 +89,15 @@ export default function ProductsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
-  const [restoringProductId, setRestoringProductId] = useState<string | null>(null);
-  const [activeCount, setActiveCount] = useState(0);
-  const [archivedCount, setArchivedCount] = useState(0);
-  const [currentTab, setCurrentTab] = useState<'active' | 'archived'>('active');
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
-  const getProductStatusBadge = (product: Product) => {
-    if (product.deleted_at) {
-      return (
-        <Badge variant="secondary" className="bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-          Archived on {formatDate(product.deleted_at)}
-        </Badge>
-      );
-    }
-    return product.status === 'active' ? (
+  const getProductStatusBadge = (status: 'active' | 'inactive') =>
+    status === 'active' ? (
       <Badge variant="success">Active</Badge>
     ) : (
       <Badge variant="destructive">Inactive</Badge>
     );
-  };
 
   const getProductDisplayImage = (product: Product) => {
     if (product.image_url) return product.image_url;
@@ -181,17 +167,16 @@ export default function ProductsPage() {
           : `${formatPrice(minPrice)} – ${formatPrice(maxPrice)}`
         : 'N/A';
 
-        setSelectedProduct({
-          ...productData,
-          image_url: displayImage,
-          status: productData.is_active ? 'active' : 'inactive',
-          total_stock: totalStock,
-          price_range: priceRange,
-          variant_count: productData.product_variants?.length ?? 0,
-          variants,
-          deleted_at: productData.deleted_at,
-        });
-        setViewProductOpen(true);
+      setSelectedProduct({
+        ...productData,
+        image_url: displayImage,
+        status: productData.is_active ? 'active' : 'inactive',
+        total_stock: totalStock,
+        price_range: priceRange,
+        variant_count: productData.product_variants?.length ?? 0,
+        variants,
+      });
+      setViewProductOpen(true);
     } catch (err) {
       console.error('Failed to load product details', err);
       toast({
@@ -245,17 +230,10 @@ export default function ProductsPage() {
       // Remove product from list
       setProducts((prev) => prev.filter((p) => p.id !== productId));
       
-      const isPermanent = !!product?.deleted_at;
-      
       toast({
-        title: isPermanent ? 'Product permanently deleted' : 'Product archived',
-        description: isPermanent 
-          ? `"${product?.name || 'Product'}" has been permanently removed from the database.`
-          : `"${product?.name || 'Product'}" has been moved to the recycle bin.`,
+        title: 'Product deleted',
+        description: `"${product?.name || 'Product'}" has been successfully removed from the catalog.`,
       });
-
-      // Refresh counts
-      refreshProducts();
     } catch (err) {
       console.error('Failed to delete product', err);
       toast({
@@ -269,59 +247,8 @@ export default function ProductsPage() {
     }
   };
 
-  const handleRestoreProduct = async (productId: string) => {
-    const product = products.find((p) => p.id === productId);
-    setRestoringProductId(productId);
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      const res = await fetch(`/api/admin/products/${productId}/restore`, {
-        method: 'PATCH',
-        credentials: 'include',
-        headers: session?.access_token
-          ? {
-              Authorization: `Bearer ${session.access_token}`,
-            }
-          : undefined,
-      });
-
-      if (!res.ok) {
-        const payload = await res.json().catch(() => ({}));
-        throw new Error(payload.error || 'Failed to restore product');
-      }
-
-      // Remove from archived list
-      setProducts((prev) => prev.filter((p) => p.id !== productId));
-      
-      toast({
-        title: 'Product restored',
-        description: `"${product?.name || 'Product'}" has been moved back to the active catalog.`,
-      });
-
-      // Refresh counts
-      refreshProducts();
-    } catch (err) {
-      console.error('Failed to restore product', err);
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: err instanceof Error ? err.message : 'Failed to restore product',
-      });
-    } finally {
-      setRestoringProductId(null);
-    }
-  };
-
-  const refreshProducts = () => {
-    setDebouncedSearchTerm(searchTerm + ' ');
-    setTimeout(() => setDebouncedSearchTerm(searchTerm), 10);
-  };
-
   useEffect(() => {
     const controller = new AbortController();
-
     
     async function fetchProducts() {
       setIsLoading(true);
@@ -336,7 +263,6 @@ export default function ProductsPage() {
         if (debouncedSearchTerm) params.append('search', debouncedSearchTerm);
         if (statusFilter !== 'all') params.append('status', statusFilter);
         if (categoryFilter !== 'all') params.append('category', categoryFilter);
-        if (currentTab === 'archived') params.append('archived', 'true');
 
         const res = await fetch(`/api/admin/products?${params.toString()}`, {
           method: 'GET',
@@ -356,8 +282,6 @@ export default function ProductsPage() {
 
         const payload = await res.json();
         setProducts(payload.data || []);
-        setActiveCount(payload.meta?.activeCount || 0);
-        setArchivedCount(payload.meta?.archivedCount || 0);
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') {
           return;
@@ -375,7 +299,7 @@ export default function ProductsPage() {
     fetchProducts();
 
     return () => controller.abort();
-  }, [debouncedSearchTerm, statusFilter, categoryFilter, currentTab]);
+  }, [debouncedSearchTerm, statusFilter, categoryFilter]);
 
   return (
     <div className="space-y-6">
@@ -390,341 +314,239 @@ export default function ProductsPage() {
             Add Product
           </Button>
         </Link>
-      </div>      <Tabs value={currentTab} onValueChange={(v) => setCurrentTab(v as any)}>
-        <div className="flex items-center justify-between">
-          <TabsList>
-            <TabsTrigger value="active" className="gap-2">
-              All Products
-              {activeCount > 0 && (
-                <Badge variant="secondary" className="px-1.5 py-0 h-5 min-w-[20px] justify-center bg-muted-foreground/10 text-muted-foreground border-none">
-                  {activeCount}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="archived" className="gap-2">
-              Archived
-              {archivedCount > 0 && (
-                <Badge variant="secondary" className="px-1.5 py-0 h-5 min-w-[20px] justify-center bg-muted-foreground/10 text-muted-foreground border-none">
-                  {archivedCount}
-                </Badge>
-              )}
-            </TabsTrigger>
-          </TabsList>
-        </div>
+      </div>
 
-        <Card className="mt-4">
-          <CardHeader>
-            <CardTitle>{currentTab === 'active' ? 'Product Management' : 'Recycle Bin'}</CardTitle>
-            <CardDescription>
-              {currentTab === 'active' 
-                ? 'View and manage all your available products' 
-                : 'View and manage products that have been archived. Restore them to make them active again.'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {/* Filters */}
-            <div className="flex flex-col md:flex-row gap-3 mb-6">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by name or SKU..."
-                  className="pl-10"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full md:w-40">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger className="w-full md:w-40">
-                  <SelectValue placeholder="Category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Categories</SelectItem>
-                  {MAIN_CATEGORIES.map((category) => (
-                    <SelectItem key={category} value={category}>
-                      {category}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button variant="outline" className="gap-2">
-                <Download className="h-4 w-4" />
-                Export
-              </Button>
+      <Card>
+        <CardHeader>
+          <CardTitle>Product Management</CardTitle>
+          <CardDescription>View and manage all your products</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {/* Filters */}
+          <div className="flex flex-col md:flex-row gap-3 mb-6">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by name or SKU..."
+                className="pl-10"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full md:w-40">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="w-full md:w-40">
+                <SelectValue placeholder="Category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {MAIN_CATEGORIES.map((category) => (
+                  <SelectItem key={category} value={category}>
+                    {category}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button variant="outline" className="gap-2">
+              <Download className="h-4 w-4" />
+              Export
+            </Button>
+          </div>
 
-            {/* Error Message */}
-            {error && (
-              <div className="mb-4 p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex gap-3">
-                <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-destructive">Error</p>
-                  <p className="text-sm text-muted-foreground mt-1">{error}</p>
-                </div>
+          {/* Error Message */}
+          {error && (
+            <div className="mb-4 p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex gap-3">
+              <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-destructive">Error</p>
+                <p className="text-sm text-muted-foreground mt-1">{error}</p>
               </div>
-            )}
+            </div>
+          )}
 
-            {/* Table */}
-            <div className="border rounded-lg overflow-hidden">
-              <Table>
-                <TableHeader>
+          {/* Table */}
+          <div className="border rounded-lg overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[80px]">Image</TableHead>
+                  <TableHead>Product Name</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Variants</TableHead>
+                  <TableHead className="text-right">Total Stock</TableHead>
+                  <TableHead>Price Range</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  Array.from({ length: 5 }).map((_, idx) => (
+                    <TableRow key={`loading-${idx}`} className="animate-pulse">
+                      <TableCell><div className="h-4 bg-muted rounded w-32" /></TableCell>
+                      <TableCell><div className="h-4 bg-muted rounded w-24" /></TableCell>
+                      <TableCell><div className="h-4 bg-muted rounded w-16" /></TableCell>
+                      <TableCell><div className="h-4 bg-muted rounded w-16" /></TableCell>
+                      <TableCell><div className="h-4 bg-muted rounded w-20" /></TableCell>
+                      <TableCell><div className="h-4 bg-muted rounded w-16" /></TableCell>
+                      <TableCell><div className="h-4 bg-muted rounded w-12" /></TableCell>
+                    </TableRow>
+                  ))
+                ) : products.length === 0 ? (
                   <TableRow>
-                    <TableHead className="w-[80px]">Image</TableHead>
-                    <TableHead>Product Name</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Variants</TableHead>
-                    <TableHead className="text-right">Total Stock</TableHead>
-                    <TableHead>Price Range</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Actions</TableHead>
+                    <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">
+                      No products found.
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {isLoading ? (
-                    Array.from({ length: 5 }).map((_, idx) => (
-                      <TableRow key={`loading-${idx}`} className="animate-pulse">
-                        <TableCell><div className="h-12 w-12 bg-muted rounded-lg" /></TableCell>
-                        <TableCell><div className="h-4 bg-muted rounded w-32" /></TableCell>
-                        <TableCell><div className="h-4 bg-muted rounded w-24" /></TableCell>
-                        <TableCell><div className="h-4 bg-muted rounded w-16" /></TableCell>
-                        <TableCell><div className="h-4 bg-muted rounded w-16" /></TableCell>
-                        <TableCell><div className="h-4 bg-muted rounded w-20" /></TableCell>
-                        <TableCell><div className="h-4 bg-muted rounded w-16" /></TableCell>
-                        <TableCell><div className="h-4 bg-muted rounded w-12" /></TableCell>
-                      </TableRow>
-                    ))
-                  ) : products.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={8} className="text-center py-12">
-                        <div className="flex flex-col items-center gap-3">
-                          <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
-                            {currentTab === 'archived' ? <Archive className="h-6 w-6 text-muted-foreground" /> : <Package className="h-6 w-6 text-muted-foreground" />}
-                          </div>
-                          <div className="text-center">
-                            <p className="font-medium">{currentTab === 'archived' ? 'No archived products' : 'No products found'}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {currentTab === 'archived' 
-                                ? 'When you delete a product, it will appear here for 30 days.' 
-                                : 'Try adjusting your search or filters to find what you are looking for.'}
-                            </p>
-                          </div>
+                ) : (
+                  products.map((product) => (
+                    <TableRow
+                      key={product.id}
+                      className="cursor-pointer hover:bg-muted/30"
+                      onClick={() => loadProductDetails(product.id, product)}
+                    >
+                      <TableCell>
+                        <div
+                          className="w-12 h-12 rounded-lg overflow-hidden border border-border/50 bg-muted shrink-0"
+                          aria-label={`View details for ${product.name}`}
+                        >
+                          <ProductImage src={getProductDisplayImage(product) || ''} alt={product.name} className="h-full w-full object-cover" />
                         </div>
                       </TableCell>
+                      <TableCell className="font-medium">
+                        {product.name}
+                      </TableCell>
+                      <TableCell>{product.category}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1 max-w-[150px]">
+                          {(product.variant_names || []).slice(0, 2).map((v, i) => (
+                            <Badge key={`${v}-${i}`} variant="secondary" className="px-1.5 py-0 text-[10px] font-medium whitespace-nowrap rounded-md">
+                              {v}
+                            </Badge>
+                          ))}
+                          {(product.variant_names || []).length > 2 && (
+                            <Badge variant="outline" className="px-1.5 py-0 text-[10px] font-medium whitespace-nowrap rounded-md">
+                              +{(product.variant_names?.length || 0) - 2} more
+                            </Badge>
+                          )}
+                          {(!product.variant_names || product.variant_names.length === 0) && (
+                            <span className="text-xs text-muted-foreground">No variants</span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Badge
+                          variant={(product.total_stock ?? 0) > 10 ? 'default' : (product.total_stock ?? 0) > 0 ? 'secondary' : 'destructive'}
+                        >
+                          {product.total_stock ?? 0}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm">{product.price_range}</TableCell>
+                      <TableCell>{getProductStatusBadge(product.status || 'inactive')}</TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              •••
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem asChild>
+                              <Link href={`/admin/products/${product.id}/variants`} className="gap-2 cursor-pointer" onClick={(e) => e.stopPropagation()}>
+                                <Eye className="h-4 w-4" />
+                                Manage Variants
+                              </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                loadProductDetails(product.id, product);
+                              }}
+                              className="gap-2"
+                            >
+                              <Eye className="h-4 w-4" />
+                              View Details
+                            </DropdownMenuItem>
+                            <DropdownMenuItem asChild>
+                              <Link href={`/admin/products/${product.id}/edit`} className="gap-2 cursor-pointer" onClick={(e) => e.stopPropagation()}>
+                                <Edit className="h-4 w-4" />
+                                Edit
+                              </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              asChild
+                            >
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <button className="w-full text-left px-2 py-1.5 text-sm text-destructive gap-2 flex items-center hover:bg-accent rounded">
+                                    <Trash2 className="h-4 w-4" />
+                                    Delete
+                                  </button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Delete Product</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Are you sure you want to delete "{product.name}"? This action cannot be undone.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <div className="flex gap-3">
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => handleDeleteProduct(product.id)}
+                                      disabled={deletingProductId === product.id}
+                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    >
+                                      {deletingProductId === product.id ? (
+                                        <>
+                                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                          Deleting...
+                                        </>
+                                      ) : (
+                                        'Delete'
+                                      )}
+                                    </AlertDialogAction>
+                                  </div>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
                     </TableRow>
-                  ) : (
-                    products.map((product) => (
-                      <TableRow
-                        key={product.id}
-                        className={`cursor-pointer hover:bg-muted/30 transition-colors ${product.deleted_at ? 'opacity-75 grayscale-[0.3]' : ''}`}
-                        onClick={() => loadProductDetails(product.id, product)}
-                      >
-                        <TableCell>
-                          <div
-                            className="w-12 h-12 rounded-lg overflow-hidden border border-border/50 bg-muted shrink-0"
-                            aria-label={`View details for ${product.name}`}
-                          >
-                            <ProductImage src={getProductDisplayImage(product) || ''} alt={product.name} className="h-full w-full object-cover" />
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-medium whitespace-nowrap">
-                          {product.name}
-                        </TableCell>
-                        <TableCell>{product.category}</TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-1 max-w-[150px]">
-                            {(product.variant_names || []).slice(0, 2).map((v, i) => (
-                              <Badge key={`${v}-${i}`} variant="secondary" className="px-1.5 py-0 text-[10px] font-medium whitespace-nowrap rounded-md opacity-80">
-                                {v}
-                              </Badge>
-                            ))}
-                            {(product.variant_names || []).length > 2 && (
-                              <Badge variant="outline" className="px-1.5 py-0 text-[10px] font-medium whitespace-nowrap rounded-md opacity-80">
-                                +{(product.variant_names?.length || 0) - 2} more
-                              </Badge>
-                            )}
-                            {(!product.variant_names || product.variant_names.length === 0) && (
-                              <span className="text-xs text-muted-foreground">No variants</span>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Badge
-                            variant={(product.total_stock ?? 0) > 10 ? 'default' : (product.total_stock ?? 0) > 0 ? 'secondary' : 'destructive'}
-                            className="px-2 font-mono"
-                          >
-                            {product.total_stock ?? 0}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-xs font-mono">{product.price_range}</TableCell>
-                        <TableCell>{getProductStatusBadge(product)}</TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={(e) => e.stopPropagation()}
-                                className="h-8 w-8 p-0"
-                              >
-                                •••
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-[180px]">
-                              {product.deleted_at ? (
-                                <>
-                                  <DropdownMenuItem
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleRestoreProduct(product.id);
-                                    }}
-                                    className="gap-2"
-                                    disabled={restoringProductId === product.id}
-                                  >
-                                    <RotateCcw className={`h-4 w-4 ${restoringProductId === product.id ? 'animate-spin' : ''}`} />
-                                    Restore Product
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    asChild
-                                  >
-                                    <AlertDialog>
-                                      <AlertDialogTrigger asChild>
-                                        <button 
-                                          className="w-full text-left px-2 py-1.5 text-sm text-destructive gap-2 flex items-center hover:bg-destructive/10 rounded"
-                                          onClick={(e) => e.stopPropagation()}
-                                        >
-                                          <Trash2 className="h-4 w-4" />
-                                          Delete Permanently
-                                        </button>
-                                      </AlertDialogTrigger>
-                                      <AlertDialogContent onClick={(e) => e.stopPropagation()}>
-                                        <AlertDialogHeader>
-                                          <AlertDialogTitle className="text-destructive">Permanent Delete</AlertDialogTitle>
-                                          <AlertDialogDescription>
-                                            This will permanently delete "{product.name}" and all its variants, images, and data. This action <strong>cannot be undone</strong>.
-                                          </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <div className="flex justify-end gap-3 pt-4">
-                                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                          <AlertDialogAction
-                                            onClick={() => handleDeleteProduct(product.id)}
-                                            disabled={deletingProductId === product.id}
-                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                          >
-                                            {deletingProductId === product.id ? (
-                                              <>
-                                                <Loader2 className="h-3 w-3 mr-2 animate-spin" />
-                                                Deleting...
-                                              </>
-                                            ) : (
-                                              'Confirm Delete'
-                                            )}
-                                          </AlertDialogAction>
-                                        </div>
-                                      </AlertDialogContent>
-                                    </AlertDialog>
-                                  </DropdownMenuItem>
-                                </>
-                              ) : (
-                                <>
-                                  <DropdownMenuItem asChild>
-                                    <Link href={`/admin/products/${product.id}/variants`} className="gap-2 cursor-pointer" onClick={(e) => e.stopPropagation()}>
-                                      <Eye className="h-4 w-4" />
-                                      Manage Variants
-                                    </Link>
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      loadProductDetails(product.id, product);
-                                    }}
-                                    className="gap-2"
-                                  >
-                                    <Eye className="h-4 w-4" />
-                                    View Details
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem asChild>
-                                    <Link href={`/admin/products/${product.id}/edit`} className="gap-2 cursor-pointer" onClick={(e) => e.stopPropagation()}>
-                                      <Edit className="h-4 w-4" />
-                                      Edit
-                                    </Link>
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    asChild
-                                  >
-                                    <AlertDialog>
-                                      <AlertDialogTrigger asChild>
-                                        <button 
-                                          className="w-full text-left px-2 py-1.5 text-sm text-destructive gap-2 flex items-center hover:bg-destructive/5 rounded"
-                                          onClick={(e) => e.stopPropagation()}
-                                        >
-                                          <Archive className="h-4 w-4" />
-                                          Archive Product
-                                        </button>
-                                      </AlertDialogTrigger>
-                                      <AlertDialogContent onClick={(e) => e.stopPropagation()}>
-                                        <AlertDialogHeader>
-                                          <AlertDialogTitle>Archive Product</AlertDialogTitle>
-                                          <AlertDialogDescription>
-                                            Are you sure you want to archive "{product.name}"? It will be moved to the recycle bin and hidden from the storefront.
-                                          </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <div className="flex justify-end gap-3 pt-4">
-                                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                          <AlertDialogAction
-                                            onClick={() => handleDeleteProduct(product.id)}
-                                            disabled={deletingProductId === product.id}
-                                          >
-                                            {deletingProductId === product.id ? (
-                                              <>
-                                                <Loader2 className="h-3 w-3 mr-2 animate-spin" />
-                                                Archiving...
-                                              </>
-                                            ) : (
-                                              'Archive'
-                                            )}
-                                          </AlertDialogAction>
-                                        </div>
-                                      </AlertDialogContent>
-                                    </AlertDialog>
-                                  </DropdownMenuItem>
-                                </>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
 
-            {/* Pagination */}
-            <div className="flex items-center justify-between mt-6">
-              <p className="text-sm text-muted-foreground">
-                Showing {products.length} product{products.length !== 1 ? 's' : ''}
-              </p>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" disabled>Previous</Button>
-                <Button variant="outline" size="sm" disabled>Next</Button>
-              </div>
+          {/* Pagination */}
+          <div className="flex items-center justify-between mt-6">
+            <p className="text-sm text-muted-foreground">
+              Showing {products.length} product{products.length !== 1 ? 's' : ''}
+            </p>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" disabled>Previous</Button>
+              <Button variant="outline" size="sm" disabled>Next</Button>
             </div>
-          </CardContent>
-        </Card>
-      </Tabs>
-
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Custom Product Details Modal */}
       {viewProductOpen && (
@@ -813,7 +635,7 @@ export default function ProductsPage() {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Badge className="text-xs">{selectedProduct?.category || 'Uncategorized'}</Badge>
-                    {selectedProduct && getProductStatusBadge(selectedProduct)}
+                    {selectedProduct && getProductStatusBadge(selectedProduct.status || 'inactive')}
                   </div>
                 </div>
 
@@ -836,14 +658,12 @@ export default function ProductsPage() {
                     <div className="flex items-start gap-3">
                       <div
                         className={`w-2 h-2 rounded-full mt-1 shrink-0 ${
-                          selectedProduct?.deleted_at ? 'bg-slate-400' : selectedProduct?.status === 'active' ? 'bg-emerald-500' : 'bg-slate-500'
+                          selectedProduct?.status === 'active' ? 'bg-emerald-500' : 'bg-slate-500'
                         }`}
                       />
                       <div className="min-w-0">
                         <p className="text-xs text-muted-foreground uppercase tracking-wide">Status</p>
-                        <p className="font-medium text-sm mt-1 capitalize">
-                          {selectedProduct?.deleted_at ? 'Archived' : (selectedProduct?.status || 'N/A')}
-                        </p>
+                        <p className="font-medium text-sm mt-1 capitalize">{selectedProduct?.status || 'N/A'}</p>
                       </div>
                     </div>
                     <div className="flex items-start gap-3">

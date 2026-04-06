@@ -801,14 +801,14 @@ function CheckoutPageContent() {
             <p className="text-muted-foreground mb-6">You need to be logged in or create an account to complete your purchase.</p>
             <div className="flex justify-center gap-4">
               <Link
-                href="/login?next=/checkout"
+                href={`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`}
                 className="inline-block px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-semibold"
               >
                 Sign in
               </Link>
 
               <Link
-                href="/register?next=/checkout"
+                href={`/register?next=${encodeURIComponent(window.location.pathname + window.location.search)}`}
                 className="inline-block px-6 py-3 border border-primary text-primary rounded-lg hover:bg-primary/10 transition-colors font-semibold"
               >
                 Create account
