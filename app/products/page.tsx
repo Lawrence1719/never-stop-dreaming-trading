@@ -32,7 +32,6 @@ function ProductsContent() {
   const categoryParam = searchParams.get('category') || "";
 
   const [selectedCategory, setSelectedCategory] = useState(categoryParam);
-  const [priceRange, setPriceRange] = useState([0, 10000]);
   const [sortBy, setSortBy] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
@@ -166,9 +165,6 @@ function ProductsContent() {
       result = result.filter((p) => p.category === selectedCategory);
     }
 
-    // 3. Price Filter
-    result = result.filter((p) => (p.price ?? 0) >= priceRange[0] && (p.price ?? 0) <= priceRange[1]);
-
     // 4. Sort
     if (sortBy === "price-low") result.sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
     else if (sortBy === "price-high") result.sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
@@ -176,7 +172,7 @@ function ProductsContent() {
     else if (sortBy === "newest") result.sort((a, b) => b.id.localeCompare(a.id));
 
     return result;
-  }, [searchQuery, selectedCategory, priceRange, sortBy, products]);
+  }, [searchQuery, selectedCategory, sortBy, products]);
 
   return (
     <main className="flex-1">
@@ -279,7 +275,6 @@ function ProductsContent() {
           <aside className="hidden lg:block lg:col-span-1 space-y-8">
             <ProductFilter
               onCategoryChange={setSelectedCategory}
-              onPriceChange={(min, max) => setPriceRange([min, max])}
               onSortChange={setSortBy}
               sortBy={sortBy}
             />
@@ -308,7 +303,6 @@ function ProductsContent() {
                 <div className="overflow-y-auto h-full pb-32">
                   <ProductFilter
                     onCategoryChange={setSelectedCategory}
-                    onPriceChange={(min, max) => setPriceRange([min, max])}
                     onSortChange={setSortBy}
                     sortBy={sortBy}
                   />
@@ -342,7 +336,6 @@ function ProductsContent() {
                     className="mt-4 font-bold text-primary"
                     onClick={() => {
                       setSelectedCategory("");
-                      setPriceRange([0, 10000]);
                       setSortBy("");
                     }}
                   >

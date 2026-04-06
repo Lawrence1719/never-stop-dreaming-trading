@@ -349,10 +349,27 @@ export async function DELETE(
     if (isHardDelete) {
       // HARD DELETE: Remove everything in correct order to respect FKs
       // 1. Collect dependent IDs
-      const { data: userOrders } = await supabaseAdmin.from('orders').select('id').eq('user_id', id);
-      const orderIds = (userOrders || []).map(o => o.id);
+      const { data: userOrders } = await supabaseAdmin.from('orders').select('id, status').eq('user_id', id);
+      const allOrderIds = (userOrders || []).map(o => o.id);
+      const activeOrderIds = (userOrders || [])
+        .filter(o => !['delivered', 'failed', 'cancelled'].includes(o.status))
+        .map(o => o.id);
 
-      // 2. Delete child records first
+      // 2. Cleanup courier assignments for ALL user orders first
+      if (allOrderIds.length > 0) {
+        await supabaseAdmin.from('courier_deliveries').delete().in('order_id', allOrderIds);
+      }
+
+      // 3. For active orders, set status to cancelled and clear courier_id before they are eventually deleted
+      // (Even if they are deleted, setting them to cancelled and clearing the courier link is safer)
+      if (activeOrderIds.length > 0) {
+        await supabaseAdmin
+          .from('orders')
+          .update({ status: 'cancelled', courier_id: null })
+          .in('id', activeOrderIds);
+      }
+
+      // 4. Delete child records
       const cleanupTasks = [
         supabaseAdmin.from('cart').delete().eq('user_id', id),
         supabaseAdmin.from('wishlist').delete().eq('user_id', id),
@@ -361,15 +378,15 @@ export async function DELETE(
         supabaseAdmin.from('audit_logs').delete().or(`actor_id.eq.${id},target_id.eq.${id}`),
       ];
 
-      if (orderIds.length > 0) {
-        cleanupTasks.push(supabaseAdmin.from('order_items').delete().in('order_id', orderIds));
-        cleanupTasks.push(supabaseAdmin.from('order_status_history').delete().in('order_id', orderIds));
+      if (allOrderIds.length > 0) {
+        cleanupTasks.push(supabaseAdmin.from('order_items').delete().in('order_id', allOrderIds));
+        cleanupTasks.push(supabaseAdmin.from('order_status_history').delete().in('order_id', allOrderIds));
       }
 
       await Promise.all(cleanupTasks);
 
-      // 3. Delete secondary parent records
-      if (orderIds.length > 0) {
+      // 5. Delete secondary parent records
+      if (allOrderIds.length > 0) {
         await supabaseAdmin.from('orders').delete().eq('user_id', id);
       }
       

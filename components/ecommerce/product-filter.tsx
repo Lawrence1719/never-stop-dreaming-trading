@@ -6,13 +6,11 @@ import { useState } from "react";
 
 interface ProductFilterProps {
   onCategoryChange: (category: string) => void;
-  onPriceChange: (min: number, max: number) => void;
   onSortChange: (sort: string) => void;
   sortBy?: string;
 }
 
-export function ProductFilter({ onCategoryChange, onPriceChange, onSortChange, sortBy = "" }: ProductFilterProps) {
-  const [priceRange, setPriceRange] = useState([0, 10000]);
+export function ProductFilter({ onCategoryChange, onSortChange, sortBy = "" }: ProductFilterProps) {
   const [selectedMainCategory, setSelectedMainCategory] = useState("");
  
    const handleMainSelect = (cat: string) => {
@@ -60,30 +58,6 @@ export function ProductFilter({ onCategoryChange, onPriceChange, onSortChange, s
               {cat}
             </button>
           ))}
-        </div>
-      </div>
-
-      {/* Price Range */}
-      <div>
-        <h3 className="font-semibold mb-3">Price Range</h3>
-        <div className="space-y-4">
-          <input
-            type="range"
-            min="0"
-            max="10000"
-            value={priceRange[1]}
-            onChange={(e) => {
-              const newRange = [priceRange[0], Number(e.target.value)];
-              setPriceRange(newRange);
-              onPriceChange(newRange[0], newRange[1]);
-            }}
-            className="w-full"
-          />
-          <div className="flex gap-2">
-            <span className="text-sm font-medium text-primary">₱{new Intl.NumberFormat().format(priceRange[0])}</span>
-            <span className="text-sm text-muted-foreground">-</span>
-            <span className="text-sm font-medium text-primary">₱{new Intl.NumberFormat().format(priceRange[1])}</span>
-          </div>
         </div>
       </div>
     </div>

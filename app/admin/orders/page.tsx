@@ -47,6 +47,7 @@ interface Order {
   paymentStatus: string;
   date: string;
   courier?: string | null;
+  isIncomplete?: boolean;
 }
 
 function renderEntityLabel(value: string) {
@@ -79,6 +80,7 @@ export default function OrdersPage() {
   const [orderToCancel, setOrderToCancel] = useState<Order | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [exportMode, setExportMode] = useState<ExportMode>('pdf-preview');
   const [exportData, setExportData] = useState<OrdersExportRow[]>([]);
@@ -148,15 +150,19 @@ export default function OrdersPage() {
           completed: 0,
           cancelled: 0,
           duplicate: 0,
+          incomplete: 0,
         };
         
         let totalRevenue = 0;
         let pendingRevenue = 0;
         
-        allOrdersData.forEach((order: Order) => {
+        allOrdersData.forEach((order: Order & { isIncomplete?: boolean }) => {
           const status = order.orderStatus.toLowerCase();
           if (counts[status] !== undefined) {
             counts[status]++;
+          }
+          if (order.isIncomplete) {
+            counts.incomplete++;
           }
           
           // Calculate revenue
@@ -262,6 +268,7 @@ export default function OrdersPage() {
     { value: 'completed', label: 'Completed' },
     { value: 'cancelled', label: 'Cancelled' },
     { value: 'duplicate', label: 'Duplicate' },
+    { value: 'incomplete', label: 'Incomplete' },
   ];
 
   const handleStatusChange = (status: string) => {
@@ -342,6 +349,40 @@ export default function OrdersPage() {
       });
     } finally {
       setIsCancelling(false);
+    }
+  };
+
+  const handleBulkDeleteIncomplete = async () => {
+    const incompleteIds = orders.filter(o => o.isIncomplete).map(o => o.orderId);
+    if (incompleteIds.length === 0) return;
+
+    if (!confirm(`Are you sure you want to permanently delete all ${incompleteIds.length} incomplete orders? This action cannot be undone.`)) {
+      return;
+    }
+
+    setIsBulkDeleting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch('/api/admin/orders', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        },
+        body: JSON.stringify({ ids: incompleteIds })
+      });
+
+      if (!response.ok) throw new Error('Bulk delete failed');
+
+      toast({ title: 'Success', description: `Deleted ${incompleteIds.length} ghost orders`, variant: 'success' });
+      
+      // Refresh current page
+      setCurrentPage(1);
+      setOrderStatus('all');
+    } catch (err) {
+      toast({ title: 'Error', description: err instanceof Error ? err.message : 'Delete failed', variant: 'destructive' });
+    } finally {
+      setIsBulkDeleting(false);
     }
   };
 
@@ -570,6 +611,18 @@ export default function OrdersPage() {
                   <DropdownMenuItem onClick={() => handleExport('pdf')}>Export as PDF</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+
+              {orderStatus === 'incomplete' && orders.length > 0 && (
+                <Button 
+                  variant="destructive" 
+                  className="gap-2 font-bold" 
+                  onClick={handleBulkDeleteIncomplete}
+                  disabled={isBulkDeleting}
+                >
+                  {isBulkDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
+                  Bulk Delete Incomplete ({orders.length})
+                </Button>
+              )}
             </div>
             
             {/* Quick Filter Buttons */}
@@ -640,7 +693,7 @@ export default function OrdersPage() {
                   ))
                 ) : orders.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">
+                    <TableCell colSpan={9} className="text-center text-sm text-muted-foreground py-8">
                       No orders found.
                     </TableCell>
                   </TableRow>
@@ -654,7 +707,14 @@ export default function OrdersPage() {
                         className="font-medium cursor-pointer hover:text-primary"
                         onClick={() => window.location.href = `/admin/orders/${order.orderId}`}
                       >
-                        {order.id}
+                        <div className="flex items-center gap-2">
+                          {order.id}
+                          {order.isIncomplete && (
+                            <Badge variant="destructive" className="h-4 px-1 text-[8px] font-black uppercase tracking-tighter bg-red-600">
+                              Incomplete
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell
                         className="cursor-pointer"

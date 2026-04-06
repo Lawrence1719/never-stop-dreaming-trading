@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { MapPin, Phone, User, Package, Upload, CheckCircle, Clock, Loader2, Image as ImageIcon } from 'lucide-react';
 import { formatPrice, formatDate, formatOrderNumber } from '@/lib/utils/formatting';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -63,16 +64,19 @@ export function DeliveryCard({ delivery, courierId, onUpdate, orderNumber }: Del
   const [showUploadForm, setShowUploadForm] = useState(isProofPending);
   const { toast } = useToast();
 
-  if (!delivery.order || !delivery.order.shipping_address) {
+  if (!delivery.order) {
     return (
-      <Card className="overflow-hidden border-2 border-red-200 bg-red-50/10">
+      <Card className="overflow-hidden border-2 border-red-200 bg-red-50/10 h-full">
         <CardContent className="pt-6 text-center">
-          <p className="text-sm font-bold text-red-600">Error: Order details missing.</p>
-          <p className="text-xs text-red-500 mt-1 italic">This may be due to a permissions issue or database sync delay.</p>
+          <p className="text-sm font-bold text-red-600 uppercase tracking-tighter">⚠️ Order Record Missing</p>
+          <p className="text-[10px] text-red-500 mt-2 font-medium">Assignment ID: {delivery.id}</p>
+          <p className="text-xs text-red-500 mt-4 italic opacity-70">The order reference was not found in the database. Please contact support.</p>
         </CardContent>
       </Card>
     );
   }
+
+  const addr = delivery.order.shipping_address;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -155,9 +159,11 @@ export function DeliveryCard({ delivery, courierId, onUpdate, orderNumber }: Del
         <div className="space-y-2">
           <div className="flex items-start gap-3">
             <User className="w-4 h-4 text-primary mt-1" />
-            <div>
+            <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Customer</p>
-              <p className="text-sm font-medium">{delivery.order.shipping_address.full_name}</p>
+              <p className={cn("text-sm font-medium", !addr?.full_name && "text-muted-foreground italic")}>
+                {addr?.full_name || 'Anonymous / Guest'}
+              </p>
             </div>
           </div>
           
@@ -165,17 +171,25 @@ export function DeliveryCard({ delivery, courierId, onUpdate, orderNumber }: Del
             <MapPin className="w-4 h-4 text-primary mt-1 shrink-0" />
             <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Address</p>
-              <div className="text-sm leading-relaxed line-clamp-2" title={`${delivery.order.shipping_address.street_address}, ${delivery.order.shipping_address.city}, ${delivery.order.shipping_address.province} ${delivery.order.shipping_address.zip_code}`}>
-                {delivery.order.shipping_address.street_address}, {delivery.order.shipping_address.city}, {delivery.order.shipping_address.province} {delivery.order.shipping_address.zip_code}
-              </div>
+              {addr ? (
+                <div className="text-sm leading-relaxed line-clamp-2" title={`${addr.street_address}, ${addr.city}, ${addr.province} ${addr.zip_code}`}>
+                  {addr.street_address}, {addr.city}, {addr.province} {addr.zip_code}
+                </div>
+              ) : (
+                <div className="text-sm text-amber-500 font-bold bg-amber-500/5 rounded p-1 inline-block">
+                  ⚠️ Address Unavailable
+                </div>
+              )}
             </div>
           </div>
 
           <div className="flex items-start gap-3">
             <Phone className="w-4 h-4 text-primary mt-1" />
-            <div>
+            <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Phone</p>
-              <p className="text-sm font-medium">{delivery.order.shipping_address.phone}</p>
+              <p className={cn("text-sm font-medium", !addr?.phone && "text-muted-foreground italic")}>
+                {addr?.phone || 'Not provided'}
+              </p>
             </div>
           </div>
         </div>

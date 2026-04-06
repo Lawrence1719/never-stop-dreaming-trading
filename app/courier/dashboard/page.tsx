@@ -58,6 +58,8 @@ export default function CourierDashboard() {
           *,
           order:orders(
             id,
+            user_id,
+            shipping_address_id,
             total,
             items,
             shipping_address:addresses!shipping_address_id(*)
@@ -67,12 +69,38 @@ export default function CourierDashboard() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setDeliveries(data || []);
+      
+      // Filter out ghost orders (missing shipping_address_id)
+      const valid = (data || []).filter(d => d.order && d.order.shipping_address_id);
+      const ghostAssignments = (data || []).filter(d => !d.order || !d.order.shipping_address_id);
+
+      if (ghostAssignments.length > 0) {
+        console.warn(`[CourierDashboard] Filtering and cleaning up ${ghostAssignments.length} ghost orders (no address)`);
+        silentUnassignGhostOrders(ghostAssignments.map(d => d.order_id));
+      }
+
+      setDeliveries(valid);
     } catch (err) {
       console.error('Failed to fetch deliveries:', err);
       toast({ title: 'Error', description: 'Failed to load deliveries', variant: 'destructive' });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const silentUnassignGhostOrders = async (orderIds: string[]) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      await fetch('/api/courier/deliveries/cleanup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        },
+        body: JSON.stringify({ orderIds })
+      });
+    } catch (err) {
+      console.error('Silent cleanup failed', err);
     }
   };
 

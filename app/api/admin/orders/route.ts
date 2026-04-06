@@ -37,11 +37,11 @@ export async function GET(request: NextRequest) {
     // Build query
     let query = supabaseAdmin
       .from('orders')
-      .select('id, status, total, items, payment_method, payment_status, paid_at, created_at, updated_at, user_id, courier_id, courier_name:profiles!courier_id(name)')
+      .select('id, status, total, items, payment_method, payment_status, paid_at, created_at, updated_at, user_id, shipping_address_id, courier_id, courier_name:profiles!courier_id(name)')
       .order('created_at', { ascending: false});
 
     // Apply filters
-    if (status !== 'all') {
+    if (status !== 'all' && status !== 'incomplete') {
       query = query.eq('status', status);
     }
 
@@ -146,9 +146,15 @@ export async function GET(request: NextRequest) {
           paymentStatus,
           date,
           courier: row.courier_name?.name || null,
+          isIncomplete: !row.shipping_address_id,
         };
       })
       .filter((order: any) => {
+        // Apply incomplete filter if requested
+        if (status === 'incomplete') {
+          return order.isIncomplete;
+        }
+        
         // Apply search filter
         if (!search) return true;
         const searchLower = search.toLowerCase();
@@ -175,5 +181,46 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Failed to load orders', error);
     return NextResponse.json({ error: 'Failed to load orders' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const supabase = await createServerClient();
+    
+    // Verify session
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    // Verify role
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+    if (profile?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+    const { ids } = await request.json();
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return NextResponse.json({ error: 'No order IDs provided' }, { status: 400 });
+    }
+
+    const supabaseAdmin = getClient();
+
+    // 1. Delete assignments first
+    await supabaseAdmin.from('courier_deliveries').delete().in('order_id', ids);
+
+    // 2. Delete audit logs, history, etc.
+    await supabaseAdmin.from('order_status_history').delete().in('order_id', ids);
+    await supabaseAdmin.from('order_items').delete().in('order_id', ids);
+
+    // 3. Finally delete orders
+    const { error: deleteError } = await supabaseAdmin
+      .from('orders')
+      .delete()
+      .in('id', ids);
+
+    if (deleteError) throw deleteError;
+
+    return NextResponse.json({ success: true, message: `Successfully deleted ${ids.length} orders` });
+  } catch (error: any) {
+    console.error('Failed to bulk delete orders', error);
+    return NextResponse.json({ error: error.message || 'Bulk delete failed' }, { status: 500 });
   }
 }
