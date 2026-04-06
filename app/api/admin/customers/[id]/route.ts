@@ -347,7 +347,36 @@ export async function DELETE(
     const isHardDelete = request.nextUrl.searchParams.get('hard') === 'true';
 
     if (isHardDelete) {
-      // HARD DELETE: Remove everything
+      // HARD DELETE: Remove everything in correct order to respect FKs
+      // 1. Collect dependent IDs
+      const { data: userOrders } = await supabaseAdmin.from('orders').select('id').eq('user_id', id);
+      const orderIds = (userOrders || []).map(o => o.id);
+
+      // 2. Delete child records first
+      const cleanupTasks = [
+        supabaseAdmin.from('cart').delete().eq('user_id', id),
+        supabaseAdmin.from('wishlist').delete().eq('user_id', id),
+        supabaseAdmin.from('reviews').delete().eq('user_id', id),
+        supabaseAdmin.from('notifications').delete().eq('user_id', id),
+        supabaseAdmin.from('audit_logs').delete().or(`actor_id.eq.${id},target_id.eq.${id}`),
+      ];
+
+      if (orderIds.length > 0) {
+        cleanupTasks.push(supabaseAdmin.from('order_items').delete().in('order_id', orderIds));
+        cleanupTasks.push(supabaseAdmin.from('order_status_history').delete().in('order_id', orderIds));
+      }
+
+      await Promise.all(cleanupTasks);
+
+      // 3. Delete secondary parent records
+      if (orderIds.length > 0) {
+        await supabaseAdmin.from('orders').delete().eq('user_id', id);
+      }
+      
+      // 4. Delete the profile (usually has a FK to auth.users)
+      await supabaseAdmin.from('profiles').delete().eq('id', id);
+
+      // 5. Finally, remove the auth user
       const { error: hardDeleteError } = await supabaseAdmin.auth.admin.deleteUser(id);
       if (hardDeleteError) throw hardDeleteError;
 
