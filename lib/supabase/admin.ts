@@ -1,3 +1,15 @@
+// ── SERVER-ONLY GUARD ────────────────────────────────────────────────────────
+// This module creates a Supabase client using the service-role key, which
+// bypasses ALL Row-Level Security policies. It must NEVER be imported in
+// client-side code (browser bundle).
+if (typeof window !== 'undefined') {
+  throw new Error(
+    '[admin] lib/supabase/admin.ts must not be imported in client-side code. ' +
+    'Move the import to a server component, API route, or server action.'
+  )
+}
+// ── END SERVER-ONLY GUARD ────────────────────────────────────────────────────
+
 import { createClient, type PostgrestError, type SupabaseClient } from '@supabase/supabase-js'
 
 function getClient(client?: SupabaseClient) {
@@ -11,8 +23,6 @@ function getClient(client?: SupabaseClient) {
 
   const supabaseServiceKey =
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY ||
     ''
 
   if (!supabaseUrl || !supabaseServiceKey) {

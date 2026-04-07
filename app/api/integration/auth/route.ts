@@ -5,66 +5,73 @@ import { storeToken, validateToken as validateTokenUtil } from '@/lib/integratio
 /**
  * POST /api/integration/auth
  * POST /api/integration/user/refresh
- * 
- * Username/password authentication endpoint (similar to BeatRoute)
- * Returns a token that can be used for subsequent API calls
- * 
+ *
+ * Username/password authentication endpoint (BeatRoute-compatible).
+ * Returns a short-lived token for subsequent API calls.
+ *
+ * Required env vars:
+ *   INTEGRATION_USERNAME — the ERP system's username
+ *   INTEGRATION_PASSWORD — min 32 random chars (see .env.example)
+ *
  * Request Body:
- * {
- *   "username": "test_erp_user",
- *   "password": "test_password_123"
- * }
- * 
- * Response (Success):
- * {
- *   "success": true,
- *   "data": {
- *     "token": "generated_token_here"
- *   },
- *   "status": 200
- * }
- * 
- * Response (Error):
- * {
- *   "success": false,
- *   "data": {
- *     "name": "Unauthorized",
- *     "message": "Invalid username or password",
- *     "code": 0,
- *     "status": 401
- *   },
- *   "status": 401
- * }
+ * { "username": "nsd_integration", "password": "<INTEGRATION_PASSWORD>" }
+ *
+ * Success Response:
+ * { "success": true, "data": { "token": "<hex token>" }, "status": 200 }
  */
 
-interface AuthRequest {
-  username: string;
-  password: string;
-}
-
-// Generate a secure token
+// Generate a cryptographically random opaque token.
 function generateToken(): string {
   return crypto.randomBytes(32).toString('hex');
 }
 
-// Validate username and password
+/**
+ * Compare credentials using timing-safe byte comparison to prevent
+ * timing-oracle attacks that could be used to enumerate valid usernames
+ * or brute-force the password character-by-character.
+ *
+ * Both sides are zero-padded to the same length before comparison so
+ * the comparison time is constant regardless of where strings diverge.
+ */
+function safeEqual(a: string, b: string): boolean {
+  // Encode to UTF-8 buffers.
+  const bufA = Buffer.from(a, 'utf8');
+  const bufB = Buffer.from(b, 'utf8');
+
+  // Pad the shorter buffer so both have identical length.
+  // We still return false when lengths differ — padding prevents
+  // timingSafeEqual from throwing, but the length guard ensures correctness.
+  const maxLen = Math.max(bufA.length, bufB.length);
+  const paddedA = Buffer.concat([bufA, Buffer.alloc(maxLen - bufA.length)]);
+  const paddedB = Buffer.concat([bufB, Buffer.alloc(maxLen - bufB.length)]);
+
+  // timingSafeEqual runs in constant time relative to buffer length.
+  // The explicit length check prevents a scenario where two strings of
+  // different lengths happen to compare equal after padding (impossible
+  // in practice, but we're being strict).
+  return bufA.length === bufB.length && crypto.timingSafeEqual(paddedA, paddedB);
+}
+
 function validateCredentials(username: string, password: string): boolean {
-  const expectedUsername = process.env.INTEGRATION_USERNAME || process.env.INTEGRATION_TEST_USERNAME;
-  const expectedPassword = process.env.INTEGRATION_PASSWORD || process.env.INTEGRATION_TEST_PASSWORD;
+  const expectedUsername =
+    process.env.INTEGRATION_USERNAME || process.env.INTEGRATION_TEST_USERNAME;
+  const expectedPassword =
+    process.env.INTEGRATION_PASSWORD || process.env.INTEGRATION_TEST_PASSWORD;
 
   if (!expectedUsername || !expectedPassword) {
-    console.error('INTEGRATION_USERNAME and INTEGRATION_PASSWORD environment variables not set');
+    console.error(
+      '[integration/auth] INTEGRATION_USERNAME and INTEGRATION_PASSWORD must be set.'
+    );
     return false;
   }
 
-  return username === expectedUsername && password === expectedPassword;
+  // Both comparisons use safeEqual so the total execution time does not
+  // reveal which field was wrong.
+  return safeEqual(username, expectedUsername) && safeEqual(password, expectedPassword);
 }
-
-// Token storage is handled by lib/integration/token-store.ts
 
 export async function POST(request: NextRequest) {
   try {
-    // Parse request body
     let body: unknown;
     try {
       body = await request.json();
@@ -72,12 +79,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          data: {
-            name: 'Bad Request',
-            message: 'Request body must be valid JSON',
-            code: 0,
-            status: 400,
-          },
+          data: { name: 'Bad Request', message: 'Request body must be valid JSON', code: 0, status: 400 },
           status: 400,
         },
         { status: 400 }
@@ -86,17 +88,11 @@ export async function POST(request: NextRequest) {
 
     const req = body as Record<string, unknown>;
 
-    // Validate request body
     if (!req.username || typeof req.username !== 'string') {
       return NextResponse.json(
         {
           success: false,
-          data: {
-            name: 'Bad Request',
-            message: 'username is required and must be a string',
-            code: 0,
-            status: 400,
-          },
+          data: { name: 'Bad Request', message: 'username is required and must be a string', code: 0, status: 400 },
           status: 400,
         },
         { status: 400 }
@@ -107,59 +103,40 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          data: {
-            name: 'Bad Request',
-            message: 'password is required and must be a string',
-            code: 0,
-            status: 400,
-          },
+          data: { name: 'Bad Request', message: 'password is required and must be a string', code: 0, status: 400 },
           status: 400,
         },
         { status: 400 }
       );
     }
 
-    // At this point, username and password are validated to be string
-    const username = req.username as string;
-    const password = req.password as string;
+    const username = req.username;
+    const password = req.password;
 
-    // Validate credentials
     if (!validateCredentials(username, password)) {
       return NextResponse.json(
         {
           success: false,
-          data: {
-            name: 'Unauthorized',
-            message: 'Invalid username or password',
-            code: 0,
-            status: 401,
-          },
+          data: { name: 'Unauthorized', message: 'Invalid username or password', code: 0, status: 401 },
           status: 401,
         },
         { status: 401 }
       );
     }
 
-    // Generate token
+    // Generate and persist the token (DB-backed, survives cold starts).
     const token = generateToken();
-    const expiresIn = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+    const ttlHours = parseFloat(process.env.INTEGRATION_TOKEN_TTL_HOURS || '1');
+    const expiresInMs = (Number.isFinite(ttlHours) && ttlHours > 0 ? ttlHours : 1) * 60 * 60 * 1000;
 
-    // Store token with expiration
-    storeToken(token, expiresIn);
+    await storeToken(token, expiresInMs);
 
-    // Return success response (matching BeatRoute format)
     return NextResponse.json(
-      {
-        success: true,
-        data: {
-          token: token,
-        },
-        status: 200,
-      },
+      { success: true, data: { token }, status: 200 },
       { status: 200 }
     );
   } catch (error) {
-    console.error('Unexpected error in auth endpoint:', error);
+    console.error('[integration/auth] Unexpected error:', error);
     return NextResponse.json(
       {
         success: false,
@@ -176,6 +153,5 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Export function to validate tokens (for use in other endpoints)
+// Re-export validateToken so integration endpoint routes can import it from here.
 export { validateToken } from '@/lib/integration/token-store';
-

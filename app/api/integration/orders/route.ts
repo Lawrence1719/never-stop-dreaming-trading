@@ -70,25 +70,21 @@ interface OrderRequest {
 }
 
 // Validate API key or token
-function validateAuth(authHeader: string | null): boolean {
+async function validateAuth(authHeader: string | null): Promise<boolean> {
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return false;
   }
 
   const token = authHeader.substring(7);
 
-  // First, try to validate as API key
+  // First, try to validate as a static API key (no DB round-trip).
   const expectedApiKey = process.env.INTEGRATION_API_KEY;
   if (expectedApiKey && token === expectedApiKey) {
     return true;
   }
 
-  // If not API key, try to validate as username/password token
-  if (validateToken(token)) {
-    return true;
-  }
-
-  return false;
+  // Fall back to DB-backed token validation.
+  return await validateToken(token);
 }
 
 // Validate request body
@@ -187,7 +183,7 @@ export async function POST(request: NextRequest) {
   try {
     // Validate API key or token
     const authHeader = request.headers.get('authorization');
-    if (!validateAuth(authHeader)) {
+    if (!await validateAuth(authHeader)) {
       return NextResponse.json(
         {
           success: false,

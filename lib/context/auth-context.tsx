@@ -14,7 +14,7 @@ interface AuthContextType {
   updateProfile: (name: string, phone: string) => Promise<{ error: Error | null }>;
   requestPasswordReset: () => Promise<{ error: Error | null }>;
   requestCustomerPasswordReset: () => Promise<{ error: Error | null }>;
-  changePassword: (newPassword: string) => Promise<{ error: Error | null }>;
+
   resendConfirmationEmail: (email: string) => Promise<{ error: Error | null }>;
   updatePreferences: (preferences: User['notification_preferences']) => Promise<{ error: Error | null }>;
   restoreAccount: () => Promise<{ error: Error | null }>;
@@ -383,36 +383,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const requestPasswordReset = async () => {
-    if (!user) {
+    if (!user?.email) {
       return { error: new Error("User not authenticated") };
     }
 
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        return { error: new Error("No active session found") };
-      }
+    const redirectTo =
+      `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/admin/profile/reset-password`;
 
-      const response = await fetch('/api/admin/profile/password/verify', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-      });
+    const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+      redirectTo,
+    });
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        return { error: new Error(result.error || "Failed to send verification email") };
-      }
-
-      return { error: null };
-    } catch (error) {
-      console.error("Verification email failed:", error);
-      return { error: error as Error };
-    }
+    return { error: error as Error | null };
   };
 
   const requestCustomerPasswordReset = async () => {
@@ -444,40 +426,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: null };
     } catch (error) {
       console.error("Verification email failed:", error);
-      return { error: error as Error };
-    }
-  };
-
-  const changePassword = async (newPassword: string) => {
-    if (!user) {
-      return { error: new Error("User not authenticated") };
-    }
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        return { error: new Error("No active session found") };
-      }
-
-      const response = await fetch('/api/admin/profile/password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ newPassword }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        return { error: new Error(result.error || "Failed to update password") };
-      }
-
-      return { error: null };
-    } catch (error) {
-      console.error("Password update failed:", error);
       return { error: error as Error };
     }
   };
@@ -554,7 +502,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     updateProfile,
     requestPasswordReset,
     requestCustomerPasswordReset,
-    changePassword,
     resendConfirmationEmail,
     updatePreferences,
     restoreAccount,

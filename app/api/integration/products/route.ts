@@ -53,23 +53,21 @@ interface ProductInput {
 }
 
 // Validate API key or token
-function validateAuth(authHeader: string | null): boolean {
+async function validateAuth(authHeader: string | null): Promise<boolean> {
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return false;
     }
 
     const token = authHeader.substring(7);
 
+    // First, try to validate as a static API key (no DB round-trip).
     const expectedApiKey = process.env.INTEGRATION_API_KEY;
     if (expectedApiKey && token === expectedApiKey) {
         return true;
     }
 
-    if (validateToken(token)) {
-        return true;
-    }
-
-    return false;
+    // Fall back to DB-backed token validation.
+    return await validateToken(token);
 }
 
 // Validate a single product
@@ -95,7 +93,7 @@ export async function POST(request: NextRequest) {
     try {
         // Validate auth
         const authHeader = request.headers.get('authorization');
-        if (!validateAuth(authHeader)) {
+        if (!await validateAuth(authHeader)) {
             return NextResponse.json(
                 { success: false, error: 'Unauthorized', message: 'Invalid or missing token' },
                 { status: 401 }
