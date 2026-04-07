@@ -7,10 +7,11 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { MapPin, Phone, User, Package, Upload, CheckCircle, Clock, Loader2, Image as ImageIcon } from 'lucide-react';
+import { MapPin, Phone, User, Package, Upload, CheckCircle, Clock, Loader2, Image as ImageIcon, Camera, FolderOpen, X } from 'lucide-react';
 import { formatPrice, formatDate, formatOrderNumber } from '@/lib/utils/formatting';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/lib/supabase/client';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -58,6 +59,7 @@ interface DeliveryCardProps {
 export function DeliveryCard({ delivery, courierId, onUpdate, orderNumber }: DeliveryCardProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
   const isDelivered = delivery.status === 'delivered';
   const isProofPending = delivery.status === 'proof_pending';
@@ -86,7 +88,14 @@ export function DeliveryCard({ delivery, courierId, onUpdate, orderNumber }: Del
         return;
       }
       setFile(selectedFile);
+      setPreview(URL.createObjectURL(selectedFile));
     }
+  };
+
+  const clearFile = () => {
+    setFile(null);
+    if (preview) URL.revokeObjectURL(preview);
+    setPreview(null);
   };
 
   const handleSubmitProof = async () => {
@@ -102,8 +111,13 @@ export function DeliveryCard({ delivery, courierId, onUpdate, orderNumber }: Del
       formData.append('notes', notes);
       formData.append('courierId', courierId);
 
+      const { data: { session } } = await supabase.auth.getSession();
+
       const res = await fetch(`/api/courier/deliveries/${delivery.order_id}/proof`, {
         method: 'POST',
+        headers: {
+          ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
         body: formData,
       });
 
@@ -245,17 +259,58 @@ export function DeliveryCard({ delivery, courierId, onUpdate, orderNumber }: Del
           ) : (
             <div className="w-full space-y-4">
               <div className="space-y-2">
-                <Label htmlFor={`proof-${delivery.id}`}>Upload Proof (Image)</Label>
-                <div className="flex items-center gap-2">
-                  <Input 
-                    id={`proof-${delivery.id}`} 
-                    type="file" 
-                    accept="image/*" 
-                    onChange={handleFileChange}
-                    className="flex-1 cursor-pointer"
-                  />
-                  {file && <CheckCircle className="w-5 h-5 text-green-500 shrink-0" />}
-                </div>
+                <Label>Proof of Delivery</Label>
+                {/* Hidden inputs */}
+                <input
+                  id={`camera-${delivery.id}`}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+                <input
+                  id={`gallery-${delivery.id}`}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+                {/* Preview */}
+                {preview ? (
+                  <div className="relative rounded-xl overflow-hidden border border-border aspect-video bg-muted">
+                    <img src={preview} alt="Proof preview" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={clearFile}
+                      className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white rounded-full p-1 transition"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                    <div className="absolute bottom-2 left-2 bg-green-500/90 text-white text-xs font-semibold px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <CheckCircle className="w-3 h-3" /> Ready
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    <label
+                      htmlFor={`camera-${delivery.id}`}
+                      className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border-2 border-dashed border-cyan-400/50 bg-cyan-400/5 hover:bg-cyan-400/10 cursor-pointer transition text-center"
+                    >
+                      <Camera className="w-6 h-6 text-cyan-400" />
+                      <span className="text-xs font-semibold text-cyan-400">Take Photo</span>
+                      <span className="text-[10px] text-muted-foreground">Use camera</span>
+                    </label>
+                    <label
+                      htmlFor={`gallery-${delivery.id}`}
+                      className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border-2 border-dashed border-border hover:bg-muted/30 cursor-pointer transition text-center"
+                    >
+                      <FolderOpen className="w-6 h-6 text-muted-foreground" />
+                      <span className="text-xs font-semibold text-muted-foreground">Choose File</span>
+                      <span className="text-[10px] text-muted-foreground">From gallery</span>
+                    </label>
+                  </div>
+                )}
               </div>
               
               <div className="space-y-2">
@@ -309,17 +364,58 @@ export function DeliveryCard({ delivery, courierId, onUpdate, orderNumber }: Del
         ) : isProofPending ? (
           <div className="w-full space-y-4">
             <div className="space-y-2">
-              <Label htmlFor={`proof-${delivery.id}`}>Upload Proof (Image)</Label>
-              <div className="flex items-center gap-2">
-                <Input 
-                  id={`proof-${delivery.id}`} 
-                  type="file" 
-                  accept="image/*" 
-                  onChange={handleFileChange}
-                  className="flex-1 cursor-pointer"
-                />
-                {file && <CheckCircle className="w-5 h-5 text-green-500 shrink-0" />}
-              </div>
+              <Label>Proof of Delivery</Label>
+              {/* Hidden inputs */}
+              <input
+                id={`camera-pending-${delivery.id}`}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+              <input
+                id={`gallery-pending-${delivery.id}`}
+                type="file"
+                accept="image/*"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+              {/* Preview */}
+              {preview ? (
+                <div className="relative rounded-xl overflow-hidden border border-border aspect-video bg-muted">
+                  <img src={preview} alt="Proof preview" className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={clearFile}
+                    className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white rounded-full p-1 transition"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                  <div className="absolute bottom-2 left-2 bg-green-500/90 text-white text-xs font-semibold px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <CheckCircle className="w-3 h-3" /> Ready
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  <label
+                    htmlFor={`camera-pending-${delivery.id}`}
+                    className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border-2 border-dashed border-cyan-400/50 bg-cyan-400/5 hover:bg-cyan-400/10 cursor-pointer transition text-center"
+                  >
+                    <Camera className="w-6 h-6 text-cyan-400" />
+                    <span className="text-xs font-semibold text-cyan-400">Take Photo</span>
+                    <span className="text-[10px] text-muted-foreground">Use camera</span>
+                  </label>
+                  <label
+                    htmlFor={`gallery-pending-${delivery.id}`}
+                    className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border-2 border-dashed border-border hover:bg-muted/30 cursor-pointer transition text-center"
+                  >
+                    <FolderOpen className="w-6 h-6 text-muted-foreground" />
+                    <span className="text-xs font-semibold text-muted-foreground">Choose File</span>
+                    <span className="text-[10px] text-muted-foreground">From gallery</span>
+                  </label>
+                </div>
+              )}
             </div>
             
             <div className="space-y-2">
