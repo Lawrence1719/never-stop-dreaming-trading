@@ -73,17 +73,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: profilesError.message }, { status: 500 });
     }
 
-    // Fetch emails and metadata from auth.users (requires service role)
-    const { data: { users: authUsers }, error: usersError } = await supabaseAdmin.auth.admin.listUsers();
-    
+    // Fetch emails and metadata from auth.users with pagination to avoid silent
+    // truncation at 1000 users (Supabase listUsers default).
     const emailsMap: Record<string, string> = {};
     const blockedMap: Record<string, boolean> = {};
-    
-    if (!usersError) {
-      authUsers.forEach(user => {
-        emailsMap[user.id] = user.email || '';
-        blockedMap[user.id] = user.user_metadata?.blocked === true;
+    let authPage = 1;
+    while (true) {
+      const { data: { users: pageUsers }, error: usersError } =
+        await supabaseAdmin.auth.admin.listUsers({ page: authPage, perPage: 1000 });
+      if (usersError || !pageUsers || pageUsers.length === 0) break;
+      pageUsers.forEach(u => {
+        emailsMap[u.id] = u.email || '';
+        blockedMap[u.id] = u.user_metadata?.blocked === true;
       });
+      if (pageUsers.length < 1000) break;
+      authPage++;
     }
 
     // Fetch order stats

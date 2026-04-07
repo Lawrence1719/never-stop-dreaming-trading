@@ -40,13 +40,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: profilesError.message }, { status: 500 });
     }
 
-    const { data: { users }, error: usersError } = await supabaseAdmin.auth.admin.listUsers();
-
-    if (usersError) {
-      return NextResponse.json({ error: usersError.message }, { status: 500 });
+    const allAuthUsers: { id: string; email?: string; user_metadata?: Record<string, unknown> }[] = [];
+    let authPage = 1;
+    while (true) {
+      const { data: { users: pageUsers }, error: usersError } =
+        await supabaseAdmin.auth.admin.listUsers({ page: authPage, perPage: 1000 });
+      if (usersError) {
+        return NextResponse.json({ error: usersError.message }, { status: 500 });
+      }
+      if (!pageUsers || pageUsers.length === 0) break;
+      allAuthUsers.push(...pageUsers);
+      if (pageUsers.length < 1000) break;
+      authPage++;
     }
 
-    const authUsersMap = new Map((users || []).map((user) => [user.id, user]));
+    const authUsersMap = new Map(allAuthUsers.map((u) => [u.id, u]));
 
     const staff = (profiles || [])
       .map((profile) => {

@@ -79,18 +79,20 @@ export async function GET(request: NextRequest) {
     let emailsMap: Record<string, string | null> = {};
     if (userIds.length > 0) {
       try {
-        // Use admin client to list users and get their emails
-        const { data: { users }, error: usersError } = await supabaseAdmin.auth.admin.listUsers();
-        
-        if (usersError) {
-          console.error('Failed to fetch user emails', usersError);
-        } else {
-          emailsMap = (users || []).reduce((acc: any, user: any) => {
-            if (userIds.includes(user.id)) {
-              acc[user.id] = user.email || null;
-            }
-            return acc;
-          }, {} as Record<string, string | null>);
+        let authPage = 1;
+        while (true) {
+          const { data: { users: pageUsers }, error: usersError } =
+            await supabaseAdmin.auth.admin.listUsers({ page: authPage, perPage: 1000 });
+          if (usersError) {
+            console.error('Failed to fetch user emails', usersError);
+            break;
+          }
+          if (!pageUsers || pageUsers.length === 0) break;
+          pageUsers.forEach((u) => {
+            if (userIds.includes(u.id)) emailsMap[u.id] = u.email || null;
+          });
+          if (pageUsers.length < 1000) break;
+          authPage++;
         }
       } catch (err) {
         console.error('Error fetching user emails:', err);

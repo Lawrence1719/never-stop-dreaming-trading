@@ -1,93 +1,133 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useAuth } from '@/lib/context/auth-context';
+import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Lock, Loader2, CheckCircle2, AlertCircle, ChevronLeft } from 'lucide-react';
+import { Lock, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PasswordInput } from '@/components/ui/PasswordInput';
 import { Label } from '@/components/ui/label';
-import { Navbar } from "@/components/layout/navbar";
-import { Footer } from "@/components/layout/footer";
+import { Navbar } from '@/components/layout/navbar';
+import { Footer } from '@/components/layout/footer';
+
+// How long (ms) to wait for the PASSWORD_RECOVERY event before giving up.
+const RECOVERY_TIMEOUT_MS = 10_000;
 
 function ResetPasswordForm() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { toast } = useToast();
-  const { user, logout, isLoading: authLoading } = useAuth();
 
-  const token = searchParams.get('token');
-  const email = searchParams.get('email');
-
+  const [status, setStatus] = useState<'waiting' | 'ready' | 'saving' | 'success' | 'invalid'>(
+    'waiting'
+  );
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState('');
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
-    if (!token || !email) {
-      setError('Invalid or missing reset link. Please request a new one from your profile settings.');
-    }
-  }, [token, email]);
+    // Supabase parses the magic-link fragment (#access_token=...&type=recovery)
+    // and fires PASSWORD_RECOVERY via onAuthStateChange.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') {
+        setStatus('ready');
+      }
+    });
 
-  const handleSessionConflictLogout = async () => {
-    setIsLoggingOut(true);
-    await logout();
-    setIsLoggingOut(false);
-  };
+    // If the event never fires (bad/expired link), show error.
+    const timeout = setTimeout(() => {
+      setStatus((current) => {
+        if (current === 'waiting') return 'invalid';
+        return current;
+      });
+    }, RECOVERY_TIMEOUT_MS);
+
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeout);
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    if (newPassword.length < 6) {
-      setError('Password must be at least 6 characters');
+    if (newPassword.length < 8) {
+      setError('Password must be at least 8 characters');
       return;
     }
-
     if (newPassword !== confirmPassword) {
       setError('Passwords do not match');
       return;
     }
 
-    setIsSaving(true);
+    setStatus('saving');
     try {
-      const response = await fetch('/api/profile/password/reset', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, token, newPassword }),
-      });
+      // updateUser() uses the active PASSWORD_RECOVERY session —
+      // no token reads, no listUsers(), no user_metadata writes.
+      const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
 
-      const result = await response.json();
+      if (updateError) throw updateError;
 
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to reset password');
-      }
-
-      setIsSuccess(true);
+      setStatus('success');
       toast({
-        title: "Success",
-        description: "Password reset successfully! You will be redirected to login.",
-        variant: "success",
+        title: 'Password updated',
+        description: 'Your password has been changed successfully.',
+        variant: 'success',
       });
 
-      // Clear the invalid session and redirect to login
+      // Sign out the recovery session and go to login.
       setTimeout(async () => {
-        await logout();
+        await supabase.auth.signOut();
         router.push('/login');
-      }, 3000);
-    } catch (error: any) {
-      console.error('Reset failed:', error);
-      setError(error.message || 'Failed to reset password');
-    } finally {
-      setIsSaving(false);
+      }, 2500);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to update password';
+      setError(message);
+      setStatus('ready');
     }
   };
 
-  if (isSuccess) {
+  // ── Waiting for Supabase recovery event ──────────────────────────────────
+  if (status === 'waiting') {
+    return (
+      <div className="max-w-md w-full mx-auto bg-card border border-border rounded-xl p-8 shadow-sm text-center space-y-6">
+        <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
+          <Loader2 className="w-10 h-10 text-primary animate-spin" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-bold">Verifying Link…</h2>
+          <p className="text-muted-foreground">
+            Please wait while we verify your reset link.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Invalid / expired link ────────────────────────────────────────────────
+  if (status === 'invalid') {
+    return (
+      <div className="max-w-md w-full mx-auto bg-card border border-border rounded-xl p-8 shadow-sm text-center space-y-6">
+        <div className="w-20 h-20 bg-destructive/10 rounded-full flex items-center justify-center mx-auto">
+          <AlertCircle className="w-10 h-10 text-destructive" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-bold">Invalid or Expired Link</h2>
+          <p className="text-muted-foreground">
+            This password reset link is invalid or has expired. Please request a new one
+            from your profile settings.
+          </p>
+        </div>
+        <Button onClick={() => router.push('/profile/security')} className="w-full py-6">
+          Back to Security Settings
+        </Button>
+      </div>
+    );
+  }
+
+  // ── Success ───────────────────────────────────────────────────────────────
+  if (status === 'success') {
     return (
       <div className="max-w-md w-full mx-auto bg-card border border-border rounded-xl p-8 shadow-sm text-center space-y-6">
         <div className="w-20 h-20 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto">
@@ -99,59 +139,31 @@ function ResetPasswordForm() {
             Your password has been updated. You will be redirected to the login page in a few seconds.
           </p>
         </div>
-        <Button onClick={async () => {
-          await logout();
-          router.push('/login');
-        }} className="w-full py-6">
+        <Button
+          onClick={async () => {
+            await supabase.auth.signOut();
+            router.push('/login');
+          }}
+          className="w-full py-6"
+        >
           Login Now
         </Button>
       </div>
     );
   }
 
-  // Session conflict check
-  if (user && user.email !== email) {
-    return (
-      <div className="max-w-md w-full mx-auto bg-card border border-border rounded-xl p-8 shadow-sm text-center space-y-6">
-        <div className="w-20 h-20 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center mx-auto">
-          <AlertCircle className="w-10 h-10 text-amber-600 dark:text-amber-400" />
-        </div>
-        <div className="space-y-2">
-          <h2 className="text-2xl font-bold">Session Conflict</h2>
-          <p className="text-muted-foreground">
-            You are currently logged in as <span className="font-semibold text-foreground">{user.email}</span>. 
-            To reset the password for <span className="font-semibold text-foreground">{email}</span>, you must sign out first.
-          </p>
-        </div>
-        <Button 
-          onClick={handleSessionConflictLogout} 
-          disabled={isLoggingOut}
-          className="w-full py-6 font-bold"
-        >
-          {isLoggingOut ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Signing out...
-            </>
-          ) : (
-            'Sign Out & Continue'
-          )}
-        </Button>
-      </div>
-    );
-  }
-
+  // ── Form (status === 'ready' | 'saving') ──────────────────────────────────
   return (
     <div className="max-w-md w-full mx-auto">
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold mb-2">Set New Password</h1>
-        <p className="text-muted-foreground">Enter a new secure password for {email}</p>
+        <p className="text-muted-foreground">Enter a new secure password for your account.</p>
       </div>
 
       <div className="bg-card border border-border rounded-xl p-8 shadow-lg">
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="space-y-2">
-            <Label htmlFor="new-password font-semibold">New Password</Label>
+            <Label htmlFor="new-password" className="font-semibold">New Password</Label>
             <div className="relative">
               <PasswordInput
                 id="new-password"
@@ -160,8 +172,8 @@ function ResetPasswordForm() {
                   setNewPassword(e.target.value);
                   if (error) setError('');
                 }}
-                placeholder="••••••••"
-                disabled={!!error && !token}
+                placeholder="Minimum 8 characters"
+                disabled={status === 'saving'}
                 className={`py-6 pl-10 ${error.includes('characters') ? 'border-destructive' : ''}`}
               />
               <Lock className="absolute left-3 top-4 w-4 h-4 text-muted-foreground" />
@@ -169,7 +181,7 @@ function ResetPasswordForm() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="confirm-password font-semibold">Confirm Password</Label>
+            <Label htmlFor="confirm-password" className="font-semibold">Confirm Password</Label>
             <div className="relative">
               <PasswordInput
                 id="confirm-password"
@@ -179,7 +191,7 @@ function ResetPasswordForm() {
                   if (error) setError('');
                 }}
                 placeholder="••••••••"
-                disabled={!!error && !token}
+                disabled={status === 'saving'}
                 className={`py-6 pl-10 ${error.includes('match') ? 'border-destructive' : ''}`}
               />
               <Lock className="absolute left-3 top-4 w-4 h-4 text-muted-foreground" />
@@ -189,21 +201,19 @@ function ResetPasswordForm() {
           {error && (
             <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-destructive mt-0.5 shrink-0" />
-              <p className="text-sm font-medium text-destructive">
-                {error}
-              </p>
+              <p className="text-sm font-medium text-destructive">{error}</p>
             </div>
           )}
 
-          <Button 
-            type="submit" 
-            className="w-full py-7 text-lg font-bold shadow-lg shadow-primary/20" 
-            disabled={isSaving || !newPassword || !confirmPassword || (!!error && !token)}
+          <Button
+            type="submit"
+            className="w-full py-7 text-lg font-bold shadow-lg shadow-primary/20"
+            disabled={status === 'saving' || !newPassword || !confirmPassword}
           >
-            {isSaving ? (
+            {status === 'saving' ? (
               <>
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                Updating...
+                Updating…
               </>
             ) : (
               'Update Password'
@@ -213,7 +223,14 @@ function ResetPasswordForm() {
       </div>
 
       <p className="text-center mt-6 text-sm text-muted-foreground">
-        Remember your password? <Button variant="link" onClick={() => router.push('/login')} className="p-0 h-auto font-semibold">Login here</Button>
+        Remember your password?{' '}
+        <Button
+          variant="link"
+          onClick={() => router.push('/login')}
+          className="p-0 h-auto font-semibold"
+        >
+          Login here
+        </Button>
       </p>
     </div>
   );
@@ -224,12 +241,14 @@ export default function ResetPasswordPage() {
     <div className="flex flex-col min-h-screen bg-background">
       <Navbar />
       <main className="flex-1 flex items-center justify-center p-4 py-20">
-        <Suspense fallback={
-          <div className="flex flex-col items-center gap-4">
-            <Loader2 className="w-10 h-10 animate-spin text-primary" />
-            <p className="text-muted-foreground font-medium">Loading security page...</p>
-          </div>
-        }>
+        <Suspense
+          fallback={
+            <div className="flex flex-col items-center gap-4">
+              <Loader2 className="w-10 h-10 animate-spin text-primary" />
+              <p className="text-muted-foreground font-medium">Loading security page…</p>
+            </div>
+          }
+        >
           <ResetPasswordForm />
         </Suspense>
       </main>

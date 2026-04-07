@@ -42,12 +42,17 @@ export async function GET(request: NextRequest) {
     let emailsMap: Record<string, string> = {};
     if (userIds.length > 0) {
       try {
-        const { data: { users } } = await supabaseAdmin.auth.admin.listUsers();
-        (users || []).forEach((u) => {
-          if (userIds.includes(u.id) && u.email) {
-            emailsMap[u.id] = u.email;
-          }
-        });
+        let authPage = 1;
+        while (true) {
+          const { data: { users: pageUsers }, error } =
+            await supabaseAdmin.auth.admin.listUsers({ page: authPage, perPage: 1000 });
+          if (error || !pageUsers || pageUsers.length === 0) break;
+          pageUsers.forEach((u) => {
+            if (userIds.includes(u.id) && u.email) emailsMap[u.id] = u.email;
+          });
+          if (pageUsers.length < 1000) break;
+          authPage++;
+        }
       } catch (err) {
         console.error('Error fetching emails:', err);
       }

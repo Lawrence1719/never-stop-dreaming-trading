@@ -37,9 +37,11 @@ export async function POST(
       console.warn("Moderation filter failed, proceeding without moderation:", moderationError);
     }
     
-    const status = isOffensive ? 'rejected' : 'approved';
+    // Clean reviews go to 'pending' — an admin must approve before they appear publicly.
+    // Offensive reviews are immediately 'rejected' by the auto-moderator.
+    const status = isOffensive ? 'rejected' : 'pending';
     const rejectionReason = isOffensive ? 'Violates community guidelines' : null;
-    const moderatedAt = new Date().toISOString();
+    const moderatedAt = isOffensive ? new Date().toISOString() : null;
 
     // Create a Supabase client with the user's token
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";

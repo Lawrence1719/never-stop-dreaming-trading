@@ -67,13 +67,12 @@ export async function GET(
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
     }
 
-    // Fetch email from auth.users
+    // Fetch email from auth.users — direct O(1) look-up by ID.
     let email = '';
     try {
-      const { data: { users }, error: usersError } = await supabaseAdmin.auth.admin.listUsers();
-      if (!usersError) {
-        const authUser = users?.find((u) => u.id === id);
-        email = authUser?.email || '';
+      const { data: authUser, error: emailError } = await supabaseAdmin.auth.admin.getUserById(id);
+      if (!emailError && authUser?.user) {
+        email = authUser.user.email || '';
       }
     } catch (err) {
       console.error('Error fetching user email:', err);
@@ -179,12 +178,12 @@ export async function PATCH(
 
     // Check if target is super admin
     const supabaseAdmin = getClient();
+    // Fetch target user’s email via direct look-up — replaces listUsers() scan.
     let targetEmail = '';
     try {
-      const { data: { users }, error: usersError } = await supabaseAdmin.auth.admin.listUsers();
-      if (!usersError) {
-        const targetUser = users?.find((u) => u.id === id);
-        targetEmail = targetUser?.email || '';
+      const { data: authUser, error: targetEmailError } = await supabaseAdmin.auth.admin.getUserById(id);
+      if (!targetEmailError && authUser?.user) {
+        targetEmail = authUser.user.email || '';
       }
     } catch (err) {
       console.error('Error checking target user:', err);
@@ -318,12 +317,12 @@ export async function DELETE(
 
     // Check if target is super admin
     const supabaseAdmin = getClient();
+    // Fetch target user for super-admin guard — direct look-up by ID.
     let targetEmail = '';
     try {
-      const { data: { users }, error: usersError } = await supabaseAdmin.auth.admin.listUsers();
-      if (!usersError) {
-        const targetUser = users?.find((u) => u.id === id);
-        targetEmail = targetUser?.email || '';
+      const { data: authUser, error: targetEmailError } = await supabaseAdmin.auth.admin.getUserById(id);
+      if (!targetEmailError && authUser?.user) {
+        targetEmail = authUser.user.email || '';
       }
     } catch (err) {
       console.error('Error checking target user:', err);

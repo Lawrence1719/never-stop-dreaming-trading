@@ -62,7 +62,7 @@ interface Review {
   title: string | null;
   variant_name: string | null;
   comment: string | null;
-  status: 'approved' | 'rejected';
+  status: 'pending' | 'approved' | 'rejected';
   rejection_reason: string | null;
   admin_reply: string | null;
   is_overridden: boolean;
@@ -81,7 +81,7 @@ export default function AdminReviewsPage() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [products, setProducts] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState<'approved' | 'rejected'>('approved');
+  const [status, setStatus] = useState<'pending' | 'approved' | 'rejected'>('pending');
   
   // Filters
   const [ratingFilter, setRatingFilter] = useState<string>("all");
@@ -184,6 +184,34 @@ export default function AdminReviewsPage() {
     }
   };
 
+  const handleApprove = async (review: Review) => {
+    try {
+      const { error } = await supabase
+        .from('reviews')
+        .update({ status: 'approved', is_overridden: true, moderated_at: new Date().toISOString() })
+        .eq('id', review.id);
+      if (error) throw error;
+      toast({ title: 'Approved', description: 'Review is now visible on product pages.' });
+      fetchReviews();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    }
+  };
+
+  const handleReject = async (review: Review) => {
+    try {
+      const { error } = await supabase
+        .from('reviews')
+        .update({ status: 'rejected', is_overridden: true, moderated_at: new Date().toISOString() })
+        .eq('id', review.id);
+      if (error) throw error;
+      toast({ title: 'Rejected', description: 'Review will not appear on product pages.' });
+      fetchReviews();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    }
+  };
+
   const handleOverride = async () => {
     if (!overrideReview) return;
     setIsOverriding(true);
@@ -199,11 +227,11 @@ export default function AdminReviewsPage() {
         .eq('id', overrideReview.id);
 
       if (error) throw error;
-      toast({ title: "Success", description: `Review ${newStatus === 'approved' ? 'approved' : 'rejected'} successfully` });
+      toast({ title: 'Success', description: `Review ${newStatus === 'approved' ? 'approved' : 'rejected'} successfully` });
       setOverrideReview(null);
       fetchReviews();
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } finally {
       setIsOverriding(false);
     }
@@ -218,8 +246,11 @@ export default function AdminReviewsPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="approved" onValueChange={(val) => setStatus(val as any)}>
-        <TabsList className="grid w-full grid-cols-2 max-w-lg">
+      <Tabs defaultValue="pending" onValueChange={(val) => setStatus(val as any)}>
+        <TabsList className="grid w-full grid-cols-3 max-w-lg">
+          <TabsTrigger value="pending" className="relative">
+            Pending
+          </TabsTrigger>
           <TabsTrigger value="approved">Approved</TabsTrigger>
           <TabsTrigger value="rejected">Rejected</TabsTrigger>
         </TabsList>
@@ -304,8 +335,16 @@ export default function AdminReviewsPage() {
                         ))}
                       </div>
                       <div className="flex gap-2">
-                        <Badge variant={review.status === 'approved' ? 'success' : 'destructive'}>
-                          {review.status}
+                        <Badge
+                          variant={
+                            review.status === 'approved'
+                              ? 'success'
+                              : review.status === 'rejected'
+                              ? 'destructive'
+                              : 'secondary'
+                          }
+                        >
+                          {review.status === 'pending' ? '⏳ Pending' : review.status}
                         </Badge>
                         {review.is_overridden && (
                           <Badge variant="outline" className="border-primary text-primary">Overridden</Badge>
@@ -340,7 +379,7 @@ export default function AdminReviewsPage() {
                     <div className="text-[10px] text-muted-foreground">
                       {formatDate(review.created_at)}
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
                       <Button 
                         size="sm" 
                         variant="ghost" 
@@ -360,18 +399,39 @@ export default function AdminReviewsPage() {
                       >
                         <Trash2 className="w-4 h-4 mr-1" /> Delete
                       </Button>
-                      <Button 
-                        size="sm" 
-                        variant="ghost" 
-                        className="h-8 px-2"
-                        onClick={() => setOverrideReview(review)}
-                      >
-                        {review.status === 'approved' ? (
-                          <><XCircle className="w-4 h-4 mr-1" /> Reject</>
-                        ) : (
-                          <><CheckCircle className="w-4 h-4 mr-1" /> Approve</>
-                        )}
-                      </Button>
+                      {review.status === 'pending' ? (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 px-2 text-green-600 hover:text-green-600"
+                            onClick={() => handleApprove(review)}
+                          >
+                            <CheckCircle className="w-4 h-4 mr-1" /> Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 px-2 text-destructive hover:text-destructive"
+                            onClick={() => handleReject(review)}
+                          >
+                            <XCircle className="w-4 h-4 mr-1" /> Reject
+                          </Button>
+                        </>
+                      ) : (
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          className="h-8 px-2"
+                          onClick={() => setOverrideReview(review)}
+                        >
+                          {review.status === 'approved' ? (
+                            <><XCircle className="w-4 h-4 mr-1" /> Reject</>
+                          ) : (
+                            <><CheckCircle className="w-4 h-4 mr-1" /> Approve</>
+                          )}
+                        </Button>
+                      )}
                     </div>
                   </CardFooter>
                 </Card>
