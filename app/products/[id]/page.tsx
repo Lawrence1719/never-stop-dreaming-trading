@@ -271,6 +271,44 @@ export default function ProductDetailPage() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Handle pending action from localStorage after login/register
+  useEffect(() => {
+    if (user && product && !loading) {
+      const pendingActionItem = localStorage.getItem('pending_ecommerce_action');
+      if (pendingActionItem) {
+        try {
+          const action = JSON.parse(pendingActionItem);
+          
+          // Only execute if it's for the current product
+          if (action.productId === product.id) {
+            console.info('[ProductDetail] Executing pending action:', action.type);
+            
+            const variant = action.variantId 
+              ? variants.find(v => v.id === action.variantId) 
+              : undefined;
+
+            if (action.type === 'add') {
+              addItem(product as Product, action.quantity, variant);
+              toast({
+                title: "Added to cart",
+                description: `${action.quantity} ${action.quantity === 1 ? 'item' : 'items'} added successfully${variant ? ` (${variant.variant_label})` : ''}`,
+                variant: 'success',
+              });
+            } else if (action.type === 'buy') {
+              router.push(`/checkout?product=${product.id}&quantity=${action.quantity}${action.variantId ? `&variant=${action.variantId}` : ''}`);
+            }
+            
+            // Clear pending action
+            localStorage.removeItem('pending_ecommerce_action');
+          }
+        } catch (err) {
+          console.error('Failed to process pending action:', err);
+          localStorage.removeItem('pending_ecommerce_action');
+        }
+      }
+    }
+  }, [user, product, loading, variants, addItem, router, toast]);
+
   if (loading) {
     return (
       <div className="flex flex-col min-h-screen">
@@ -453,44 +491,6 @@ export default function ProductDetailPage() {
     
     setIsModalOpen(false);
   };
-
-  // Handle pending action from localStorage after login/register
-  useEffect(() => {
-    if (user && product && !loading) {
-      const pendingActionItem = localStorage.getItem('pending_ecommerce_action');
-      if (pendingActionItem) {
-        try {
-          const action = JSON.parse(pendingActionItem);
-          
-          // Only execute if it's for the current product
-          if (action.productId === product.id) {
-            console.info('[ProductDetail] Executing pending action:', action.type);
-            
-            const variant = action.variantId 
-              ? variants.find(v => v.id === action.variantId) 
-              : undefined;
-
-            if (action.type === 'add') {
-              addItem(product as Product, action.quantity, variant);
-              toast({
-                title: "Added to cart",
-                description: `${action.quantity} ${action.quantity === 1 ? 'item' : 'items'} added successfully${variant ? ` (${variant.variant_label})` : ''}`,
-                variant: 'success',
-              });
-            } else if (action.type === 'buy') {
-              router.push(`/checkout?product=${product.id}&quantity=${action.quantity}${action.variantId ? `&variant=${action.variantId}` : ''}`);
-            }
-            
-            // Clear pending action
-            localStorage.removeItem('pending_ecommerce_action');
-          }
-        } catch (err) {
-          console.error('Failed to process pending action:', err);
-          localStorage.removeItem('pending_ecommerce_action');
-        }
-      }
-    }
-  }, [user, product, loading, variants, addItem, router, toast]);
 
   const handleWishlist = () => {
     if (!user) {

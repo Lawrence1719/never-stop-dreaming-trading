@@ -6,10 +6,15 @@ import { sendStaffWelcomeEmail } from '@/lib/emails/profile-emails';
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization') || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
-  const authResult = await verifyStaffAccess(token, true);
+  const authResult = await verifyStaffAccess(token, false);
 
   if (authResult.error || !authResult.user) {
     return NextResponse.json({ error: authResult.error }, { status: authResult.status });
+  }
+
+  // Couriers cannot access staff management
+  if (!authResult.isSuperAdmin && authResult.profile?.role !== 'admin') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const { searchParams } = new URL(request.url);
@@ -93,10 +98,15 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const authHeader = request.headers.get('authorization') || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
-  const authResult = await verifyStaffAccess(token, true);
+  const authResult = await verifyStaffAccess(token, false);
 
   if (authResult.error || !authResult.user) {
     return NextResponse.json({ error: authResult.error }, { status: authResult.status });
+  }
+
+  // Couriers cannot access staff management
+  if (!authResult.isSuperAdmin && authResult.profile?.role !== 'admin') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   try {
@@ -110,7 +120,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid staff role.' }, { status: 400 });
     }
 
-    const normalizedRole: StaffRole = role === 'super_admin' ? 'super_admin' : 'admin';
+    if (!authResult.isSuperAdmin && role !== 'courier') {
+      return NextResponse.json({ error: 'Admins can only create Courier accounts.' }, { status: 403 });
+    }
+
+    const normalizedRole: StaffRole = role === 'courier' ? 'courier' : role === 'super_admin' ? 'super_admin' : 'admin';
     const normalizedEmail = String(email).trim().toLowerCase();
     const trimmedName = String(name).trim();
     const trimmedPhone = typeof phone === 'string' ? phone.trim() : '';
@@ -130,8 +144,8 @@ export async function POST(request: NextRequest) {
       user_metadata: {
         name: trimmedName,
         phone: trimmedPhone,
-        role: role === 'courier' ? 'courier' : 'admin',
-        isSuperAdmin: role === 'super_admin',
+        role: normalizedRole,
+        isSuperAdmin: normalizedRole === 'super_admin',
       },
     });
 
@@ -141,6 +155,18 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Insert audit log
+    await supabaseAdmin.from('audit_logs').insert({
+      action: 'staff_created',
+      target_type: 'user',
+      target_id: createdUser.id,
+      metadata: { 
+        role: normalizedRole, 
+        created_by: authResult.user.id, 
+        creator_role: authResult.isSuperAdmin ? 'super_admin' : 'admin' 
+      }
+    });
 
     const emailResult = await sendStaffWelcomeEmail(normalizedEmail, trimmedName, normalizedRole);
 

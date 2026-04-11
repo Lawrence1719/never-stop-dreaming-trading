@@ -31,8 +31,6 @@ interface CustomerRowActionsProps {
   currentUserIsSuperAdmin: boolean;
   onViewDetails: () => void;
   onEdit: () => void;
-  onAssignCourier: () => void;
-  onRemoveCourier: () => void;
   onDeactivate: () => void;
   onActivate: () => void;
   onDelete: () => void;
@@ -46,8 +44,6 @@ export function CustomerRowActions({
   currentUserIsSuperAdmin,
   onViewDetails,
   onEdit,
-  onAssignCourier,
-  onRemoveCourier,
   onDeactivate,
   onActivate,
   onDelete,
@@ -55,7 +51,6 @@ export function CustomerRowActions({
   onPermanentDelete,
 }: CustomerRowActionsProps) {
   const isCurrentUser = customer.id === currentUserId;
-  const canChangeRoles = currentUserIsSuperAdmin && !isCurrentUser;
   const canManageAccount = !isCurrentUser;
   const isCourier = customer.role === 'courier';
 
@@ -75,30 +70,7 @@ export function CustomerRowActions({
           <Edit className="h-4 w-4" />
           Edit Customer
         </DropdownMenuItem>
-        {canChangeRoles && (
-          <>
-            <DropdownMenuSeparator />
-            {customer.role === 'customer' ? (
-              <DropdownMenuItem className="gap-2" onClick={onAssignCourier}>
-                <Bike className="h-4 w-4" />
-                Assign as Courier
-              </DropdownMenuItem>
-            ) : (
-              <DropdownMenuItem className="gap-2" onClick={onRemoveCourier}>
-                <Bike className="h-4 w-4" />
-                Remove Courier
-              </DropdownMenuItem>
-            )}
-          </>
-        )}
-        {!currentUserIsSuperAdmin && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem disabled className="text-muted-foreground">
-              Only Super Admin can change roles
-            </DropdownMenuItem>
-          </>
-        )}
+        
         {canManageAccount && (
           <>
             <DropdownMenuSeparator />

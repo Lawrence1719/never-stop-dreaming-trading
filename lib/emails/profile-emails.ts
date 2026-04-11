@@ -151,12 +151,12 @@ export async function sendPasswordResetLink(email: string, name: string, resetLi
   }
 }
 
-export async function sendStaffWelcomeEmail(email: string, name: string, role: 'admin' | 'super_admin') {
-  const roleLabel = role === 'super_admin' ? 'Super Admin' : 'Admin';
+export async function sendStaffWelcomeEmail(email: string, name: string, role: 'admin' | 'super_admin' | 'courier') {
+  const roleLabel = role === 'super_admin' ? 'Super Admin' : role === 'courier' ? 'Courier' : 'Admin';
   const safeName = escapeHtml(name);
   const { html, text } = wrapBody(
     `
-    <h1 style="${styles.h1}">Welcome to the Admin Team</h1>
+    <h1 style="${styles.h1}">Welcome to the Team</h1>
     <p style="${styles.p}">Hello <strong style="color:#f8fafc;">${safeName}</strong>,</p>
     <p style="${styles.p}">Your staff account has been created successfully.</p>
     <p style="${styles.p}">You have been assigned the role of <strong style="color:#0ea5e9;">${escapeHtml(roleLabel)}</strong>.</p>

@@ -56,7 +56,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Toaster } from '@/components/ui/toaster';
 
-type StaffRole = 'admin' | 'super_admin';
+type StaffRole = 'admin' | 'super_admin' | 'courier';
 type StaffStatus = 'active' | 'inactive';
 
 interface StaffMember {
@@ -85,7 +85,7 @@ const emptyForm: StaffFormState = {
   email: '',
   phone: '',
   password: '',
-  role: 'admin',
+  role: 'courier',
 };
 
 const getInitials = (name: string) => {
@@ -208,15 +208,20 @@ export default function StaffManagementPage() {
       year: 'numeric',
     }).format(new Date(value));
 
-  const getRoleBadge = (role: StaffRole) =>
-    role === 'super_admin' ? (
-      <Badge className="bg-amber-600 hover:bg-amber-700 text-white flex items-center gap-1">
-        <Star className="w-3 h-3 fill-white" />
-        Super Admin
-      </Badge>
-    ) : (
-      <Badge variant="secondary">Admin</Badge>
-    );
+  const getRoleBadge = (role: StaffRole) => {
+    if (role === 'super_admin') {
+      return (
+        <Badge className="bg-amber-600 hover:bg-amber-700 text-white flex items-center gap-1">
+          <Star className="w-3 h-3 fill-white" />
+          Super Admin
+        </Badge>
+      );
+    }
+    if (role === 'courier') {
+      return <Badge variant="outline">Courier</Badge>;
+    }
+    return <Badge variant="secondary">Admin</Badge>;
+  };
 
   const getStatusBadge = (status: StaffStatus) =>
     status === 'active' ? <Badge variant="success">active</Badge> : <Badge variant="destructive">inactive</Badge>;
@@ -365,7 +370,7 @@ export default function StaffManagementPage() {
     setEditDialogOpen(true);
   };
 
-  if (!isLoading && !currentUserIsSuperAdmin) {
+  if (!isLoading && currentUserId === null) {
     return null;
   }
 
@@ -604,8 +609,9 @@ export default function StaffManagementPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="super_admin">Super Admin</SelectItem>
+                  {currentUserIsSuperAdmin && <SelectItem value="admin">Admin</SelectItem>}
+                  {currentUserIsSuperAdmin && <SelectItem value="super_admin">Super Admin</SelectItem>}
+                  <SelectItem value="courier">Courier</SelectItem>
                 </SelectContent>
               </Select>
             </div>

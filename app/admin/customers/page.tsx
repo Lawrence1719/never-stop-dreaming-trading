@@ -52,7 +52,7 @@ interface Customer {
   deletedAt?: string;
 }
 
-type CustomerRole = 'customer' | 'courier';
+type CustomerRole = 'customer';
 
 export default function CustomersPage() {
   const { toast } = useToast();
@@ -68,8 +68,7 @@ export default function CustomersPage() {
   const [unblockDialogOpen, setUnblockDialogOpen] = useState(false);
   const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
   const [isPermanentDelete, setIsPermanentDelete] = useState(false);
-  const [roleChangeDialogOpen, setRoleChangeDialogOpen] = useState(false);
-  const [pendingRoleChange, setPendingRoleChange] = useState<CustomerRole | null>(null);
+  // Remove roleChange variables
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [viewDetailsOpen, setViewDetailsOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -330,63 +329,8 @@ export default function CustomersPage() {
     }
   };
 
-  const handleChangeRole = async (customerId: string, newRole: CustomerRole) => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`/api/admin/customers/${customerId}/role`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session?.access_token}`,
-        },
-        body: JSON.stringify({ role: newRole }),
-      });
-
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || 'Failed to change role');
-      }
-
-      setRoleChangeDialogOpen(false);
-      setPendingRoleChange(null);
-      setSelectedCustomer(null);
-      toast({
-        title: 'Role updated',
-        description:
-          newRole === 'courier'
-            ? 'Courier role assigned successfully.'
-            : 'Courier role removed successfully.',
-        variant: 'success',
-      });
-      refreshCustomers();
-    } catch (err) {
-      console.error('Failed to change role', err);
-      toast({
-        title: 'Error',
-        description: err instanceof Error ? err.message : 'Failed to change role',
-        variant: 'destructive',
-      });
-    }
-  };
-
   const getRoleBadge = (role: string) => {
-    if (role === 'courier') {
-      return (
-        <Badge className="border border-amber-500/40 bg-amber-500/15 text-amber-200">
-          Courier
-        </Badge>
-      );
-    }
-
     return <Badge variant="outline">Customer</Badge>;
-  };
-
-  const getRoleChangeDialogCopy = () => {
-    if (!selectedCustomer || !pendingRoleChange) return '';
-
-    return pendingRoleChange === 'courier'
-      ? `Are you sure you want to assign ${selectedCustomer.name} as a Courier?`
-      : `Are you sure you want to remove Courier role from ${selectedCustomer.name}?`;
   };
 
   const getInitials = (name: string) =>
@@ -548,7 +492,6 @@ export default function CustomersPage() {
               <SelectContent>
                 <SelectItem value="all">All</SelectItem>
                 <SelectItem value="customer">Customer</SelectItem>
-                <SelectItem value="courier">Courier</SelectItem>
               </SelectContent>
             </Select>
             {statusFilter !== 'deleted' && (
@@ -679,16 +622,7 @@ export default function CustomersPage() {
                             setSelectedCustomer(customer);
                             setEditDialogOpen(true);
                           }}
-                          onAssignCourier={() => {
-                            setSelectedCustomer(customer);
-                            setPendingRoleChange('courier');
-                            setRoleChangeDialogOpen(true);
-                          }}
-                          onRemoveCourier={() => {
-                            setSelectedCustomer(customer);
-                            setPendingRoleChange('customer');
-                            setRoleChangeDialogOpen(true);
-                          }}
+                          // Courier features removed
                           onDeactivate={() => {
                             setSelectedCustomer(customer);
                             setBlockDialogOpen(true);
@@ -988,27 +922,7 @@ export default function CustomersPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Change Role Confirmation Dialog */}
-      <AlertDialog open={roleChangeDialogOpen} onOpenChange={setRoleChangeDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {pendingRoleChange === 'courier' ? 'Assign as Courier' : 'Remove Courier Role'}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {getRoleChangeDialogCopy()}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={() => selectedCustomer && pendingRoleChange && handleChangeRole(selectedCustomer.id, pendingRoleChange)}
-            >
-              Confirm
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Role Dialog Removed */}
 
       {/* Add Customer Dialog */}
       <AlertDialog 
@@ -1135,28 +1049,7 @@ export default function CustomersPage() {
                     onChange={(e) => handleNewCustomerChange('password', e.target.value)}
                   />
                 </div>
-                <div>
-                  <label className="text-sm font-medium mb-1 block">Role</label>
-                  <Select
-                    value={newCustomer.role}
-                    onValueChange={(value) => handleNewCustomerChange('role', value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="customer">Customer</SelectItem>
-                      <SelectItem value="courier">Courier</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {newCustomer.role === 'courier' && (
-                    <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                      <p className="text-sm text-blue-800 dark:text-blue-300 font-medium leading-snug">
-                        ⚠️ Courier accounts are for delivery staff only. They will only have access to the Courier Dashboard.
-                      </p>
-                    </div>
-                  )}
-                </div>
+                {/* Role selection is hidden as customers are always created as 'customer' */}
                 {addCustomerError && (
                   <p className="text-sm text-destructive">{addCustomerError}</p>
                 )}
