@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getClient } from '@/lib/supabase/admin';
 import { resolveStaffRole, verifyStaffAccess, type StaffRole } from '@/lib/admin/staff';
+import { sendStaffInviteEmail } from '@/lib/emails/profile-emails';
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization') || '';
@@ -133,28 +134,35 @@ export async function POST(request: NextRequest) {
 
     const supabaseAdmin = getClient();
     
-    // Use Supabase invite flow
+    // 1. Generate invitation link (creates/updates auth user without sending email)
     const {
-      data: { user: invitedUser },
+      data: inviteData,
       error: inviteError,
-    } = await supabaseAdmin.auth.admin.inviteUserByEmail(normalizedEmail, {
-      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/staff/accept-invite`,
-      data: {
-        name: trimmedName,
-        phone: trimmedPhone,
-        role: normalizedRole,
-        isSuperAdmin: normalizedRole === 'super_admin',
-      },
+    } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'invite',
+      email: normalizedEmail,
+      options: {
+        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/staff/accept-invite`,
+        data: {
+          name: trimmedName,
+          phone: trimmedPhone,
+          role: normalizedRole,
+          isSuperAdmin: normalizedRole === 'super_admin',
+        },
+      }
     });
 
-    if (inviteError || !invitedUser) {
+    if (inviteError || !inviteData?.user) {
       return NextResponse.json(
-        { error: inviteError?.message || 'Failed to invite staff member' },
+        { error: inviteError?.message || 'Failed to generate invitation link' },
         { status: 500 }
       );
     }
 
-    // Upsert into profiles table with pending status
+    const invitedUser = inviteData.user;
+    const inviteLink = inviteData.properties.action_link;
+
+    // 2. Ensure profile row exists BEFORE sending the email
     const { error: profileError } = await supabaseAdmin.from('profiles').upsert({
       id: invitedUser.id,
       name: trimmedName,
@@ -166,10 +174,25 @@ export async function POST(request: NextRequest) {
     });
 
     if (profileError) {
-      console.error('Failed to create/update profile for invited user', profileError);
+      console.error('CRITICAL: Failed to create/update profile for invited user', profileError);
+      return NextResponse.json(
+        { error: 'Failed to create staff profile. Invitation was not sent.' },
+        { status: 500 }
+      );
     }
 
-    // Insert audit log
+    // 3. Send custom branded invitation email via Nodemailer
+    const emailResult = await sendStaffInviteEmail(normalizedEmail, trimmedName, normalizedRole, inviteLink);
+    
+    if (!emailResult.success) {
+      console.error('Failed to send invitation email', emailResult.error);
+      return NextResponse.json(
+        { error: 'Staff account created but invitation email failed to send.' },
+        { status: 500 }
+      );
+    }
+
+    // 4. Insert audit log
     await supabaseAdmin.from('audit_logs').insert({
       action: 'staff_invited',
       target_type: 'user',
@@ -177,22 +200,20 @@ export async function POST(request: NextRequest) {
       metadata: { 
         role: normalizedRole, 
         invited_by: authResult.user.id, 
-        inviter_role: authResult.isSuperAdmin ? 'super_admin' : 'admin' 
+        inviter_role: authResult.isSuperAdmin ? 'super_admin' : 'admin',
+        email_sent: true
       }
     });
 
-    const staffPayload = {
-      id: invitedUser.id,
-      name: trimmedName,
-      email: normalizedEmail,
-      phone: trimmedPhone,
-      role: normalizedRole,
-      invitation_status: 'pending',
-    };
-
     return NextResponse.json({
       success: true,
-      staff: staffPayload,
+      staff: {
+        id: invitedUser.id,
+        name: trimmedName,
+        email: normalizedEmail,
+        role: normalizedRole,
+        invitation_status: 'pending',
+      },
     });
   } catch (error) {
     console.error('Failed to invite staff account', error);

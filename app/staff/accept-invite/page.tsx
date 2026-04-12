@@ -33,26 +33,45 @@ function AcceptInviteContent() {
       setError(null);
 
       try {
-        // 1. Check if we have a session (Supabase handles hash fragments automatically)
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        // 1. Check if we have an invitation token in the URL hash
+        const hash = window.location.hash;
+        if (hash && hash.includes('access_token=') && hash.includes('type=invite')) {
+          // Supabase client usually handles this, but let's be explicit to ensure session is ready
+          const params = new URLSearchParams(hash.substring(1));
+          const accessToken = params.get('access_token');
+          const refreshToken = params.get('refresh_token');
 
-        if (sessionError) {
-          throw new Error('Failed to retrieve session. Your invitation link may be invalid or expired.');
+          if (accessToken && refreshToken) {
+            const { error: setSessionError } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+            if (setSessionError) {
+              console.error('Session setup error:', setSessionError);
+              throw new Error('Could not establish a secure session from the invitation link.');
+            }
+            // Clear hash to prevent re-processing
+            window.history.replaceState(null, '', window.location.pathname);
+          }
         }
 
-        // 2. If no session, the link might have expired or is invalid
-        if (!session) {
-          // If there's an error in the URL query params (e.g. error_description)
+        // 2. Retrieve session (either from hash processing above OR existing)
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+        if (sessionError || !session) {
+          // Check for explicit error in URL (Supabase often appends error_description to query)
           const urlError = searchParams.get('error_description') || searchParams.get('error');
           if (urlError) {
             throw new Error(urlError);
           }
-          throw new Error('Invitation link has expired or is invalid. Please contact your administrator.');
+          // If no session and no hash was processed, the link is likely invalid/expired
+          throw new Error('Your invitation link is invalid or has expired. Please contact your administrator for a new one.');
         }
 
         setEmail(session.user.email || '');
 
         // 3. Fetch the profile to check invitation status
+        // At this point we HAVE a valid session, so if profile is missing, it's a "Profile not found" error
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .select('id, name, role, invitation_status')
@@ -61,7 +80,7 @@ function AcceptInviteContent() {
 
         if (profileError || !profileData) {
           console.error('Profile fetch error:', profileError);
-          throw new Error('Could not find your staff profile. Please contact support.');
+          throw new Error('AUTHENTICATED_BUT_NO_PROFILE');
         }
 
         // 4. If already accepted, redirect to login or dashboard
@@ -77,7 +96,8 @@ function AcceptInviteContent() {
         setProfile(profileData);
       } catch (err) {
         console.error('Invite validation error:', err);
-        setError(err instanceof Error ? err.message : 'An unexpected error occurred.');
+        const msg = err instanceof Error ? err.message : 'An unexpected error occurred.';
+        setError(msg);
       } finally {
         setIsLoading(false);
       }
@@ -161,6 +181,7 @@ function AcceptInviteContent() {
   }
 
   if (error) {
+    const isProfileMissing = error === 'AUTHENTICATED_BUT_NO_PROFILE';
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-950 p-4">
         <Card className="w-full max-w-md border-rose-500/20 bg-slate-900 shadow-2xl">
@@ -168,16 +189,24 @@ function AcceptInviteContent() {
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/10">
               <AlertCircle className="h-6 w-6 text-rose-500" />
             </div>
-            <CardTitle className="text-white">Invitation Error</CardTitle>
+            <CardTitle className="text-white">
+              {isProfileMissing ? 'Profile Not Found' : 'Invitation Error'}
+            </CardTitle>
             <CardDescription className="text-slate-400">
-              Something went wrong with your invitation link.
+              {isProfileMissing 
+                ? 'Your account is verified, but we couldn\'t find your staff profile.' 
+                : 'Something went wrong with your invitation link.'}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Alert variant="destructive" className="border-rose-500/50 bg-rose-500/10">
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Error</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
+              <AlertDescription>
+                {isProfileMissing 
+                  ? 'Please contact your administrator to ensure your staff account has been fully set up.' 
+                  : error}
+              </AlertDescription>
             </Alert>
           </CardContent>
           <CardFooter>

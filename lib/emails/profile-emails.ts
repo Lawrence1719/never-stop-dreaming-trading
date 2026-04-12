@@ -182,3 +182,42 @@ export async function sendStaffWelcomeEmail(email: string, name: string, role: '
     return { success: false, error };
   }
 }
+export async function sendStaffInviteEmail(email: string, name: string, role: string, inviteLink: string) {
+  const roleLabel = role === 'super_admin' ? 'Super Admin' : role === 'courier' ? 'Courier' : 'Admin';
+  const safeName = escapeHtml(name);
+  const { html, text } = wrapBody(
+    `
+    <h1 style="${styles.h1}">Invitation to Join NSD</h1>
+    <p style="${styles.p}">Hello <strong style="color:#f8fafc;">${safeName}</strong>,</p>
+    <p style="${styles.p}">You have been invited to join the Never Stop Dreaming Trading team as <strong style="color:#0ea5e9;">${escapeHtml(roleLabel)}</strong>.</p>
+    <p style="${styles.p}">To get started, please click the button below to accept your invitation and set up your account password:</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:24px 0;">
+      <tr>
+        <td style="text-align:center;">
+          <a href="${inviteLink}" style="${styles.btn}">Accept Invitation &amp; Set Password</a>
+        </td>
+      </tr>
+    </table>
+    <p style="${styles.p}"><strong style="color:#f87171;">This invitation link will expire in 24 hours.</strong></p>
+    <p style="${styles.p}">If you were not expecting this invitation, you can safely ignore this email.</p>
+    `,
+    `Hello ${name},\n\nYou have been invited to join the Never Stop Dreaming Trading team as ${roleLabel}.\n\nTo accept your invitation and set your password, please open the following link:\n\n${inviteLink}\n\nThis link expires in 24 hours.\n\n— Never Stop Dreaming Trading`,
+  );
+
+  const mailOptions = {
+    from: defaultFrom,
+    to: email,
+    subject: `You've been invited to join NSD as ${roleLabel}`,
+    text,
+    html,
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log('Staff invite email sent: ' + info.response);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error('Error sending staff invite email:', error);
+    return { success: false, error };
+  }
+}
