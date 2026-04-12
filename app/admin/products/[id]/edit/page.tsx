@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { ArrowLeft, AlertCircle, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
@@ -14,7 +14,7 @@ import { ManageVariantsPage } from '@/components/admin/manage-variants-page';
 
 import { useToast } from '@/hooks/use-toast';
 
-export default function EditProductPage() {
+function EditProductContent() {
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
@@ -221,5 +221,21 @@ export default function EditProductPage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+export default function EditProductPage() {
+  return (
+    <Suspense fallback={
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <div className="h-10 w-10 bg-muted rounded-full animate-pulse" />
+          <div className="h-8 w-48 bg-muted rounded animate-pulse" />
+        </div>
+        <div className="h-96 bg-muted rounded-xl animate-pulse" />
+      </div>
+    }>
+      <EditProductContent />
+    </Suspense>
   );
 }
