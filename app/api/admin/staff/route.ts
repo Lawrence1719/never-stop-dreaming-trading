@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getClient } from '@/lib/supabase/admin';
 import { resolveStaffRole, verifyStaffAccess, type StaffRole } from '@/lib/admin/staff';
-import { sendStaffWelcomeEmail } from '@/lib/emails/profile-emails';
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization') || '';
@@ -29,7 +28,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabaseAdmin
       .from('profiles')
-      .select('id, name, phone, role, created_at, deleted_at')
+      .select('id, name, phone, email, role, created_at, deleted_at, invited_at, invitation_status, accepted_at')
       .in('role', ['admin', 'courier']);
 
     if (status === 'deleted') {
@@ -64,16 +63,19 @@ export async function GET(request: NextRequest) {
     const staff = (profiles || [])
       .map((profile) => {
         const authUser = authUsersMap.get(profile.id);
-        const role = authUser ? resolveStaffRole(authUser) : ('admin' as StaffRole);
+        const role = authUser ? resolveStaffRole(authUser) : (profile.role as StaffRole);
         const isBlocked = authUser?.user_metadata?.blocked === true;
 
         return {
           id: profile.id,
           name: profile.name || 'Unknown',
-          email: authUser?.email || '',
+          email: profile.email || authUser?.email || '',
           phone: profile.phone || '-',
           role,
           status: isBlocked ? 'inactive' : 'active',
+          invitation_status: profile.invitation_status || 'accepted',
+          invited_at: profile.invited_at,
+          accepted_at: profile.accepted_at,
           joinDate: profile.created_at,
           isCurrentUser: profile.id === authResult.user?.id,
           deletedAt: profile.deleted_at,
@@ -110,10 +112,10 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { name, email, phone, password, role } = await request.json();
+    const { name, email, phone, role } = await request.json();
 
-    if (!name || !email || !password) {
-      return NextResponse.json({ error: 'Name, email, and password are required.' }, { status: 400 });
+    if (!name || !email) {
+      return NextResponse.json({ error: 'Name and email are required.' }, { status: 400 });
     }
 
     if (role && !['admin', 'super_admin', 'courier'].includes(role)) {
@@ -129,19 +131,15 @@ export async function POST(request: NextRequest) {
     const trimmedName = String(name).trim();
     const trimmedPhone = typeof phone === 'string' ? phone.trim() : '';
 
-    if (password.length < 6) {
-      return NextResponse.json({ error: 'Password must be at least 6 characters long.' }, { status: 400 });
-    }
-
     const supabaseAdmin = getClient();
+    
+    // Use Supabase invite flow
     const {
-      data: { user: createdUser },
-      error: createError,
-    } = await supabaseAdmin.auth.admin.createUser({
-      email: normalizedEmail,
-      password,
-      email_confirm: false,
-      user_metadata: {
+      data: { user: invitedUser },
+      error: inviteError,
+    } = await supabaseAdmin.auth.admin.inviteUserByEmail(normalizedEmail, {
+      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/staff/accept-invite`,
+      data: {
         name: trimmedName,
         phone: trimmedPhone,
         role: normalizedRole,
@@ -149,59 +147,55 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    if (createError || !createdUser) {
+    if (inviteError || !invitedUser) {
       return NextResponse.json(
-        { error: createError?.message || 'Failed to create staff account' },
+        { error: inviteError?.message || 'Failed to invite staff member' },
         { status: 500 }
       );
     }
 
-    // Insert audit log
-    await supabaseAdmin.from('audit_logs').insert({
-      action: 'staff_created',
-      target_type: 'user',
-      target_id: createdUser.id,
-      metadata: { 
-        role: normalizedRole, 
-        created_by: authResult.user.id, 
-        creator_role: authResult.isSuperAdmin ? 'super_admin' : 'admin' 
-      }
-    });
-
-    const emailResult = await sendStaffWelcomeEmail(normalizedEmail, trimmedName, normalizedRole);
-
-    const staffPayload = {
-      id: createdUser.id,
+    // Upsert into profiles table with pending status
+    const { error: profileError } = await supabaseAdmin.from('profiles').upsert({
+      id: invitedUser.id,
       name: trimmedName,
       email: normalizedEmail,
       phone: trimmedPhone,
       role: normalizedRole,
-    };
+      invitation_status: 'pending',
+      invited_at: new Date().toISOString(),
+    });
 
-    if (!emailResult.success) {
-      const errMsg =
-        emailResult.error instanceof Error
-          ? emailResult.error.message
-          : String(emailResult.error ?? 'Unknown error');
-      console.error('[staff-welcome-email] Welcome email failed to send', {
-        staffEmail: normalizedEmail,
-        errorMessage: errMsg,
-        rawError: emailResult.error,
-      });
+    if (profileError) {
+      console.error('Failed to create/update profile for invited user', profileError);
     }
+
+    // Insert audit log
+    await supabaseAdmin.from('audit_logs').insert({
+      action: 'staff_invited',
+      target_type: 'user',
+      target_id: invitedUser.id,
+      metadata: { 
+        role: normalizedRole, 
+        invited_by: authResult.user.id, 
+        inviter_role: authResult.isSuperAdmin ? 'super_admin' : 'admin' 
+      }
+    });
+
+    const staffPayload = {
+      id: invitedUser.id,
+      name: trimmedName,
+      email: normalizedEmail,
+      phone: trimmedPhone,
+      role: normalizedRole,
+      invitation_status: 'pending',
+    };
 
     return NextResponse.json({
       success: true,
       staff: staffPayload,
-      ...(emailResult.success
-        ? {}
-        : {
-            emailWarning:
-              'Staff account created successfully but welcome email failed to send. Please notify the staff member manually.',
-          }),
     });
   } catch (error) {
-    console.error('Failed to create staff account', error);
-    return NextResponse.json({ error: 'Failed to create staff account' }, { status: 500 });
+    console.error('Failed to invite staff account', error);
+    return NextResponse.json({ error: 'Failed to invite staff account' }, { status: 500 });
   }
 }

@@ -66,6 +66,8 @@ interface StaffMember {
   phone: string;
   role: StaffRole;
   status: StaffStatus;
+  invitation_status?: 'pending' | 'accepted';
+  invited_at?: string;
   joinDate: string;
   isCurrentUser: boolean;
   lastLogin?: string;
@@ -76,7 +78,6 @@ interface StaffFormState {
   name: string;
   email: string;
   phone: string;
-  password: string;
   role: StaffRole;
 }
 
@@ -84,7 +85,6 @@ const emptyForm: StaffFormState = {
   name: '',
   email: '',
   phone: '',
-  password: '',
   role: 'courier',
 };
 
@@ -223,8 +223,12 @@ export default function StaffManagementPage() {
     return <Badge variant="secondary">Admin</Badge>;
   };
 
-  const getStatusBadge = (status: StaffStatus) =>
-    status === 'active' ? <Badge variant="success">active</Badge> : <Badge variant="destructive">inactive</Badge>;
+  const getStatusBadge = (member: StaffMember) => {
+    if (member.invitation_status === 'pending') {
+      return <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20">pending</Badge>;
+    }
+    return member.status === 'active' ? <Badge variant="success">active</Badge> : <Badge variant="destructive">inactive</Badge>;
+  };
 
   const updateStaff = async (url: string, options: RequestInit, successMessage: string) => {
     setIsSubmitting(true);
@@ -274,13 +278,21 @@ export default function StaffManagementPage() {
         method: 'POST',
         body: JSON.stringify(addForm),
       },
-      'Staff account created successfully.'
+      'Staff invitation sent successfully.'
     );
 
     if (success) {
       setAddDialogOpen(false);
       setAddForm(emptyForm);
     }
+  };
+
+  const handleResendInvite = async (member: StaffMember) => {
+    await updateStaff(
+      `/api/admin/staff/${member.id}/resend`,
+      { method: 'POST' },
+      'Invitation resent successfully.'
+    );
   };
 
   const handleEditStaff = async () => {
@@ -418,7 +430,7 @@ export default function StaffManagementPage() {
                   <TableHead>Phone</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Join Date</TableHead>
+                  <TableHead>Join/Invited Date</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -460,8 +472,8 @@ export default function StaffManagementPage() {
                         <TableCell>{member.email}</TableCell>
                         <TableCell>{member.phone}</TableCell>
                         <TableCell>{getRoleBadge(member.role)}</TableCell>
-                        <TableCell>{getStatusBadge(member.status)}</TableCell>
-                        <TableCell>{formatJoinDate(member.joinDate)}</TableCell>
+                        <TableCell>{getStatusBadge(member)}</TableCell>
+                        <TableCell>{formatJoinDate(member.invitation_status === 'pending' ? member.invited_at || member.joinDate : member.joinDate)}</TableCell>
                         <TableCell onClick={(event) => event.stopPropagation()}>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -480,14 +492,31 @@ export default function StaffManagementPage() {
                                 <Eye className="h-4 w-4" />
                                 View Details
                               </DropdownMenuItem>
-                              <DropdownMenuItem className="gap-2" onClick={() => openEditDialog(member)}>
+                              <DropdownMenuItem
+                                className="gap-2"
+                                disabled={member.invitation_status === 'pending'}
+                                onClick={() => openEditDialog(member)}
+                              >
                                 <Edit className="h-4 w-4" />
                                 Edit Staff
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
+                              {member.invitation_status === 'pending' && (
+                                <>
+                                  <DropdownMenuItem
+                                    className="gap-2"
+                                    onClick={() => handleResendInvite(member)}
+                                  >
+                                    <Mail className="h-4 w-4" />
+                                    Resend Invitation
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                </>
+                              )}
                               {member.role === 'admin' ? (
                                 <DropdownMenuItem
                                   className="gap-2"
+                                  disabled={member.invitation_status === 'pending'}
                                   onClick={() => {
                                     setSelectedStaff(member);
                                     setPendingRole('super_admin');
@@ -498,9 +527,10 @@ export default function StaffManagementPage() {
                                   <Shield className="h-4 w-4" />
                                   Promote to Super Admin
                                 </DropdownMenuItem>
-                              ) : (
+                              ) : member.role === 'super_admin' ? (
                                 <DropdownMenuItem
                                   className="gap-2"
+                                  disabled={member.invitation_status === 'pending'}
                                   onClick={() => {
                                     setSelectedStaff(member);
                                     setPendingRole('admin');
@@ -511,11 +541,12 @@ export default function StaffManagementPage() {
                                   <Shield className="h-4 w-4" />
                                   Demote to Admin
                                 </DropdownMenuItem>
-                              )}
+                              ) : null}
                               <DropdownMenuSeparator />
                               {canDeactivate ? (
                                 <DropdownMenuItem
                                   className={member.status === 'active' ? 'gap-2 text-destructive' : 'gap-2'}
+                                  disabled={member.invitation_status === 'pending'}
                                   onClick={() => {
                                     setSelectedStaff(member);
                                     setStatusDialogOpen(true);
@@ -589,14 +620,6 @@ export default function StaffManagementPage() {
                   setAddForm((prev) => ({ ...prev, phone: event.target.value.replace(/\D/g, '') }))
                 }
                 placeholder="9123456789"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="staff-password">Password</Label>
-              <PasswordInput
-                id="staff-password"
-                value={addForm.password}
-                onChange={(event) => setAddForm((prev) => ({ ...prev, password: event.target.value }))}
               />
             </div>
             <div className="space-y-2">
@@ -703,15 +726,15 @@ export default function StaffManagementPage() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Status</p>
-                  {getStatusBadge(selectedStaff.status)}
+                  {getStatusBadge(selectedStaff)}
                 </div>
               </div>
 
               <div className="flex items-center space-x-3">
                 <Calendar className="h-5 w-5 text-muted-foreground" />
                 <div>
-                  <p className="text-sm text-muted-foreground">Join Date</p>
-                  <p className="font-medium">{formatJoinDate(selectedStaff.joinDate)}</p>
+                  <p className="text-sm text-muted-foreground">Join/Invited Date</p>
+                  <p className="font-medium">{formatJoinDate(selectedStaff.invitation_status === 'pending' ? selectedStaff.invited_at || selectedStaff.joinDate : selectedStaff.joinDate)}</p>
                 </div>
               </div>
 

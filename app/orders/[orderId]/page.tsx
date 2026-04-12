@@ -119,12 +119,13 @@ export default function OrderDetailsPage({ params }: { params: Promise<{ orderId
 
     try {
       setIsLoading(true);
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Unauthorized');
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Unauthorized');
+      const accessToken = (await supabase.auth.getSession()).data.session?.access_token ?? '';
 
       const response = await fetch('/api/orders', {
         method: 'GET',
-        headers: { 'Authorization': `Bearer ${session.access_token}` },
+        headers: { 'Authorization': `Bearer ${accessToken}` },
       });
 
       if (!response.ok) throw new Error('Failed to fetch order');
@@ -228,10 +229,12 @@ export default function OrderDetailsPage({ params }: { params: Promise<{ orderId
     if (!order || isConfirming) return;
     setIsConfirming(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Unauthorized');
+      
       const response = await fetch(`/api/orders/${orderId}/confirm-receipt`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${session?.access_token}` },
+        headers: { 'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token ?? ''}` },
       });
       if (!response.ok) throw new Error('Failed to confirm receipt');
       toast({ title: "Receipt Confirmed", variant: "success" });
@@ -247,11 +250,13 @@ export default function OrderDetailsPage({ params }: { params: Promise<{ orderId
     if (!order || isCancelling) return;
     setIsCancelling(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Unauthorized');
+      
       const response = await fetch(`/api/orders/${orderId}/cancel`, {
         method: 'POST',
         headers: { 
-          'Authorization': `Bearer ${session?.access_token}`,
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token ?? ''}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ 
