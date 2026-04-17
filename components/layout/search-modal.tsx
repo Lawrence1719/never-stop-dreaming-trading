@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
-import { MAIN_CATEGORIES } from "@/lib/data/categories";
+import { useCategories } from "@/lib/hooks/use-categories";
 import { ProductImage } from "@/components/shared/ProductImage";
 
 interface SearchResult {
@@ -36,6 +36,7 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
+  const { categories } = useCategories();
 
   // Load recent searches and featured products
   useEffect(() => {
@@ -232,14 +233,14 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                   WebkitMaskImage: 'linear-gradient(to right, black 80%, transparent 100%)' 
                 }}
               >
-                {MAIN_CATEGORIES.map((cat) => (
+                {categories.map((cat) => (
                   <Link
-                    key={cat}
-                    href={`/products?category=${encodeURIComponent(cat)}`}
+                    key={cat.id}
+                    href={`/products?category=${encodeURIComponent(cat.name)}`}
                     onClick={onClose}
                     className="whitespace-nowrap px-4 py-2 rounded-full border border-border bg-background hover:border-primary/50 hover:bg-muted/30 transition-all text-xs font-bold shadow-sm active:scale-95 shrink-0"
                   >
-                    {cat}
+                    {cat.name}
                   </Link>
                 ))}
               </div>
@@ -399,14 +400,14 @@ export function SearchModal({ isOpen, onClose }: SearchModalProps) {
                       Try Browsing Instead
                     </p>
                     <div className="flex flex-wrap justify-center gap-2">
-                       {MAIN_CATEGORIES.slice(0, 3).map((cat) => (
+                      {categories.slice(0, 3).map((cat) => (
                         <Link
-                          key={cat}
-                          href={`/products?category=${encodeURIComponent(cat)}`}
+                          key={cat.id}
+                          href={`/products?category=${encodeURIComponent(cat.name)}`}
                           onClick={onClose}
                           className="px-4 py-2 rounded-full border border-border bg-background hover:border-primary/50 transition-all text-xs font-bold"
                         >
-                          {cat}
+                          {cat.name}
                         </Link>
                       ))}
                     </div>

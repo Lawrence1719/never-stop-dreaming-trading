@@ -35,8 +35,9 @@ async function verifyAdminAuth(token: string | null) {
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const authHeader = request.headers.get('authorization') || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
 
@@ -47,7 +48,7 @@ export async function PUT(
 
   try {
     const body = await request.json();
-    const { category } = await updateCategory(params.id, body);
+    const { category } = await updateCategory(id, body);
     return NextResponse.json({ data: category });
   } catch (error: any) {
     console.error('Failed to update category', error);
@@ -57,8 +58,9 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const authHeader = request.headers.get('authorization') || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
 
@@ -68,7 +70,7 @@ export async function DELETE(
   }
 
   try {
-    await deleteCategory(params.id);
+    await deleteCategory(id);
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Failed to delete category', error);

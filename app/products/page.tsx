@@ -6,7 +6,7 @@ import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { ProductGrid } from "@/components/ecommerce/product-grid";
 import { ProductFilter } from "@/components/ecommerce/product-filter";
-import { CATEGORY_TREE } from "@/lib/data/categories";
+import { useCategories } from "@/lib/hooks/use-categories";
 import { supabase } from '@/lib/supabase/client';
 import { enrichProductsWithApprovedReviewStats } from '@/lib/utils/product-review-stats';
 import { Product } from "@/lib/types";
@@ -35,6 +35,10 @@ function ProductsContent() {
   const [sortBy, setSortBy] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
+
+  const { categories } = useCategories();
 
   // Sync category state with URL param
   useEffect(() => {
@@ -90,7 +94,8 @@ function ProductsContent() {
             *,
             product_variants (
               id, variant_label, price, stock, sku, is_active
-            )
+            ),
+            product_images (*)
           `)
           .eq('is_active', true)
           .is('deleted_at', null)
@@ -113,7 +118,15 @@ function ProductsContent() {
               description: row.description || '',
               price: minPrice,
               compareAtPrice: row.compare_at_price ? Number(row.compare_at_price) : undefined,
-              images: row.image_url ? [row.image_url] : [],
+              images: row.product_images?.length > 0
+                ? row.product_images
+                    .sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0))
+                    .map((img: any) => 
+                      img.storage_path.startsWith('http') 
+                        ? img.storage_path 
+                        : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-images/${img.storage_path}`
+                    )
+                : row.image_url ? [row.image_url] : [],
               category: row.category || '',
               stock: totalStock,
               sku: row.sku || '',
@@ -121,6 +134,8 @@ function ProductsContent() {
               reviewCount: row.review_count ?? 0,
               featured: row.featured ?? false,
               specifications: row.specifications || {},
+              doz_pckg: row.doz_pckg,
+              unit: row.unit,
               iot: row.iot || undefined,
               reorder_threshold: row.reorder_threshold ?? undefined,
               updated_at: row.updated_at ?? undefined,
@@ -176,6 +191,17 @@ function ProductsContent() {
     return result;
   }, [searchQuery, selectedCategory, sortBy, products]);
 
+  // Reset pagination when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedCategory, sortBy]);
+
+  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
+  const paginatedProducts = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredProducts.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredProducts, currentPage, itemsPerPage]);
+
   return (
     <main className="flex-1">
       {/* Sticky Mobile Search & Categories */}
@@ -199,18 +225,18 @@ function ProductsContent() {
               >
                 All Items
               </button>
-              {Object.keys(CATEGORY_TREE).map((cat) => (
+              {categories.map((cat) => (
                 <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
+                  key={cat.id}
+                  onClick={() => setSelectedCategory(cat.name)}
                   className={cn(
                     "rounded-full px-4 py-1.5 border-2 font-bold text-xs transition-all whitespace-nowrap",
-                    selectedCategory === cat 
+                    selectedCategory === cat.name 
                       ? "bg-primary text-primary-foreground border-primary shadow-md" 
                       : "border-border bg-background hover:border-primary/50"
                   )}
                 >
-                  {cat}
+                  {cat.name}
                 </button>
               ))}
             </div>
@@ -254,18 +280,18 @@ function ProductsContent() {
               >
                 All Items
               </button>
-              {Object.keys(CATEGORY_TREE).map((cat) => (
+              {categories.map((cat) => (
                 <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
+                  key={cat.id}
+                  onClick={() => setSelectedCategory(cat.name)}
                   className={cn(
                     "rounded-full px-5 py-2 border-2 font-bold text-sm transition-all whitespace-nowrap",
-                    selectedCategory === cat 
+                    selectedCategory === cat.name 
                       ? "bg-primary text-primary-foreground border-primary shadow-md" 
                       : "border-border bg-background hover:border-primary/50"
                   )}
                 >
-                  {cat}
+                  {cat.name}
                 </button>
               ))}
             </div>
@@ -314,15 +340,46 @@ function ProductsContent() {
           </div>
 
           {/* Product Listing */}
-          <div className="lg:col-span-4">
+          <div className="lg:col-span-4 flex flex-col h-full">
             <PlacementBanner placement="product_page" className="mb-8" />
             
             {filteredProducts.length > 0 || isLoadingProducts ? (
-              <ProductGrid 
-                products={filteredProducts} 
-                loading={isLoadingProducts} 
-                skeletonCount={8}
-              />
+              <>
+                <ProductGrid 
+                  products={paginatedProducts} 
+                  loading={isLoadingProducts} 
+                  skeletonCount={8}
+                />
+                {!isLoadingProducts && totalPages > 1 && (
+                  <div className="flex items-center justify-center gap-4 mt-auto pt-16 pb-8">
+                    <Button 
+                      variant="outline"
+                      onClick={() => {
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                        setCurrentPage(p => Math.max(1, p - 1));
+                      }}
+                      disabled={currentPage <= 1}
+                      className="border-border shadow-sm hover:bg-muted"
+                    >
+                      Previous
+                    </Button>
+                    <span className="text-sm font-bold text-muted-foreground bg-muted/50 px-4 py-2 rounded-full">
+                      Page {currentPage} of {totalPages}
+                    </span>
+                    <Button 
+                      variant="outline"
+                      onClick={() => {
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                        setCurrentPage(p => Math.min(totalPages, p + 1));
+                      }}
+                      disabled={currentPage >= totalPages}
+                      className="border-border shadow-sm hover:bg-muted"
+                    >
+                      Next
+                    </Button>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="text-center py-24 bg-muted/20 rounded-3xl border-2 border-dashed border-border/50 flex flex-col items-center gap-4">
                 <div className="h-20 w-20 bg-muted rounded-full flex items-center justify-center">

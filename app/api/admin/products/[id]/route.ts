@@ -71,8 +71,12 @@ export async function PUT(
         name: body.name,
         description: body.description,
         category: body.category,
-        is_active: body.status === 'active',
+        is_active: body.status === 'active' || body.is_active === true,
         updated_at: new Date().toISOString(),
+        supplier_id: body.supplier_id || null,
+        item_code: body.item_code || null,
+        unit: body.unit || null,
+        doz_pckg: body.doz_pckg || null,
       })
       .eq('id', id)
       .select()

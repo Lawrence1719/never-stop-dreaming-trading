@@ -210,7 +210,11 @@ export default function CategoriesPage() {
                   </TableRow>
                 ) : (
                   filteredCategories.map((category) => (
-                    <TableRow key={category.id} className="group transition-colors">
+                    <TableRow 
+                      key={category.id} 
+                      className="group transition-colors cursor-pointer hover:bg-muted/50"
+                      onClick={() => handleEdit(category)}
+                    >
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
                           <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center text-primary">
@@ -242,20 +246,33 @@ export default function CategoriesPage() {
                       <TableCell className="text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8"
+                              onClick={(e) => e.stopPropagation()}
+                            >
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-40">
                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => handleEdit(category)}>
+                            <DropdownMenuItem 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEdit(category);
+                              }}
+                            >
                               <Edit2 className="w-4 h-4 mr-2" />
                               Edit
                             </DropdownMenuItem>
                             <DropdownMenuItem 
                               className="text-destructive focus:text-destructive" 
-                              onClick={() => handleDeleteClick(category)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteClick(category);
+                              }}
                             >
                               <Trash2 className="w-4 h-4 mr-2" />
                               Delete

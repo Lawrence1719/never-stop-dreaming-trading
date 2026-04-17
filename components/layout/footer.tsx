@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Facebook, Twitter, Linkedin, Instagram, Mail, Phone, MapPin, Loader2 } from 'lucide-react';
 import { useSettings } from "@/lib/hooks/use-settings";
-import { MAIN_CATEGORIES } from "@/lib/data/categories";
+import { useCategories } from "@/lib/hooks/use-categories";
 import { Logo } from "@/components/ui/logo";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { toast } from "sonner";
 
 export function Footer() {
   const { settings } = useSettings();
+  const { categories } = useCategories();
   const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -117,13 +118,13 @@ export function Footer() {
           <div>
             <h4 className="font-semibold mb-4">Products</h4>
             <ul className="space-y-2 text-sm">
-              {MAIN_CATEGORIES.map((category) => (
-                <li key={category}>
+              {categories.map((category) => (
+                <li key={category.id}>
                   <Link
-                    href={`/products?category=${encodeURIComponent(category)}`}
+                    href={`/products?category=${encodeURIComponent(category.name)}`}
                     className="hover:text-primary transition-colors"
                   >
-                    {category}
+                    {category.name}
                   </Link>
                 </li>
               ))}

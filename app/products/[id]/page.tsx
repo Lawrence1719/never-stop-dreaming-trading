@@ -138,6 +138,8 @@ export default function ProductDetailPage() {
             reviewCount: data.review_count ?? 0,
             featured: data.featured ?? false,
             specifications: data.specifications || {},
+            doz_pckg: data.doz_pckg,
+            unit: data.unit,
             iot: data.iot || undefined,
             reorder_threshold: data.reorder_threshold ?? undefined,
             updated_at: data.updated_at ?? undefined,
@@ -603,6 +605,17 @@ export default function ProductDetailPage() {
                     <p className="text-sm text-muted-foreground">
                       Save {formatPrice(product.compareAtPrice - selectedVariant.price)} vs regular price
                     </p>
+                  )}
+
+                  {product.doz_pckg && (
+                    <div className="flex items-center gap-2 pt-2 mt-2 border-t border-primary/10">
+                      <span className="text-[10px] font-bold text-primary uppercase tracking-wider bg-primary/10 px-2 py-1 rounded">
+                        Packaging Information
+                      </span>
+                      <span className="text-sm font-semibold text-primary/80">
+                        {product.doz_pckg} per {product.unit || 'package'}
+                      </span>
+                    </div>
                   )}
                 </div>
 

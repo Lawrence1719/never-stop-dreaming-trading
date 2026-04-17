@@ -3,13 +3,14 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { AlertCircle } from "lucide-react";
-import { MAIN_CATEGORIES } from "@/lib/data/categories";
+import { useCategories } from "@/lib/hooks/use-categories";
 import type { User } from "@/lib/types";
 
 export function ShopEngagementBelowFold({ user }: { user: User | null }) {
   const [testimonials, setTestimonials] = useState<any[]>([]);
   const [isTestimonialsLoading, setIsTestimonialsLoading] = useState(true);
   const [testimonialsError, setTestimonialsError] = useState<string | null>(null);
+  const { categories, isLoading: categoriesLoading } = useCategories();
 
   const fetchTestimonials = async () => {
     setIsTestimonialsLoading(true);
@@ -47,21 +48,26 @@ export function ShopEngagementBelowFold({ user }: { user: User | null }) {
       <section className="py-16 border-t border-border/50 first:border-t-0 first:pt-0">
         <h2 className="text-2xl font-bold mb-8">Shop by Category</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {MAIN_CATEGORIES.map((name) => {
-            const { icon, desc } = categoryMeta[name] || { icon: "📦", desc: "" };
-
-            return (
-              <Link
-                key={name}
-                href={`/products?category=${encodeURIComponent(name)}`}
-                className="bg-card border border-border rounded-lg p-6 hover:border-primary transition-colors group"
-              >
-                <div className="text-4xl mb-3 group-hover:scale-110 transition-transform">{icon}</div>
-                <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">{name}</h3>
-                <p className="text-sm text-muted-foreground">{desc}</p>
-              </Link>
-            );
-          })}
+          {categoriesLoading ? (
+            [...Array(4)].map((_, i) => (
+              <div key={i} className="h-36 rounded-lg bg-muted animate-pulse" />
+            ))
+          ) : (
+            categories.map((cat) => {
+              const { icon, desc } = categoryMeta[cat.name] || { icon: "📦", desc: cat.description || "" };
+              return (
+                <Link
+                  key={cat.id}
+                  href={`/products?category=${encodeURIComponent(cat.name)}`}
+                  className="bg-card border border-border rounded-lg p-6 hover:border-primary transition-colors group"
+                >
+                  <div className="text-4xl mb-3 group-hover:scale-110 transition-transform">{icon}</div>
+                  <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">{cat.name}</h3>
+                  <p className="text-sm text-muted-foreground">{desc}</p>
+                </Link>
+              );
+            })
+          )}
         </div>
       </section>
 

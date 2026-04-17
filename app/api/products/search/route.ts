@@ -24,7 +24,8 @@ export async function GET(request: NextRequest) {
         image_url, 
         rating,
         review_count,
-        product_variants(price, sku, is_active)
+        product_variants(price, sku, is_active),
+        product_images(*)
       `)
       .eq('is_active', true)
       .is('deleted_at', null)
@@ -45,7 +46,15 @@ export async function GET(request: NextRequest) {
         name: row.name,
         description: row.description || '',
         category: row.category || '',
-        images: row.image_url ? [row.image_url] : [],
+        images: row.product_images?.length > 0
+          ? row.product_images
+              .sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0))
+              .map((img: any) => 
+                img.storage_path.startsWith('http') 
+                  ? img.storage_path 
+                  : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-images/${img.storage_path}`
+              )
+          : row.image_url ? [row.image_url] : [],
         price: minPrice,
         rating: row.rating ?? 0,
         reviewCount: row.review_count ?? 0,

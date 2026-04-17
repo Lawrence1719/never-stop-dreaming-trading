@@ -116,6 +116,14 @@ export function ProductCard({ product }: ProductCardProps) {
         </h3>
         <div className="flex items-center gap-2 mt-1">
           <span className="text-xs text-muted-foreground">{product.category}</span>
+          {product.doz_pckg && (
+            <>
+              <span className="text-xs text-muted-foreground/30">•</span>
+              <span className="text-[10px] font-bold text-primary uppercase tracking-tighter bg-primary/5 px-1.5 py-0.5 rounded border border-primary/10">
+                {product.doz_pckg}
+              </span>
+            </>
+          )}
         </div>
         <div className="flex items-center justify-between mt-2 mb-3">
           <div className="flex items-center gap-2">

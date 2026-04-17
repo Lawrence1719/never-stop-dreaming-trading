@@ -55,6 +55,7 @@ interface Product {
   total_stock?: number;
   price_range?: string;
   variant_names?: string[];
+  supplier_name?: string;
 }
 
 const formatTimeAgo = (dateString?: string) => {
@@ -89,6 +90,13 @@ export default function ProductsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
+  
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalFiltered, setTotalFiltered] = useState(0);
+  const itemsPerPage = 15;
+
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
@@ -204,6 +212,11 @@ export default function ProductsPage() {
     };
   }, [searchTerm]);
 
+  // Reset page to 1 when filters change natively
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearchTerm, statusFilter, categoryFilter]);
+
   const handleDeleteProduct = async (productId: string) => {
     const product = products.find((p) => p.id === productId);
     setDeletingProductId(productId);
@@ -263,6 +276,8 @@ export default function ProductsPage() {
         if (debouncedSearchTerm) params.append('search', debouncedSearchTerm);
         if (statusFilter !== 'all') params.append('status', statusFilter);
         if (categoryFilter !== 'all') params.append('category', categoryFilter);
+        params.append('page', currentPage.toString());
+        params.append('limit', itemsPerPage.toString());
 
         const res = await fetch(`/api/admin/products?${params.toString()}`, {
           method: 'GET',
@@ -282,6 +297,8 @@ export default function ProductsPage() {
 
         const payload = await res.json();
         setProducts(payload.data || []);
+        setTotalPages(payload.meta?.totalPages || 1);
+        setTotalFiltered(payload.meta?.totalFiltered || 0);
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') {
           return;
@@ -299,10 +316,10 @@ export default function ProductsPage() {
     fetchProducts();
 
     return () => controller.abort();
-  }, [debouncedSearchTerm, statusFilter, categoryFilter]);
+  }, [debouncedSearchTerm, statusFilter, categoryFilter, currentPage]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Products</h1>
@@ -317,13 +334,13 @@ export default function ProductsPage() {
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="pb-3">
           <CardTitle>Product Management</CardTitle>
           <CardDescription>View and manage all your products</CardDescription>
         </CardHeader>
         <CardContent>
           {/* Filters */}
-          <div className="flex flex-col md:flex-row gap-3 mb-6">
+          <div className="flex flex-col md:flex-row gap-3 mb-4">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
@@ -380,6 +397,7 @@ export default function ProductsPage() {
                 <TableRow>
                   <TableHead className="w-[80px]">Image</TableHead>
                   <TableHead>Product Name</TableHead>
+                  <TableHead>Supplier</TableHead>
                   <TableHead>Category</TableHead>
                   <TableHead>Variants</TableHead>
                   <TableHead className="text-right">Total Stock</TableHead>
@@ -396,6 +414,7 @@ export default function ProductsPage() {
                       <TableCell><div className="h-4 bg-muted rounded w-24" /></TableCell>
                       <TableCell><div className="h-4 bg-muted rounded w-16" /></TableCell>
                       <TableCell><div className="h-4 bg-muted rounded w-16" /></TableCell>
+                      <TableCell><div className="h-4 bg-muted rounded w-16" /></TableCell>
                       <TableCell><div className="h-4 bg-muted rounded w-20" /></TableCell>
                       <TableCell><div className="h-4 bg-muted rounded w-16" /></TableCell>
                       <TableCell><div className="h-4 bg-muted rounded w-12" /></TableCell>
@@ -403,7 +422,7 @@ export default function ProductsPage() {
                   ))
                 ) : products.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">
+                    <TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-8">
                       No products found.
                     </TableCell>
                   </TableRow>
@@ -414,19 +433,24 @@ export default function ProductsPage() {
                       className="cursor-pointer hover:bg-muted/30"
                       onClick={() => loadProductDetails(product.id, product)}
                     >
-                      <TableCell>
+                      <TableCell className="py-2">
                         <div
-                          className="w-12 h-12 rounded-lg overflow-hidden border border-border/50 bg-muted shrink-0"
+                          className="w-10 h-10 rounded-lg overflow-hidden border border-border/50 bg-muted shrink-0"
                           aria-label={`View details for ${product.name}`}
                         >
                           <ProductImage src={getProductDisplayImage(product) || ''} alt={product.name} className="h-full w-full object-cover" />
                         </div>
                       </TableCell>
-                      <TableCell className="font-medium">
+                      <TableCell className="font-medium py-2">
                         {product.name}
                       </TableCell>
-                      <TableCell>{product.category}</TableCell>
-                      <TableCell>
+                      <TableCell className="py-2">
+                        <span className="text-xs text-muted-foreground line-clamp-1" title={product.supplier_name || '—'}>
+                          {product.supplier_name || '—'}
+                        </span>
+                      </TableCell>
+                      <TableCell className="py-2">{product.category}</TableCell>
+                      <TableCell className="py-2">
                         <div className="flex flex-wrap gap-1 max-w-[150px]">
                           {(product.variant_names || []).slice(0, 2).map((v, i) => (
                             <Badge key={`${v}-${i}`} variant="secondary" className="px-1.5 py-0 text-[10px] font-medium whitespace-nowrap rounded-md">
@@ -443,16 +467,16 @@ export default function ProductsPage() {
                           )}
                         </div>
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right py-2">
                         <Badge
                           variant={(product.total_stock ?? 0) > 10 ? 'default' : (product.total_stock ?? 0) > 0 ? 'secondary' : 'destructive'}
                         >
                           {product.total_stock ?? 0}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-sm">{product.price_range}</TableCell>
-                      <TableCell>{getProductStatusBadge(product.status || 'inactive')}</TableCell>
-                      <TableCell>
+                      <TableCell className="text-sm py-2">{product.price_range}</TableCell>
+                      <TableCell className="py-2">{getProductStatusBadge(product.status || 'inactive')}</TableCell>
+                      <TableCell className="py-2">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
@@ -538,11 +562,28 @@ export default function ProductsPage() {
           {/* Pagination */}
           <div className="flex items-center justify-between mt-6">
             <p className="text-sm text-muted-foreground">
-              Showing {products.length} product{products.length !== 1 ? 's' : ''}
+              Showing {products.length} product{products.length !== 1 ? 's' : ''} of {totalFiltered}
             </p>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" disabled>Previous</Button>
-              <Button variant="outline" size="sm" disabled>Next</Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                disabled={currentPage <= 1 || isLoading}
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              >
+                Previous
+              </Button>
+              <div className="flex items-center px-3 text-sm text-muted-foreground">
+                Page {currentPage} of {totalPages}
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                disabled={currentPage >= totalPages || isLoading}
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              >
+                Next
+              </Button>
             </div>
           </div>
         </CardContent>

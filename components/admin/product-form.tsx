@@ -34,6 +34,11 @@ export interface ProductFormData {
   price: number;
   stock: number;
   sku: string;
+  // Supplier / legacy FoxPro fields
+  supplier_id: string | null;
+  item_code: string;
+  unit: string;
+  doz_pckg: string;
 }
 
 interface ProductFormProps {
@@ -74,11 +79,19 @@ export function ProductForm({
     price: initialData?.price ?? 0,
     stock: initialData?.stock ?? 0,
     sku: initialData?.sku || "",
+    supplier_id: (initialData as any)?.supplier_id ?? null,
+    item_code: (initialData as any)?.item_code ?? "",
+    unit: (initialData as any)?.unit ?? "",
+    doz_pckg: (initialData as any)?.doz_pckg ?? "",
   });
 
   // Categories from DB
   const [dbCategories, setDbCategories] = useState<any[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(false);
+
+  // Suppliers from DB
+  const [dbSuppliers, setDbSuppliers] = useState<{ id: string; name: string }[]>([]);
+  const [isLoadingSuppliers, setIsLoadingSuppliers] = useState(false);
 
   // Category selection state
   const [mainCategory, setMainCategory] = useState<string>(initialCategory);
@@ -122,6 +135,26 @@ export function ProductForm({
     };
 
     fetchCategories();
+  }, []);
+
+  // Fetch suppliers from DB
+  useEffect(() => {
+    const fetchSuppliers = async () => {
+      try {
+        setIsLoadingSuppliers(true);
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch('/api/admin/suppliers', {
+          headers: { 'Authorization': `Bearer ${session?.access_token}` }
+        });
+        const result = await res.json();
+        if (res.ok) setDbSuppliers(result.data || []);
+      } catch (err) {
+        console.error('Failed to fetch suppliers:', err);
+      } finally {
+        setIsLoadingSuppliers(false);
+      }
+    };
+    fetchSuppliers();
   }, []);
 
   // Update category field when main selection changes
@@ -572,6 +605,71 @@ export function ProductForm({
                   </p>
                 </div>
               )}
+            </div>
+
+            {/* Supplier Selection */}
+            <div className="space-y-4 p-4 border border-border rounded-lg bg-muted/20">
+              <div className="flex items-center gap-2 mb-2">
+                <h3 className="text-sm font-semibold">Supplier / Principal</h3>
+                <span className="text-muted-foreground text-xs">(optional)</span>
+              </div>
+
+              <SearchableSelect
+                options={[
+                  { value: '', label: '— None —' },
+                  ...dbSuppliers.map((s) => ({ value: s.id, label: s.name })),
+                ]}
+                value={formData.supplier_id ?? ''}
+                onValueChange={(val) =>
+                  setFormData((prev) => ({ ...prev, supplier_id: val || null }))
+                }
+                placeholder={isLoadingSuppliers ? 'Loading suppliers...' : '— Select Supplier —'}
+                searchPlaceholder="Search supplier..."
+                disabled={isLoadingSuppliers}
+              />
+
+              {/* Legacy metadata fields */}
+              <div className="grid grid-cols-3 gap-3 pt-2">
+                <div className="space-y-1">
+                  <Label htmlFor="item_code" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Item Code
+                  </Label>
+                  <Input
+                    id="item_code"
+                    name="item_code"
+                    value={formData.item_code}
+                    onChange={handleInputChange}
+                    placeholder="e.g. 47886"
+                    className="h-9 text-sm bg-background"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="unit" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Unit
+                  </Label>
+                  <Input
+                    id="unit"
+                    name="unit"
+                    value={formData.unit}
+                    onChange={handleInputChange}
+                    placeholder="e.g. PC"
+                    className="h-9 text-sm bg-background"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="doz_pckg" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Doz/Pckg
+                  </Label>
+                  <Input
+                    id="doz_pckg"
+                    name="doz_pckg"
+                    value={formData.doz_pckg}
+                    onChange={handleInputChange}
+                    placeholder="e.g. 48/CASE"
+                    className="h-9 text-sm bg-background"
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Active Status */}

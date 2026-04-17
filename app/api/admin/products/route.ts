@@ -52,6 +52,8 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status') || 'all';
     const category = searchParams.get('category') || 'all';
     const isArchived = searchParams.get('archived') === 'true';
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const limit = parseInt(searchParams.get('limit') || '15', 10);
 
     // Build query to fetch products (base info only, no price/stock at product level)
     let query = supabaseAdmin
@@ -81,6 +83,10 @@ export async function GET(request: NextRequest) {
           storage_path,
           sort_order,
           is_primary
+        ),
+        suppliers (
+          id,
+          name
         )
         `
       );
@@ -105,6 +111,25 @@ export async function GET(request: NextRequest) {
     if (category !== 'all') {
       query = query.eq('category', category);
     }
+
+    // Building a separate query just for the exact count of filtered results
+    let countQuery = supabaseAdmin
+      .from('products')
+      .select('id', { count: 'exact', head: true });
+
+    if (isArchived) countQuery = countQuery.not('deleted_at', 'is', null);
+    else countQuery = countQuery.is('deleted_at', null);
+
+    if (search) countQuery = countQuery.or(`name.ilike.%${search}%`);
+    if (status !== 'all') countQuery = countQuery.eq('is_active', status === 'active');
+    if (category !== 'all') countQuery = countQuery.eq('category', category);
+
+    const { count: totalFiltered } = await countQuery;
+
+    // Apply pagination to the main data fetch
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+    query = query.range(from, to);
 
     const { data: rawData, error } = await query;
 
@@ -148,9 +173,17 @@ export async function GET(request: NextRequest) {
             : `${formatPrice(minPrice)} – ${formatPrice(maxPrice)}`
           : 'N/A',
         status: row.is_active ? 'active' : 'inactive',
-        image_url: row.image_url,
+        image_url: row.product_images && row.product_images.length > 0
+          ? row.product_images
+              .sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0))
+              .find((img: any) => img.is_primary || true)
+              ?.storage_path.startsWith('http')
+                ? row.product_images.find((img: any) => img.is_primary || true)?.storage_path
+                : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-images/${row.product_images.find((img: any) => img.is_primary || true)?.storage_path}`
+          : row.image_url,
         variant_names: variants.map((v: any) => v.variant_label),
         deleted_at: row.deleted_at,
+        supplier_name: row.suppliers?.name || '—',
       };
     });
 
@@ -158,7 +191,11 @@ export async function GET(request: NextRequest) {
       data: products,
       meta: {
         activeCount: activeCount || 0,
-        archivedCount: archivedCount || 0
+        archivedCount: archivedCount || 0,
+        totalFiltered: totalFiltered || 0,
+        page,
+        limit,
+        totalPages: Math.ceil((totalFiltered || 0) / limit)
       }
     });
 
@@ -201,6 +238,10 @@ export async function POST(request: NextRequest) {
           is_active: body.is_active !== false,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
+          supplier_id: body.supplier_id || null,
+          item_code: body.item_code || null,
+          unit: body.unit || null,
+          doz_pckg: body.doz_pckg || null,
         },
       ])
       .select()

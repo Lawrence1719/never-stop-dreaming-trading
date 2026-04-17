@@ -38,6 +38,8 @@ export interface Product {
   reviewCount: number;
   featured: boolean;
   specifications: Record<string, string>;
+  doz_pckg?: string;
+  unit?: string;
   
   // Nested variants (returned from API joins)
   variants?: ProductVariant[];
