@@ -32,6 +32,13 @@ export default function Dashboard() {
   const [editName, setEditName] = useState("");
   const [editWeight, setEditWeight] = useState(0);
 
+  const [products, setProducts] = useState<any[]>([]);
+  const [selectedProductId, setSelectedProductId] = useState("");
+  const [selectedVariantId, setSelectedVariantId] = useState("");
+
+  const selectedProductData = products.find((p) => p.id === selectedProductId);
+  const selectedProductVariants = selectedProductData?.product_variants?.filter((v: any) => v.is_active) || [];
+
   const [isOnline, setIsOnline] = useState(false);
   const lastSeenRef = useRef<Date | null>(null);
   const [lastSeen, setLastSeen] = useState<Date | null>(null);
@@ -50,7 +57,54 @@ export default function Dashboard() {
   useEffect(() => {
     loadSettings();
     fetchDeviceStatus();
+    fetchProducts();
   }, []);
+
+  async function fetchProducts() {
+    const { data } = await supabase
+      .from("products")
+      .select(`
+        id, 
+        name, 
+        product_variants(id, variant_label, is_active)
+      `)
+      .eq("is_active", true)
+      .is("deleted_at", null);
+    if (data) setProducts(data);
+  }
+
+  useEffect(() => {
+    if (isSettingsOpen && editName && products.length > 0) {
+      let foundPid = "";
+      let foundVid = "";
+      for (const p of products) {
+        if (editName === p.name) {
+          foundPid = p.id;
+          const activeVariants = p.product_variants?.filter((v: any) => v.is_active) || [];
+          if (activeVariants.length === 1) {
+             foundVid = activeVariants[0].id;
+          }
+          break;
+        }
+        const activeVariants = p.product_variants?.filter((v: any) => v.is_active) || [];
+        for (const v of activeVariants) {
+          if (editName === `${p.name} - ${v.variant_label}`) {
+            foundPid = p.id;
+            foundVid = v.id;
+            break;
+          }
+        }
+        if (foundPid) break;
+      }
+      if (foundPid) {
+        setSelectedProductId(foundPid);
+        setSelectedVariantId(foundVid);
+      } else {
+        setSelectedProductId("");
+        setSelectedVariantId("");
+      }
+    }
+  }, [isSettingsOpen, editName, products]);
 
   // ================= REALTIME: DEVICE STATUS =================
   useEffect(() => {
@@ -142,6 +196,15 @@ export default function Dashboard() {
 
   // ================= SAVE SETTINGS =================
   const handleSave = async () => {
+    if (selectedProductVariants.length > 1 && !selectedVariantId) {
+      alert("Please select a variant.");
+      return;
+    }
+    if (!editName.trim()) {
+      alert("Please select a product.");
+      return;
+    }
+
     setLoading(true);
     const { error } = await supabase
       .from("device_settings")
@@ -246,15 +309,69 @@ return (
               </div>
             ) : (
               <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                <div>
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">
-                    Product Name
-                  </label>
-                  <input
-                    className="w-full mt-1 p-4 bg-background border border-input text-foreground rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                  />
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">
+                      Product Name
+                    </label>
+                    <select
+                      className="w-full mt-1 p-4 bg-background border border-input text-foreground rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all cursor-pointer font-medium"
+                      value={selectedProductId}
+                      onChange={(e) => {
+                        const pid = e.target.value;
+                        setSelectedProductId(pid);
+                        const prod = products.find((p) => p.id === pid);
+                        if (prod) {
+                          const activeVariants = prod.product_variants?.filter((v: any) => v.is_active) || [];
+                          if (activeVariants.length === 1) {
+                            setSelectedVariantId(activeVariants[0].id);
+                            setEditName(`${prod.name} - ${activeVariants[0].variant_label}`);
+                          } else if (activeVariants.length === 0) {
+                            setSelectedVariantId("");
+                            setEditName(prod.name);
+                          } else {
+                            setSelectedVariantId("");
+                            setEditName(""); // clear edit name if we need to select variant
+                          }
+                        } else {
+                          setEditName("");
+                          setSelectedVariantId("");
+                        }
+                      }}
+                    >
+                      <option value="" disabled>Select an available product...</option>
+                      {products.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {selectedProductVariants.length > 1 && (
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">
+                        Variant
+                      </label>
+                      <select
+                        className="w-full mt-1 p-4 bg-background border border-input text-foreground rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all cursor-pointer font-medium"
+                        value={selectedVariantId}
+                        onChange={(e) => {
+                          const vid = e.target.value;
+                          setSelectedVariantId(vid);
+                          const variant = selectedProductVariants.find((v: any) => v.id === vid);
+                          if (selectedProductData && variant) {
+                            setEditName(`${selectedProductData.name} - ${variant.variant_label}`);
+                          }
+                        }}
+                      >
+                        <option value="" disabled>Select a variant...</option>
+                        {selectedProductVariants.map((v: any) => (
+                          <option key={v.id} value={v.id}>{v.variant_label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">
