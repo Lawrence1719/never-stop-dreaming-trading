@@ -46,6 +46,7 @@ type ExportReportModalProps = {
   isOpen: boolean;
   onClose: () => void;
   initialFormat?: ExportFormat;
+  customFilename?: string;
 } & (
   | { reportType: 'sales'; data: SalesReportExportPayload }
   | { reportType: 'inventory'; data: InventoryReportExportPayload }
@@ -58,6 +59,7 @@ export function ExportReportModal({
   reportType,
   data,
   initialFormat = 'pdf',
+  customFilename,
 }: ExportReportModalProps) {
   const { toast } = useToast();
   const [format, setFormat] = useState<ExportFormat>(initialFormat);
@@ -78,8 +80,10 @@ export function ExportReportModal({
   };
 
   const getFilename = (ext: string) => {
+    if (customFilename) return `${customFilename}.${ext}`;
     const today = new Date().toISOString().split('T')[0];
-    return `${reportType}-report-${today}.${ext}`;
+    const type = reportType.charAt(0).toUpperCase() + reportType.slice(1);
+    return `NSD_${type}_Report_${today}.${ext}`;
   };
 
   const formatCurrencyForPDF = (amount: number | string) => {

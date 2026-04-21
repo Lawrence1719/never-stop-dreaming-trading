@@ -1,4 +1,5 @@
 import { getClient } from '@/lib/supabase/admin';
+import { sendInventoryAlertEmail } from '@/lib/emails/inventory-emails';
 
 export type NotificationType = 'info' | 'success' | 'warning' | 'error' | 'order' | 'stock' | 'user' | 'system';
 
@@ -285,6 +286,16 @@ export async function notifyIfVariantLowStock(variantId: string) {
 
       if (admins && admins.length > 0) {
         console.log(`[NotificationService] Creating new ${type} alert for ${productName}${label}`);
+        
+        // Send email alerts to admins first
+        sendInventoryAlertEmail(
+          productName, 
+          variant.variant_label, 
+          variant.sku || 'N/A', 
+          variant.stock, 
+          threshold
+        ).catch(err => console.error('[NotificationService] Failed to send inventory alert email:', err));
+
         for (const admin of admins) {
           await createNotification({
             userId: admin.id,

@@ -1,5 +1,7 @@
+import * as XLSX from 'xlsx';
+
 /**
- * Utility functions for exporting data to CSV
+ * Utility functions for exporting data to CSV and Excel
  */
 
 export function exportToCSV(data: any[], filename: string) {
@@ -78,14 +80,33 @@ export function exportTableToCSV(tableId: string, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+export function exportToExcel(data: any[], filename: string) {
+  if (!data || data.length === 0) {
+    alert('No data to export');
+    return;
+  }
 
-
-
-
-
-
-
-
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(data);
+  XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+  
+  const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  const today = new Date().toISOString().split('T')[0];
+  
+  link.setAttribute('href', url);
+  link.setAttribute('download', `${filename}_${today}.xlsx`);
+  link.style.visibility = 'hidden';
+  
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  
+  URL.revokeObjectURL(url);
+}
 
 
 

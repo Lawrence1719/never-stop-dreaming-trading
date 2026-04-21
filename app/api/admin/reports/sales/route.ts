@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
     // Our updated getSalesByCategory now includes the `sales` count automatically from the RPC!
     const salesByCategoryChart = salesByCategory.breakdown.map((cat: any) => ({
       category: cat.category || 'Uncategorized',
-      sales: cat.sales || 0,
+      sales: cat.orders || cat.sales || 0,  // breakdown uses 'orders' key (mapped from row.sales in admin.ts)
       revenue: cat.revenue,
     }));
 

@@ -26,16 +26,31 @@ export async function GET(request: NextRequest) {
 
     const supabaseAdmin = getClient()
 
+    // Get date range from query params
+    const { searchParams } = new URL(request.url);
+    const startDate = searchParams.get('start');
+    const endDate = searchParams.get('end');
+
     // Fetch all customers (profiles with role 'customer')
-    const { data: profiles } = await supabaseAdmin
+    let profileQuery = supabaseAdmin
       .from('profiles')
       .select('id, name, created_at, deleted_at')
       .eq('role', 'customer');
+    
+    if (startDate) profileQuery = profileQuery.gte('created_at', startDate);
+    if (endDate) profileQuery = profileQuery.lte('created_at', endDate);
+
+    const { data: profiles } = await profileQuery;
 
     // Fetch all orders
-    const { data: orders } = await supabaseAdmin
+    let orderQuery = supabaseAdmin
       .from('orders')
       .select('user_id, total, created_at, items');
+    
+    if (startDate) orderQuery = orderQuery.gte('created_at', startDate);
+    if (endDate) orderQuery = orderQuery.lte('created_at', endDate);
+
+    const { data: orders } = await orderQuery;
 
     // Get user emails
     const userIds = (profiles || []).map((p: any) => p.id);

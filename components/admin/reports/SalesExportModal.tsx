@@ -57,7 +57,7 @@ export function SalesExportModal({ isOpen, onClose, format: initialFormat, dateR
   }, [isOpen, initialFormat]);
 
   const today = new Date().toISOString().split('T')[0];
-  const filename = `sales-report-${today}.${format}`;
+  const filename = `NSD_Sales_Report_${today}.${format}`;
 
   const formatCurrencyForExport = (amount: number) => {
     return formatPriceForPdf(amount);

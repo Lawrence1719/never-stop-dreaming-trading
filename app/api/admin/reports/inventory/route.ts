@@ -32,9 +32,13 @@ export async function GET(request: NextRequest) {
     // 3. Use Admin Client (Service Role) to bypass RLS for report generation
     const admin = getSupabaseAdmin()
 
-    // 4. Fetch all products with their variants
-    // CORRECTED SELECT: Removed 'sku' from base products, moved to variants.
-    const { data: products, error: productsError } = await admin
+    // Get date range from query params
+    const { searchParams } = new URL(request.url);
+    const startDate = searchParams.get('start');
+    const endDate = searchParams.get('end');
+
+    // 4. Fetch products with their variants
+    let productQuery = admin
       .from('products')
       .select(`
         id, 
@@ -42,15 +46,26 @@ export async function GET(request: NextRequest) {
         reorder_threshold, 
         category, 
         is_active,
+        created_at,
+        updated_at,
         product_variants (
           id,
           variant_label,
           stock,
           sku,
           reorder_threshold,
-          is_active
+          is_active,
+          created_at,
+          updated_at
         )
-      `)
+      `);
+    
+    // If date range is provided, we might want to filter for "Newly added" or "Recently updated"
+    // For now, let's filter for anything UPDATED in this period to show activity
+    if (startDate) productQuery = productQuery.gte('updated_at', startDate);
+    if (endDate) productQuery = productQuery.lte('updated_at', endDate);
+
+    const { data: products, error: productsError } = await productQuery;
 
     if (productsError) {
       console.error('[Inventory Report] Database Error:', productsError)

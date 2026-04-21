@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Download, Users, TrendingUp, DollarSign, FileText, FileSpreadsheet } from 'lucide-react';
+import { Download, Users, TrendingUp, DollarSign, FileText, FileSpreadsheet, ChevronDown } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -14,6 +14,16 @@ import {
 import { formatPrice } from '@/lib/utils/formatting';
 
 import { ExportReportModal } from '@/components/admin/reports/ExportReportModal';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination';
 
 interface CustomerReport {
   summary: {
@@ -55,14 +65,39 @@ export default function CustomersReportPage() {
   const [error, setError] = useState<string | null>(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [exportFormat, setExportFormat] = useState<'pdf' | 'csv' | 'xlsx'>('pdf');
+  const [range, setRange] = useState<'day' | 'week' | 'month' | 'all'>('month');
+
+  // Pagination states
+  const [topCustomersPage, setTopCustomersPage] = useState(1);
+  const itemsPerPage = 5;
 
   useEffect(() => {
     async function fetchReport() {
       setIsLoading(true);
       setError(null);
+      setTopCustomersPage(1); // Reset page on range change
       
       try {
-        const res = await fetch('/api/admin/reports/customers');
+        const now = new Date();
+        let start: Date | null = null;
+        let end: Date | null = now;
+
+        if (range === 'day') {
+          start = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        } else if (range === 'week') {
+          start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        } else if (range === 'month') {
+          start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        } else {
+          start = null;
+          end = null;
+        }
+
+        const params = new URLSearchParams();
+        if (start) params.append('start', start.toISOString());
+        if (end) params.append('end', end.toISOString());
+
+        const res = await fetch(`/api/admin/reports/customers?${params.toString()}`);
 
         if (!res.ok) {
           throw new Error('Failed to load customer report');
@@ -79,7 +114,7 @@ export default function CustomersReportPage() {
     }
 
     fetchReport();
-  }, []);
+  }, [range]);
 
   const handleExport = (format: 'pdf' | 'csv' | 'xlsx') => {
     setExportFormat(format);
@@ -89,6 +124,13 @@ export default function CustomersReportPage() {
   const formatAmount = (value: number | string) =>
     formatPrice(typeof value === 'string' ? parseFloat(value.replace(/[^0-9.-]/g, '')) || 0 : value);
 
+  // Pagination logic for Top Customers
+  const paginatedTopCustomers = data?.topCustomers.slice(
+    (topCustomersPage - 1) * itemsPerPage,
+    topCustomersPage * itemsPerPage
+  ) || [];
+  const totalTopCustomersPages = Math.ceil((data?.topCustomers.length || 0) / itemsPerPage);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -96,28 +138,47 @@ export default function CustomersReportPage() {
           <h1 className="text-3xl font-bold tracking-tight">Customer Reports</h1>
           <p className="text-muted-foreground mt-1">Customer analytics, segments, and insights</p>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button className="gap-2" disabled={isLoading || !data}>
-              <Download className="h-4 w-4" />
-              Export
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem onClick={() => handleExport('pdf')} className="cursor-pointer">
-              <FileText className="mr-2 h-4 w-4 text-red-500" />
-              <span>Export as PDF</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleExport('csv')} className="cursor-pointer">
-              <FileText className="mr-2 h-4 w-4 text-blue-500" />
-              <span>Export as CSV</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleExport('xlsx')} className="cursor-pointer">
-              <FileSpreadsheet className="mr-2 h-4 w-4 text-green-500" />
-              <span>Export as Excel</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="gap-2">
+                {range === 'day' ? 'Last 24 Hours' : 
+                 range === 'week' ? 'Last 7 Days' : 
+                 range === 'month' ? 'Last 30 Days' : 'All Time'}
+                <ChevronDown className="h-4 w-4 opacity-50" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={() => setRange('day')}>Last 24 Hours</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setRange('week')}>Last 7 Days</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setRange('month')}>Last 30 Days</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setRange('all')}>All Time</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button className="gap-2" disabled={isLoading || !data}>
+                <Download className="h-4 w-4" />
+                Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={() => handleExport('pdf')} className="cursor-pointer">
+                <FileText className="mr-2 h-4 w-4 text-red-500" />
+                <span>Export as PDF</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExport('csv')} className="cursor-pointer">
+                <FileText className="mr-2 h-4 w-4 text-blue-500" />
+                <span>Export as CSV</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExport('xlsx')} className="cursor-pointer">
+                <FileSpreadsheet className="mr-2 h-4 w-4 text-green-500" />
+                <span>Export as Excel</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       {error && (
@@ -202,49 +263,83 @@ export default function CustomersReportPage() {
       </div>
 
       {/* Top Customers */}
-      <Card>
+      <Card className="bg-card border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
         <CardHeader>
-          <CardTitle>Top Customers</CardTitle>
-          <CardDescription>Highest value customers by total spending</CardDescription>
+          <CardTitle className="text-lg font-semibold text-foreground">Top Customers</CardTitle>
+          <CardDescription className="text-muted-foreground">Highest value customers by total spending</CardDescription>
         </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Customer Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Total Orders</TableHead>
-                <TableHead>Total Spent</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                Array.from({ length: 4 }).map((_, idx) => (
-                  <TableRow key={`loading-${idx}`} className="animate-pulse">
-                    <TableCell><div className="h-4 bg-muted rounded w-24" /></TableCell>
-                    <TableCell><div className="h-4 bg-muted rounded w-32" /></TableCell>
-                    <TableCell><div className="h-4 bg-muted rounded w-12" /></TableCell>
-                    <TableCell><div className="h-4 bg-muted rounded w-20" /></TableCell>
-                  </TableRow>
-                ))
-              ) : data && data.topCustomers.length > 0 ? (
-                data.topCustomers.map((customer, idx) => (
-                  <TableRow key={idx}>
-                    <TableCell className="font-medium">{renderEntityLabel(customer.name)}</TableCell>
-                    <TableCell className="text-muted-foreground">{customer.email}</TableCell>
-                    <TableCell>{customer.orders}</TableCell>
-                    <TableCell className="text-green-600 font-medium">{formatAmount(customer.totalSpent)}</TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-                    No customer data available
-                  </TableCell>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader className="bg-slate-50/50 dark:bg-slate-900/50">
+                <TableRow className="border-slate-200 dark:border-slate-800">
+                  <TableHead className="px-6 py-4">Customer Name</TableHead>
+                  <TableHead className="px-6 py-4">Email</TableHead>
+                  <TableHead className="px-6 py-4">Total Orders</TableHead>
+                  <TableHead className="px-6 py-4">Total Spent</TableHead>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  Array.from({ length: 4 }).map((_, idx) => (
+                    <TableRow key={`loading-${idx}`} className="border-slate-200 dark:border-slate-800 animate-pulse">
+                      <TableCell className="px-6 py-4"><div className="h-4 bg-muted rounded w-24" /></TableCell>
+                      <TableCell className="px-6 py-4"><div className="h-4 bg-muted rounded w-32" /></TableCell>
+                      <TableCell className="px-6 py-4"><div className="h-4 bg-muted rounded w-12" /></TableCell>
+                      <TableCell className="px-6 py-4"><div className="h-4 bg-muted rounded w-20" /></TableCell>
+                    </TableRow>
+                  ))
+                ) : paginatedTopCustomers.length > 0 ? (
+                  paginatedTopCustomers.map((customer, idx) => (
+                    <TableRow key={idx} className="border-slate-200 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition-colors">
+                      <TableCell className="px-6 py-4 font-medium text-foreground">{renderEntityLabel(customer.name)}</TableCell>
+                      <TableCell className="px-6 py-4 text-muted-foreground">{customer.email}</TableCell>
+                      <TableCell className="px-6 py-4 text-foreground">{customer.orders}</TableCell>
+                      <TableCell className="px-6 py-4 text-green-600 dark:text-green-400 font-medium">{formatAmount(customer.totalSpent)}</TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center text-muted-foreground py-12">
+                      No customer data available
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {totalTopCustomersPages > 1 && (
+            <div className="py-4 border-t border-slate-200 dark:border-slate-800">
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious 
+                      onClick={() => setTopCustomersPage(p => Math.max(1, p - 1))}
+                      className={`cursor-pointer ${topCustomersPage === 1 ? 'pointer-events-none opacity-50' : ''}`}
+                    />
+                  </PaginationItem>
+                  {Array.from({ length: totalTopCustomersPages }).map((_, i) => (
+                    <PaginationItem key={i}>
+                      <PaginationLink 
+                        isActive={topCustomersPage === i + 1}
+                        onClick={() => setTopCustomersPage(i + 1)}
+                        className="cursor-pointer"
+                      >
+                        {i + 1}
+                      </PaginationLink>
+                    </PaginationItem>
+                  ))}
+                  <PaginationItem>
+                    <PaginationNext 
+                      onClick={() => setTopCustomersPage(p => Math.min(totalTopCustomersPages, p + 1))}
+                      className={`cursor-pointer ${topCustomersPage === totalTopCustomersPages ? 'pointer-events-none opacity-50' : ''}`}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
+          )}
         </CardContent>
       </Card>
 

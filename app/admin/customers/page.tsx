@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Search, Download, Plus, ChevronLeft, ChevronRight, Check, Mail, Phone, Circle, Calendar } from 'lucide-react';
+import { Search, Download, Plus, ChevronLeft, ChevronRight, Check, Mail, Phone, Circle, Calendar, Loader2, FileText, FileSpreadsheet } from 'lucide-react';
 import { CustomerRowActions } from '@/components/admin/customers/CustomerRowActions';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,6 +43,8 @@ import { useToast } from '@/hooks/use-toast';
 import { Toaster } from '@/components/ui/toaster';
 import { formatPrice } from '@/lib/utils/formatting';
 import { validateName } from '@/lib/utils/validation';
+import { ExportReportModal } from '@/components/admin/reports/ExportReportModal';
+import { exportToCSV, exportToExcel } from '@/lib/utils/export';
 
 interface Customer {
   id: string;
@@ -59,7 +67,6 @@ export default function CustomersPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [roleFilter, setRoleFilter] = useState('all');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -68,7 +75,7 @@ export default function CustomersPage() {
   const [unblockDialogOpen, setUnblockDialogOpen] = useState(false);
   const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
   const [isPermanentDelete, setIsPermanentDelete] = useState(false);
-  // Remove roleChange variables
+  const [isExporting, setIsExporting] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [viewDetailsOpen, setViewDetailsOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -94,6 +101,11 @@ export default function CustomersPage() {
   const [addCustomerSuccess, setAddCustomerSuccess] = useState(false);
   const [createdCustomerInfo, setCreatedCustomerInfo] = useState<{ name: string; email: string } | null>(null);
   const [nameErrors, setNameErrors] = useState<{ firstName?: string; middleName?: string; lastName?: string }>({});
+  
+  // Export Modal State
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportFormat, setExportFormat] = useState<'pdf' | 'csv' | 'xlsx'>('xlsx');
+  const [exportReportData, setExportReportData] = useState<any>(null);
 
   // Debounce search term
   useEffect(() => {
@@ -113,7 +125,7 @@ export default function CustomersPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearchTerm, statusFilter, roleFilter]);
+  }, [debouncedSearchTerm, statusFilter]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -130,7 +142,6 @@ export default function CustomersPage() {
         const params = new URLSearchParams();
         if (debouncedSearchTerm) params.append('search', debouncedSearchTerm);
         if (statusFilter !== 'all') params.append('status', statusFilter);
-        if (roleFilter !== 'all') params.append('role', roleFilter);
         params.append('page', currentPage.toString());
         params.append('limit', '10');
 
@@ -178,7 +189,7 @@ export default function CustomersPage() {
     fetchCustomers();
 
     return () => controller.abort();
-  }, [debouncedSearchTerm, statusFilter, roleFilter, refreshKey, currentPage]);
+  }, [debouncedSearchTerm, statusFilter, refreshKey, currentPage]);
 
   const refreshCustomers = () => {
     setRefreshKey(prev => prev + 1);
@@ -450,6 +461,62 @@ export default function CustomersPage() {
     }
   };
 
+  const handleExport = async (type: 'csv' | 'pdf' | 'xlsx') => {
+    setIsExporting(true);
+    setExportFormat(type);
+    try {
+      // Fetch all customers for export
+      const { data: { session } } = await supabase.auth.getSession();
+      const params = new URLSearchParams();
+      if (debouncedSearchTerm) params.append('search', debouncedSearchTerm);
+      if (statusFilter !== 'all') params.append('status', statusFilter);
+      params.append('limit', '1000'); // Fetch a large number for export
+
+      const res = await fetch(`/api/admin/customers?${params.toString()}`, {
+        method: 'GET',
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined,
+      });
+
+      if (!res.ok) throw new Error('Failed to fetch data for export');
+      
+      const payload = await res.json();
+      const exportData = payload.data || [];
+
+      // Calculate summary stats for the modal
+      const activeCustomers = exportData.filter((c: any) => c.status === 'active').length;
+      const totalSpent = exportData.reduce((sum: number, c: any) => sum + Number(c.totalSpent || 0), 0);
+      const totalOrders = exportData.reduce((sum: number, c: any) => sum + Number(c.orders || 0), 0);
+      
+      const reportPayload = {
+        summary: {
+          totalCustomers: exportData.length,
+          activeCustomers,
+          avgOrderValue: totalOrders > 0 ? totalSpent / totalOrders : 0,
+          customerLifetimeValue: exportData.length > 0 ? totalSpent / exportData.length : 0,
+        },
+        topCustomers: exportData.slice(0, 50).map((c: any) => ({
+          name: c.name,
+          email: c.email,
+          orders: c.orders,
+          totalSpent: c.totalSpent,
+          status: c.status,
+        })),
+      };
+
+      setExportReportData(reportPayload);
+      setIsExportModalOpen(true);
+    } catch (err) {
+      console.error('Export preparation failed', err);
+      toast({
+        title: 'Export failed',
+        description: err instanceof Error ? err.message : 'An error occurred while preparing the export.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -485,15 +552,6 @@ export default function CustomersPage() {
                 <SelectItem value="deleted">Deleted</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={roleFilter} onValueChange={setRoleFilter}>
-              <SelectTrigger className="w-full md:w-40">
-                <SelectValue placeholder="Role" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="customer">Customer</SelectItem>
-              </SelectContent>
-            </Select>
             {statusFilter !== 'deleted' && (
               <Button 
                 variant="default" 
@@ -504,13 +562,30 @@ export default function CustomersPage() {
                 Add Customer
               </Button>
             )}
-            <Button variant="outline" className="gap-2">
-              <Download className="h-4 w-4" />
-              Export
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="gap-2" disabled={isExporting}>
+                  {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                  Export
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleExport('xlsx')} className="cursor-pointer">
+                  <FileSpreadsheet className="mr-2 h-4 w-4 text-green-500" />
+                  Export as Excel
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport('csv')} className="cursor-pointer">
+                  <FileText className="mr-2 h-4 w-4 text-blue-500" />
+                  Export as CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport('pdf')} className="cursor-pointer">
+                  <FileText className="mr-2 h-4 w-4 text-red-500" />
+                  Export as PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
-          {/* Error Message */}
           {error && (
             <div className="mb-4 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
               <p className="text-sm text-destructive">{error}</p>
@@ -723,7 +798,7 @@ export default function CustomersPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Restore Account</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to restore {selectedCustomer?.name}'s account? This will reactivate their access immediately.
+              Are you sure you want to restore ${selectedCustomer?.name}'s account? This will reactivate their access immediately.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -887,7 +962,7 @@ export default function CustomersPage() {
               {selectedCustomer?.role === 'courier' ? 'Deactivate' : 'Deactivate Customer'}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to deactivate {selectedCustomer?.name}? They will not be able to access their account until reactivated.
+              Are you sure you want to deactivate ${selectedCustomer?.name}? They will not be able to access their account until reactivated.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -908,7 +983,7 @@ export default function CustomersPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Activate Customer</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to activate {selectedCustomer?.name}? They will be able to access their account again.
+              Are you sure you want to activate ${selectedCustomer?.name}? They will be able to access their account again.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1069,6 +1144,17 @@ export default function CustomersPage() {
       </AlertDialog>
 
       <Toaster />
+      
+      {exportReportData && (
+        <ExportReportModal
+          isOpen={isExportModalOpen}
+          onClose={() => setIsExportModalOpen(false)}
+          reportType="customers"
+          data={exportReportData}
+          initialFormat={exportFormat}
+          customFilename={`NSD_Customer_List_${statusFilter}_${new Date().toISOString().split('T')[0]}`}
+        />
+      )}
     </div>
   );
 }

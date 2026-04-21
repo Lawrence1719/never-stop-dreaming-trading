@@ -49,7 +49,8 @@ export async function GET() {
           sku,
           reorder_threshold,
           is_active
-        )
+        ),
+        product_images (*)
         `
       )
       .eq('is_active', true)
@@ -100,7 +101,15 @@ export async function GET() {
         slug: product.slug || product.id,
         description: product.description || '',
         category: product.category || '',
-        images: product.image_url ? [product.image_url] : [],
+        images: product.product_images?.length > 0
+          ? product.product_images
+              .sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0))
+              .map((img: any) => 
+                img.storage_path.startsWith('http') 
+                  ? img.storage_path 
+                  : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-images/${img.storage_path}`
+              )
+          : product.image_url ? [product.image_url] : [],
         is_active: product.is_active,
         created_at: product.created_at,
         updated_at: product.updated_at,

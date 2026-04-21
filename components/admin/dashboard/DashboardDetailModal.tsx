@@ -127,7 +127,7 @@ export function DashboardDetailModal({
   };
 
   const today = new Date().toISOString().split('T')[0];
-  const filename = `${metric || 'report'}-summary-${today}.${format}`;
+  const filename = `NSD_${(metric || 'report').toUpperCase()}_Summary_${today}.${format}`;
   const printDateRange = getRelativeDateRangeLabel(dateRange as 'day' | 'week' | 'month');
 
   const handleDownload = async () => {

@@ -134,3 +134,42 @@
     transition: background-color 5000s ease-in-out 0s;
   }
 }
+
+/* ─── Print Styles ─────────────────────────────────────────── */
+@media print {
+  /* Hide everything that isn't the main report content */
+  aside,
+  nav,
+  header,
+  [data-sidebar],
+  [class*="sidebar"],
+  .no-print {
+    display: none !important;
+  }
+
+  /* Reset layout so report fills the page */
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  main,
+  [role="main"] {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+
+  /* Ensure cards don't break mid-page */
+  .card,
+  [class*="Card"] {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Hide action buttons (Export / Print / date range selector) */
+  button,
+  select {
+    display: none !important;
+  }
+}

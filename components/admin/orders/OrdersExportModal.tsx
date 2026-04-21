@@ -81,7 +81,7 @@ export function OrdersExportModal({ isOpen, onClose, mode, data = [], onExportCS
       (doc as any).setCharSpace?.(0);
       const pageWidth = 210;
       const today = new Date().toISOString().split('T')[0];
-      const filename = `orders-report-${today}.pdf`;
+      const filename = `NSD_Orders_Report_${today}.pdf`;
       let y = addProfessionalPdfHeader(doc, {
         reportTitle: 'Orders Report',
         generatedAt: new Date(),

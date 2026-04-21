@@ -60,7 +60,8 @@ export default function Home() {
             price,
             stock,
             is_active
-          )
+          ),
+          product_images (*)
         `)
         .eq('is_active', true)
         .order('created_at', { ascending: false })
@@ -84,7 +85,15 @@ export default function Home() {
             description: row.description || '',
             price: minPrice,
             compareAtPrice: row.compare_at_price ? Number(row.compare_at_price) : undefined,
-            images: row.image_url ? [row.image_url] : [],
+            images: row.product_images?.length > 0
+              ? row.product_images
+                  .sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0))
+                  .map((img: any) => 
+                    img.storage_path.startsWith('http') 
+                      ? img.storage_path 
+                      : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-images/${img.storage_path}`
+                  )
+              : row.image_url ? [row.image_url] : [],
             category: row.category || '',
             stock: totalStock,
             sku: row.sku || '',
