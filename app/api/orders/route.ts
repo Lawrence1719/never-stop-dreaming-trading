@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
         order_items(
           *,
           product_variants:variant_id(variant_label),
-          products:product_id(name, image_url, deleted_at)
+          products:product_id(name, image_url, deleted_at, product_images(storage_path, is_primary))
         )
       `, { count: 'exact' })
       .eq('user_id', user.id);
@@ -133,7 +133,11 @@ export async function GET(request: NextRequest) {
           productName = `${productName} (Removed)`;
         }
 
-        const productImage = item.products?.image_url || item.image || item.image_url || null;
+        const productImages = item.products?.product_images || [];
+        const primaryImage = (productImages as any[]).find(img => img.is_primary) || productImages[0];
+        const dbProductImage = primaryImage?.storage_path || item.products?.image_url;
+        
+        const productImage = dbProductImage || item.image || item.image_url || null;
         
         return {
           productId: item.product_id || item.productId || '',
@@ -159,7 +163,8 @@ export async function GET(request: NextRequest) {
         return sum + (Number(item.price) || 0) * (item.quantity || 1);
       }, 0);
       
-      const shipping = Math.max(0, Number(row.total) - subtotal);
+      const discount_amount = Number(row.discount_amount) || 0;
+      const shipping = Number(row.shipping_cost) || 0;
       const seq = sequenceMap.get(row.id) ?? 0;
       const orderNumber = formatOrderNumber(seq);
       const date = new Date(row.created_at).toISOString();
@@ -188,6 +193,7 @@ export async function GET(request: NextRequest) {
         status: row.status === 'completed' ? 'delivered' : row.status === 'paid' ? 'processing' : row.status,
         items: orderItems,
         subtotal,
+        discount_amount,
         shipping,
         total: Number(row.total) || 0,
         shippingAddress,

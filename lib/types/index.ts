@@ -135,6 +135,7 @@ export interface Order {
   status: "pending" | "processing" | "shipped" | "delivered" | "completed" | "cancelled";
   items: OrderItem[];
   subtotal: number;
+  discount_amount?: number;
   shipping: number;
   total: number;
   shippingAddress: Address;

@@ -53,13 +53,22 @@ export const generateInvoicePDF = (order: Order) => {
   doc.text('Subtotal:', 140, finalY);
   doc.text(formatPrice(order.subtotal), 185, finalY, { align: 'right' });
   
-  doc.text('Shipping:', 140, finalY + 6);
-  doc.text(order.shipping === 0 ? 'Free' : formatPrice(order.shipping), 185, finalY + 6, { align: 'right' });
+  let currentY = finalY;
+
+  if (order.discount_amount && order.discount_amount > 0) {
+    currentY += 6;
+    doc.text('Discount:', 140, currentY);
+    doc.text(`-${formatPrice(order.discount_amount)}`, 185, currentY, { align: 'right' });
+  }
+  
+  currentY += 6;
+  doc.text('Shipping:', 140, currentY);
+  doc.text(order.shipping === 0 ? 'Free' : formatPrice(order.shipping), 185, currentY, { align: 'right' });
   
   doc.setFontSize(12);
   doc.setFont("helvetica", "bold");
-  doc.text('Total:', 140, finalY + 14);
-  doc.text(formatPrice(order.total), 185, finalY + 14, { align: 'right' });
+  doc.text('Total:', 140, currentY + 8);
+  doc.text(formatPrice(order.total), 185, currentY + 8, { align: 'right' });
 
   // 5. Payment Info
   doc.setFontSize(10);

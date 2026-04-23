@@ -68,6 +68,8 @@ interface Order {
   delivered_at: string | null;
   confirmed_by_customer_at: string | null;
   auto_confirmed: boolean;
+  discount_amount?: number;
+  shipping_cost?: number;
   created_at: string;
   updated_at: string;
   status_history: StatusHistory[];
@@ -560,11 +562,13 @@ export default function OrderDetailPage() {
             <CardContent>
               <div className="space-y-4">
                 {order.items.map((item, index) => (
-                  <div key={index} className="flex gap-4 pb-4 border-b last:border-0 last:pb-0">
+                  <div key={index} className={`flex gap-4 pb-4 ${index > 0 ? 'pt-4 border-t' : ''}`}>
                     <div className="w-16 h-16 bg-muted rounded-lg flex items-center justify-center overflow-hidden shrink-0">
-                      {item.image ? (
+                      {item.image || item.images?.[0] ? (
                         <ProductImage 
-                          src={item.image.startsWith('http') ? item.image : supabase.storage.from('product_images').getPublicUrl(item.image).data.publicUrl} 
+                          src={(item.image || item.images?.[0])?.startsWith('http') || (item.image || item.images?.[0])?.startsWith('/') 
+                            ? (item.image || item.images?.[0]) 
+                            : supabase.storage.from('product-images').getPublicUrl(item.image || item.images?.[0]).data.publicUrl} 
                           alt={item.name} 
                         />
                       ) : (
@@ -581,8 +585,22 @@ export default function OrderDetailPage() {
                     </div>
                   </div>
                 ))}
-                <div className="pt-4 border-t">
-                  <div className="flex justify-between items-center">
+                <div className="pt-4 border-t space-y-2">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-muted-foreground">Subtotal</span>
+                    <span className="font-medium">{formatPrice(order.total - (order.shipping_cost || 0) + (order.discount_amount || 0))}</span>
+                  </div>
+                  {order.discount_amount && order.discount_amount > 0 && (
+                    <div className="flex justify-between items-center text-sm text-emerald-600 dark:text-emerald-400">
+                      <span>Discount</span>
+                      <span className="font-medium">-{formatPrice(order.discount_amount)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-muted-foreground">Shipping</span>
+                    <span className="font-medium">{(order.shipping_cost === 0 || !order.shipping_cost) ? 'FREE' : formatPrice(order.shipping_cost)}</span>
+                  </div>
+                  <div className="flex justify-between items-center pt-2 border-t">
                     <span className="text-lg font-semibold">Total</span>
                     <span className="text-2xl font-bold text-primary">{formatPrice(order.total)}</span>
                   </div>

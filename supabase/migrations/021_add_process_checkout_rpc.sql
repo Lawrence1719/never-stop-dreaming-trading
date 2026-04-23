@@ -114,12 +114,14 @@ BEGIN
       order_id,
       product_id,
       quantity,
-      price
+      price,
+      image
     ) VALUES (
       v_order_id,
       (v_item->>'product_id')::UUID,
       (v_item->>'quantity')::INTEGER,
-      (v_item->>'price')::NUMERIC
+      (v_item->>'price')::NUMERIC,
+      v_item->>'image'
     );
   END LOOP;
 

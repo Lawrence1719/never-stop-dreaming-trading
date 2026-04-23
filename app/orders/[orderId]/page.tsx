@@ -470,7 +470,7 @@ export default function OrderDetailsPage({ params }: { params: Promise<{ orderId
                     <div key={i} className="flex items-center gap-3 group">
                       <div className="w-11 h-11 rounded-xl overflow-hidden border border-border/50 bg-muted/30 shrink-0">
                         <ProductImage 
-                          src={item.image} 
+                          src={item.image || item.images?.[0] ? ((item.image || item.images?.[0]).startsWith('http') || (item.image || item.images?.[0]).startsWith('/') ? (item.image || item.images?.[0]) : supabase.storage.from('product-images').getPublicUrl(item.image || item.images?.[0]).data.publicUrl) : null} 
                           alt={item.name} 
                           className="w-full h-full object-cover"
                           containerClassName="!p-0"
@@ -494,6 +494,12 @@ export default function OrderDetailsPage({ params }: { params: Promise<{ orderId
                     <span className="text-muted-foreground uppercase tracking-wide">Subtotal</span>
                     <span>{formatPrice(order.subtotal)}</span>
                   </div>
+                  {order.discount_amount && order.discount_amount > 0 && (
+                    <div className="flex justify-between text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                      <span className="uppercase tracking-wide">Discount</span>
+                      <span>-{formatPrice(order.discount_amount)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-xs font-semibold">
                     <span className="text-muted-foreground uppercase tracking-wide">Shipping</span>
                     <span className={cn(order.shipping === 0 ? "text-emerald-600 dark:text-emerald-400" : "")}>

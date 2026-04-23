@@ -109,7 +109,35 @@ export async function GET(
       };
     }
 
-    const items = Array.isArray(order.items) ? order.items : [];
+    let items = Array.isArray(order.items) ? order.items : [];
+
+    // ENRICHMENT: Fetch images for items if missing or placeholders
+    if (items.length > 0) {
+      const productIds = items.map((i: any) => i.product_id || i.productId).filter(Boolean);
+      if (productIds.length > 0) {
+        const { data: productsData } = await supabaseAdmin
+          .from('products')
+          .select('id, image_url, product_images(storage_path, is_primary)')
+          .in('id', productIds);
+
+        if (productsData) {
+          items = items.map((item: any) => {
+            const p = productsData.find(pd => pd.id === (item.product_id || item.productId));
+            if (p) {
+              const isPlaceholder = !item.image || item.image === '/placeholder.svg' || item.image === '';
+              const productImages = p.product_images || [];
+              const primaryImage = (productImages as any[]).find(img => img.is_primary) || productImages[0];
+              const dbImage = primaryImage?.storage_path || p.image_url;
+
+              if (isPlaceholder && dbImage) {
+                return { ...item, image: dbImage };
+              }
+            }
+            return item;
+          });
+        }
+      }
+    }
 
     // Calculate readable order number (#NSD-xxxxx)
     const { data: allOrderIds } = await supabaseAdmin
@@ -143,6 +171,8 @@ export async function GET(
       delivered_at: order.delivered_at,
       confirmed_by_customer_at: order.confirmed_by_customer_at,
       auto_confirmed: order.auto_confirmed,
+      discount_amount: Number(order.discount_amount) || 0,
+      shipping_cost: Number(order.shipping_cost) || 0,
       created_at: order.created_at,
       updated_at: order.updated_at,
       status_history: statusHistory || [],
@@ -435,7 +465,35 @@ export async function PUT(
       };
     }
 
-    const items = Array.isArray(order.items) ? order.items : [];
+    let items = Array.isArray(order.items) ? order.items : [];
+
+    // ENRICHMENT: Fetch images for items if missing or placeholders
+    if (items.length > 0) {
+      const productIds = items.map((i: any) => i.product_id || i.productId).filter(Boolean);
+      if (productIds.length > 0) {
+        const { data: productsData } = await supabaseAdmin
+          .from('products')
+          .select('id, image_url, product_images(storage_path, is_primary)')
+          .in('id', productIds);
+
+        if (productsData) {
+          items = items.map((item: any) => {
+            const p = productsData.find(pd => pd.id === (item.product_id || item.productId));
+            if (p) {
+              const isPlaceholder = !item.image || item.image === '/placeholder.svg' || item.image === '';
+              const productImages = p.product_images || [];
+              const primaryImage = (productImages as any[]).find(img => img.is_primary) || productImages[0];
+              const dbImage = primaryImage?.storage_path || p.image_url;
+
+              if (isPlaceholder && dbImage) {
+                return { ...item, image: dbImage };
+              }
+            }
+            return item;
+          });
+        }
+      }
+    }
 
     // Calculate readable order number (#NSD-xxxxx)
     const { data: allOrderIds } = await supabaseAdmin
@@ -466,6 +524,8 @@ export async function PUT(
       paid_at: order.paid_at,
       shipped_at: order.shipped_at,
       delivered_at: order.delivered_at,
+      discount_amount: Number(order.discount_amount) || 0,
+      shipping_cost: Number(order.shipping_cost) || 0,
       created_at: order.created_at,
       updated_at: order.updated_at,
       status_history: statusHistory || [],

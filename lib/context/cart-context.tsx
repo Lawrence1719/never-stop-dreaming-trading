@@ -41,13 +41,18 @@ export function CartProvider({ children }: { children: ReactNode }) {
       try {
         const { data, error } = await supabase
           .from('products')
-          .select('*')
+          .select('*, product_images(*)')
           .eq('id', productId)
           .single();
         
         if (error) throw error;
         
         if (data) {
+          // Get primary image from product_images or fallback to legacy image_url
+          const productImages = data.product_images || [];
+          const primaryImage = productImages.find((img: any) => img.is_primary) || productImages[0];
+          const displayImage = primaryImage?.storage_path || data.image_url;
+
           product = {
             id: data.id,
             name: data.name,
@@ -55,7 +60,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
             description: data.description || '',
             price: Number(data.price) || 0,
             compareAtPrice: data.compare_at_price ? Number(data.compare_at_price) : undefined,
-            images: data.image_url ? [data.image_url] : [],
+            images: displayImage ? [displayImage] : [],
             category: data.category || '',
             stock: data.stock ?? 0,
             sku: data.sku || '',

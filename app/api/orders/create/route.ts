@@ -68,6 +68,8 @@ export async function POST(request: NextRequest) {
       items,
       shipping_address_id,
       payment_method,
+      applied_coupon_id,
+      discount_amount,
     } = body;
 
     // Validate required fields
