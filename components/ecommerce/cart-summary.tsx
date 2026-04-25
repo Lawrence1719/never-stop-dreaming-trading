@@ -12,7 +12,7 @@ export function CartSummary({ subtotal, tax = 0, discount = 0, showShipping = tr
   const { calculateShipping, isFreeShipping } = useShipping();
   const shipping = showShipping ? calculateShipping(subtotal) : 0;
   const total = subtotal + shipping + tax - discount;
-  const qualifiesForFreeShipping = isFreeShipping(subtotal);
+  const freeShipping = isFreeShipping(subtotal);
 
   return (
     <div className="bg-card border border-border rounded-lg p-6 space-y-4">
@@ -26,10 +26,10 @@ export function CartSummary({ subtotal, tax = 0, discount = 0, showShipping = tr
         {showShipping && (
           <div className="flex justify-between text-sm">
             <span>Shipping</span>
-            {qualifiesForFreeShipping ? (
-              <span className="text-green-600 font-semibold">FREE</span>
+            {freeShipping ? (
+              <span className="text-green-600 font-semibold uppercase">FREE</span>
             ) : (
-              <span>{formatPrice(shipping)}</span>
+              <span>{formatPrice(0)}</span>
             )}
           </div>
         )}

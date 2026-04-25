@@ -13,9 +13,7 @@ export interface AppSettings {
     businessAddress: string;
   };
   shipping: {
-    standardRate: string;
-    expressRate: string;
-    freeShippingThreshold: string;
+    freeShippingEnabled: boolean;
   };
   payment: {
     creditCard: boolean;
@@ -66,9 +64,7 @@ export async function getAppSettings(): Promise<AppSettings> {
       businessAddress: settings.business_address || '123 Main Street, City, State 12345',
     },
     shipping: {
-      standardRate: settings.shipping_standard_rate || '299.00',
-      expressRate: settings.shipping_express_rate || '599.00',
-      freeShippingThreshold: settings.shipping_free_threshold || '2500.00',
+      freeShippingEnabled: settings.free_shipping_enabled !== false,
     },
     payment: {
       creditCard: settings.payment_credit_card !== false,

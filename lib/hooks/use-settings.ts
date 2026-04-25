@@ -11,9 +11,7 @@ interface PublicSettings {
     businessAddress: string;
   };
   shipping: {
-    standardRate: string;
-    expressRate: string;
-    freeShippingThreshold: string;
+    freeShippingEnabled: boolean;
   };
   payment: {
     creditCard: boolean;
@@ -98,9 +96,7 @@ export function useSettings() {
               businessAddress: '123 Main Street, City, State 12345',
             },
             shipping: {
-              standardRate: '299.00',
-              expressRate: '599.00',
-              freeShippingThreshold: '2500.00',
+              freeShippingEnabled: true,
             },
             payment: {
               creditCard: true,

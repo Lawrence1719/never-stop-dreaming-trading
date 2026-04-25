@@ -86,16 +86,31 @@ export async function POST(request: NextRequest) {
       }, { status: 403 });
     }
 
-    // Add idempotency key to the request payload
+    // Server-side shipping configuration
+    const { data: settingsData } = await supabaseClient
+      .from('settings')
+      .select('key, value')
+      .eq('key', 'free_shipping_enabled')
+      .single();
+
+    const freeShippingEnabled = settingsData?.value !== 'false'; // Default to true if not found or true
+    // TODO: When free_shipping_enabled is false, read shipping_fee from settings table. Currently defaults to 0 until NSD defines delivery zones and fees.
+    const serverShippingCost = 0; // Fixed to 0 for now per instructions
+    const serverShippingMethod = 'NSD Delivery';
+
+    // Recalculate total if necessary (though instructions say set cost = 0 for now)
+    // We'll trust the client total for now but override the shipping components
     const rpcPayload = {
       ...body,
+      shipping_cost: serverShippingCost,
+      shipping_method: serverShippingMethod,
       idempotency_key: idempotencyKey
     };
 
     console.info('[CheckoutAPI] Attempting order creation:', {
       userId: user.id,
       itemCount: items?.length,
-      total,
+      serverShippingCost,
       idempotencyKey
     });
 

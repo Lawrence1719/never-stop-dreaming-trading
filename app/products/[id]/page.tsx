@@ -539,7 +539,7 @@ export default function ProductDetailPage() {
           {/* Breadcrumb */}
             <Link
               href="/products"
-              className="flex items-center gap-2 text-primary font-bold hover:underline"
+              className="flex items-center gap-2 text-primary font-bold hover:underline mb-8"
             >
               <ChevronLeft className="w-4 h-4" />
               Back to Products

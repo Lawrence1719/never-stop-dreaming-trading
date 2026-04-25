@@ -23,9 +23,7 @@ interface Settings {
     businessAddress: string;
   };
   shipping: {
-    standardRate: string;
-    expressRate: string;
-    freeShippingThreshold: string;
+    freeShippingEnabled: boolean;
   };
   payment: {
     creditCard: boolean;
@@ -254,51 +252,30 @@ export default function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Shipping Settings</CardTitle>
-              <CardDescription>Configure shipping rates and zones</CardDescription>
+              <CardDescription>Configure delivery preferences</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div>
-                <Label htmlFor="shipping-standard">Standard Shipping Rate</Label>
-                <div className="flex items-center gap-2 mt-2">
-                  <span className="text-muted-foreground">₱</span>
-                  <Input
-                    id="shipping-standard"
-                    type="number"
-                    step="0.01"
-                    value={settings.shipping.standardRate}
-                    onChange={(e) => updateSetting('shipping', 'standardRate', e.target.value)}
-                    className="flex-1"
-                  />
+              <div className="flex items-center justify-between space-x-4">
+                <div className="flex-1 space-y-0.5">
+                  <Label htmlFor="free-shipping">Free Shipping</Label>
+                  <p className="text-sm text-muted-foreground">
+                    When enabled, all orders ship for free. Toggle off when NSD introduces delivery fees.
+                  </p>
                 </div>
+                <Switch
+                  id="free-shipping"
+                  checked={settings.shipping.freeShippingEnabled}
+                  onCheckedChange={(checked) => updateSetting('shipping', 'freeShippingEnabled', checked)}
+                />
               </div>
-              <div>
-                <Label htmlFor="shipping-express">Express Shipping Rate</Label>
-                <div className="flex items-center gap-2 mt-2">
-                  <span className="text-muted-foreground">₱</span>
-                  <Input
-                    id="shipping-express"
-                    type="number"
-                    step="0.01"
-                    value={settings.shipping.expressRate}
-                    onChange={(e) => updateSetting('shipping', 'expressRate', e.target.value)}
-                    className="flex-1"
-                  />
-                </div>
-              </div>
-              <div>
-                <Label htmlFor="shipping-free">Free Shipping Threshold</Label>
-                <div className="flex items-center gap-2 mt-2">
-                  <span className="text-muted-foreground">₱</span>
-                  <Input
-                    id="shipping-free"
-                    type="number"
-                    step="0.01"
-                    value={settings.shipping.freeShippingThreshold}
-                    onChange={(e) => updateSetting('shipping', 'freeShippingThreshold', e.target.value)}
-                    className="flex-1"
-                  />
-                </div>
-              </div>
+
+              <Alert variant="info" className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+                <AlertCircle className="h-4 w-4 text-blue-600" />
+                <AlertDescription className="text-blue-800 dark:text-blue-200">
+                  NSD currently delivers within select areas in Luzon only. Shipping fee configuration will be available when delivery zones are defined.
+                </AlertDescription>
+              </Alert>
+
               <Button onClick={() => handleSave('shipping')} className="gap-2" disabled={isSaving}>
                 <Save className="h-4 w-4" />
                 {isSaving ? 'Saving...' : 'Save Changes'}

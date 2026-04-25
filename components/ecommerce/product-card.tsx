@@ -21,8 +21,11 @@ export function ProductCard({ product }: ProductCardProps) {
   const { user } = useAuth();
   const inWishlist = isInWishlist(product.id);
 
-  // Determine if product has multiple variants
-  const hasVariants = (product.variants?.length ?? 0) > 1;
+  const variants = product.variants || [];
+  const hasVariants = variants.length > 0;
+  const prices = hasVariants ? variants.map(v => v.price) : [product.price ?? 0];
+  const minPrice = Math.min(...prices);
+  const maxPrice = Math.max(...prices);
 
   const handleWishlist = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -41,7 +44,7 @@ export function ProductCard({ product }: ProductCardProps) {
   };
 
   const discount = product.compareAtPrice
-    ? Math.round((((product.compareAtPrice ?? 0) - (product.price ?? 0)) / (product.compareAtPrice ?? 1)) * 100)
+    ? Math.round((((product.compareAtPrice ?? 0) - minPrice) / (product.compareAtPrice ?? 1)) * 100)
     : null;
 
   // Determine price display based on variants
@@ -50,16 +53,16 @@ export function ProductCard({ product }: ProductCardProps) {
       return formatPrice(product.price ?? 0);
     }
     
-    // For variant products, show price range or "From" price
-    const prices = (product.variants || []).map(v => v.price);
-    const minPrice = Math.min(...prices);
-    const maxPrice = Math.max(...prices);
-    
     if (minPrice === maxPrice) {
       return formatPrice(minPrice);
     }
     
-    return `From ${formatPrice(minPrice)}`;
+    // If multiple variants have different prices, show "From"
+    if (variants.length > 1) {
+      return `From ${formatPrice(minPrice)}`;
+    }
+
+    return formatPrice(minPrice);
   };
 
   return (

@@ -6,7 +6,6 @@ import Link from "next/link";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { CartSummary } from "@/components/ecommerce/cart-summary";
-import { ShippingOptions } from "@/components/ecommerce/shipping-options";
 import { CheckoutStepper } from "@/components/ecommerce/checkout-stepper";
 import { useCart } from "@/lib/context/cart-context";
 import { useAuth } from "@/lib/context/auth-context";
@@ -110,7 +109,7 @@ function CheckoutPageContent() {
             quantity: buyNowQuantity,
             name: data.name,
             price,
-            image: data.image_url || data.images?.[0] || "",
+            image: data.image_url || (data.images && data.images.length > 0 ? data.images[0] : ""),
             variantLabel: selectedVariant?.variant_label || "",
             sku: selectedVariant?.sku || data.sku || "",
           };
@@ -1232,8 +1231,11 @@ function CheckoutPageContent() {
                       </div>
                     )}
 
-                    {/* Shipping Method Selection */}
-                    <ShippingOptions subtotal={checkoutTotal} />
+                    <div className="p-4 border border-blue-200 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                      <p className="text-sm text-blue-800 dark:text-blue-200">
+                        <strong>Note:</strong> NSD currently delivers within select areas in Luzon only. Shipping fee configuration will be available when delivery zones are defined.
+                      </p>
+                    </div>
                   </div>
                 )}
 
@@ -1380,9 +1382,8 @@ function CheckoutPageContent() {
 
                     <div>
                       <h3 className="font-semibold mb-3">Shipping Method</h3>
-                      <p className="text-sm text-muted-foreground">
-                        {shippingMethod === "standard" && `Standard (5-7 business days) - ${shippingCost === 0 ? 'FREE' : formatPrice(shippingCost)}`}
-                        {shippingMethod === "express" && `Express (2-3 business days) - ${shippingCost === 0 ? 'FREE' : formatPrice(shippingCost)}`}
+                      <p className="text-sm text-muted-foreground uppercase">
+                        {shippingMethod} — {shippingCost === 0 ? 'FREE' : formatPrice(shippingCost)}
                       </p>
                     </div>
 

@@ -564,11 +564,11 @@ export default function OrderDetailPage() {
                 {order.items.map((item, index) => (
                   <div key={index} className={`flex gap-4 pb-4 ${index > 0 ? 'pt-4 border-t' : ''}`}>
                     <div className="w-16 h-16 bg-muted rounded-lg flex items-center justify-center overflow-hidden shrink-0">
-                      {item.image || item.images?.[0] ? (
+                      {item.image ? (
                         <ProductImage 
-                          src={(item.image || item.images?.[0])?.startsWith('http') || (item.image || item.images?.[0])?.startsWith('/') 
-                            ? (item.image || item.images?.[0]) 
-                            : supabase.storage.from('product-images').getPublicUrl(item.image || item.images?.[0]).data.publicUrl} 
+                          src={item.image.startsWith('http') || item.image.startsWith('/') 
+                            ? item.image 
+                            : supabase.storage.from('product-images').getPublicUrl(item.image).data.publicUrl} 
                           alt={item.name} 
                         />
                       ) : (

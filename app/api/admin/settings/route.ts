@@ -63,9 +63,7 @@ export async function GET(request: NextRequest) {
         businessAddress: settings.business_address || '123 Main Street, City, State 12345',
       },
       shipping: {
-        standardRate: settings.shipping_standard_rate || '299.00',
-        expressRate: settings.shipping_express_rate || '599.00',
-        freeShippingThreshold: settings.shipping_free_threshold || '2500.00',
+        freeShippingEnabled: settings.free_shipping_enabled !== false,
       },
       payment: {
         creditCard: settings.payment_credit_card !== false,
@@ -131,9 +129,7 @@ export async function PATCH(request: NextRequest) {
       settingsMap.contact_phone = settingsData.contactPhone;
       settingsMap.business_address = settingsData.businessAddress;
     } else if (section === 'shipping') {
-      settingsMap.shipping_standard_rate = settingsData.standardRate;
-      settingsMap.shipping_express_rate = settingsData.expressRate;
-      settingsMap.shipping_free_threshold = settingsData.freeShippingThreshold;
+      settingsMap.free_shipping_enabled = settingsData.freeShippingEnabled;
     } else if (section === 'payment') {
       settingsMap.payment_credit_card = settingsData.creditCard;
       settingsMap.payment_cash_on_delivery = settingsData.cashOnDelivery;

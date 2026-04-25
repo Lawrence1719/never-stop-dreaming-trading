@@ -470,7 +470,7 @@ export default function OrderDetailsPage({ params }: { params: Promise<{ orderId
                     <div key={i} className="flex items-center gap-3 group">
                       <div className="w-11 h-11 rounded-xl overflow-hidden border border-border/50 bg-muted/30 shrink-0">
                         <ProductImage 
-                          src={item.image || item.images?.[0] ? ((item.image || item.images?.[0]).startsWith('http') || (item.image || item.images?.[0]).startsWith('/') ? (item.image || item.images?.[0]) : supabase.storage.from('product-images').getPublicUrl(item.image || item.images?.[0]).data.publicUrl) : null} 
+                          src={item.image ? (item.image.startsWith('http') || item.image.startsWith('/') ? item.image : supabase.storage.from('product-images').getPublicUrl(item.image).data.publicUrl) : null} 
                           alt={item.name} 
                           className="w-full h-full object-cover"
                           containerClassName="!p-0"
