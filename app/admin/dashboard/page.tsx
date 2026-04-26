@@ -12,8 +12,8 @@ import { useAuth } from '@/lib/context/auth-context';
 import { supabase } from '@/lib/supabase/client';
 import { formatPrice, formatDateTime } from '@/lib/utils/formatting';
 import { DashboardDetailModal, type DashboardMetric } from '@/components/admin/dashboard/DashboardDetailModal';
-
-type DashboardRange = 'day' | 'week' | 'month';
+import { DateRangePicker } from '@/components/admin/reports/DateRangePicker';
+import { startOfWeek, endOfWeek, subDays } from 'date-fns';
 
 type GrowthDirection = 'up' | 'down' | 'neutral';
 
@@ -68,12 +68,21 @@ const PesoIcon = ({ className }: { className?: string }) => (
 
 export default function AdminDashboard() {
   const { user } = useAuth();
-  const [dateRange, setDateRange] = useState<DashboardRange>('week');
+  
+  // Set default to last 7 days for initial load
+  const [dateRange, setDateRange] = useState(() => {
+    const end = new Date();
+    const start = subDays(new Date(), 6); // Last 7 days including today
+    return {
+      startDate: start.toISOString(),
+      endDate: end.toISOString()
+    };
+  });
   const [data, setData] = useState<DashboardResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeMetric, setActiveMetric] = useState<'orders' | 'revenue'>('revenue');
-  const previousDateRangeRef = useRef<DashboardRange>('week');
+  const previousDateRangeRef = useRef<{ startDate: string; endDate: string }>(dateRange);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMetric, setModalMetric] = useState<DashboardMetric | null>(null);
   const [legendPosition, setLegendPosition] = useState<'right' | 'bottom'>('right');
@@ -96,7 +105,11 @@ export default function AdminDashboard() {
     const controller = new AbortController();
     async function loadDashboard() {
       try {
-        const res = await fetch(`/api/admin/dashboard?range=${dateRange}`, {
+        const params = new URLSearchParams();
+        if (dateRange.startDate) params.append('startDate', dateRange.startDate);
+        if (dateRange.endDate) params.append('endDate', dateRange.endDate);
+
+        const res = await fetch(`/api/admin/dashboard?${params.toString()}`, {
           method: 'GET',
           signal: controller.signal,
         });
@@ -141,7 +154,7 @@ export default function AdminDashboard() {
     }
 
     // Only show loader if date range actually changed from the previous one
-    if (previousDateRangeRef.current !== dateRange) {
+    if (previousDateRangeRef.current.startDate !== dateRange.startDate || previousDateRangeRef.current.endDate !== dateRange.endDate) {
       setIsLoading(true);
     }
 
@@ -208,7 +221,7 @@ export default function AdminDashboard() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setDateRange(prev => prev)} // Trigger reload
+                onClick={() => setDateRange({ ...dateRange })} // Trigger reload
                 className="ml-auto"
               >
                 Retry
@@ -231,24 +244,11 @@ export default function AdminDashboard() {
           )}
         </div>
         <div className="flex gap-2">
-          {['day', 'week', 'month'].map((range) => (
-            <Button
-              key={range}
-              variant={dateRange === range ? 'default' : 'outline'}
-              onClick={() => setDateRange(range as DashboardRange)}
-              disabled={isLoading}
-              className="relative"
-            >
-              {isLoading && dateRange === range ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Loading...
-                </>
-              ) : (
-                range.charAt(0).toUpperCase() + range.slice(1)
-              )}
-            </Button>
-          ))}
+          <DateRangePicker 
+            value={dateRange}
+            onChange={setDateRange}
+            disabled={isLoading}
+          />
         </div>
       </div>
 
@@ -307,27 +307,23 @@ export default function AdminDashboard() {
           <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <CardTitle>Sales Overview</CardTitle>
-              <CardDescription>Your sales performance over the {dateRange}</CardDescription>
+              <CardDescription>Your sales performance over the selected period</CardDescription>
             </div>
-            <div className="flex bg-muted p-1 rounded-lg self-start sm:self-center">
-              <button
+            <div className="flex gap-2">
+              <Button
+                variant={activeMetric === 'orders' ? 'default' : 'outline'}
+                size="sm"
                 onClick={() => setActiveMetric('orders')}
-                className={`px-3 py-1 text-sm font-medium rounded-md transition-all duration-200 ${activeMetric === 'orders'
-                    ? 'bg-blue-500 text-white shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                  }`}
               >
                 Orders
-              </button>
-              <button
+              </Button>
+              <Button
+                variant={activeMetric === 'revenue' ? 'default' : 'outline'}
+                size="sm"
                 onClick={() => setActiveMetric('revenue')}
-                className={`px-3 py-1 text-sm font-medium rounded-md transition-all duration-200 ${activeMetric === 'revenue'
-                    ? 'bg-green-600 text-white shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                  }`}
               >
                 Revenue
-              </button>
+              </Button>
             </div>
           </CardHeader>
           <CardContent
@@ -530,7 +526,7 @@ export default function AdminDashboard() {
         onClose={() => setIsModalOpen(false)}
         metric={modalMetric}
         data={data}
-        dateRange={dateRange}
+        dateRange={(dateRange.startDate && dateRange.endDate) ? `${formatDateTime(dateRange.startDate).split(' ')[0]} - ${formatDateTime(dateRange.endDate).split(' ')[0]}` : 'Selected Period'}
       />
     </div>
   );

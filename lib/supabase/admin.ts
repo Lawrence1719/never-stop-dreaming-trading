@@ -36,9 +36,13 @@ function getClient(client?: SupabaseClient) {
   return createClient(supabaseUrl, supabaseServiceKey)
 }
 
-type Range = 'day' | 'week' | 'month' | 'all'
+type Range = 'day' | 'week' | 'month' | 'all' | { start: string; end: string }
 
 function getDateRange(range: Range) {
+  if (typeof range === 'object' && range !== null) {
+    return { start: range.start, end: range.end }
+  }
+
   const end = new Date()
   let start = new Date()
   switch (range) {
@@ -118,7 +122,15 @@ async function getAverageOrderValue(range: Range = 'all', supabase?: SupabaseCli
 }
 
 function bucketKeyForDate(date: Date, range: Range) {
-  if (range === 'day') {
+  // If range is exactly 'day' or less than 48 hours, use hour buckets
+  let isHourBucket = range === 'day';
+  if (typeof range === 'object') {
+    const s = new Date(range.start);
+    const e = new Date(range.end);
+    isHourBucket = (e.getTime() - s.getTime()) <= 48 * 60 * 60 * 1000;
+  }
+
+  if (isHourBucket) {
     // return hour label
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
       date.getDate()
@@ -134,7 +146,12 @@ async function getSalesOverview(range: Range = 'week', supabase?: SupabaseClient
   const sb = getClient(supabase)
   const { start, end } = getDateRange(range)
 
-  const truncInterval = range === 'day' ? 'hour' : 'day';
+  let truncInterval = range === 'day' ? 'hour' : 'day';
+  if (typeof range === 'object') {
+    const s = new Date(range.start);
+    const e = new Date(range.end);
+    truncInterval = (e.getTime() - s.getTime()) <= 48 * 60 * 60 * 1000 ? 'hour' : 'day';
+  }
 
   const { data, error } = await sb.rpc('get_sales_overview_rpc', {
     p_start_date: start,
@@ -152,10 +169,16 @@ async function getSalesOverview(range: Range = 'week', supabase?: SupabaseClient
   const s = new Date(start)
   const e = new Date(end)
   const cur = new Date(s)
+  
+  let isHourBucket = range === 'day';
+  if (typeof range === 'object') {
+    isHourBucket = (e.getTime() - s.getTime()) <= 48 * 60 * 60 * 1000;
+  }
+
   while (cur <= e) {
     const key = bucketKeyForDate(cur, range)
     map[key] = { revenue: 0, orders: 0 }
-    if (range === 'day') cur.setHours(cur.getHours() + 1)
+    if (isHourBucket) cur.setHours(cur.getHours() + 1)
     else cur.setDate(cur.getDate() + 1)
   }
 
@@ -301,7 +324,7 @@ async function getGrowthRate(metric: GrowthMetric, range: Range = 'week', supaba
 
   return {
     metric,
-    range,
+    range: typeof range === 'object' ? 'custom' : range,
     current: ensureNumber(currentValue),
     previous: ensureNumber(previousValue),
     change: Number(percent.toFixed(2)),

@@ -48,7 +48,25 @@ export interface CustomersReportExportPayload {
   }>;
 }
 
+export interface ProductsReportExportPayload {
+  summary: {
+    totalProducts: number;
+    activeProducts: number;
+    inactiveProducts: number;
+    totalStock: number;
+  };
+  products: Array<{
+    name: string;
+    category: string;
+    supplier: string;
+    stock: number;
+    priceRange: string;
+    status: string;
+  }>;
+}
+
 export type ExportReportModalPayload =
   | SalesReportExportPayload
   | InventoryReportExportPayload
-  | CustomersReportExportPayload;
+  | CustomersReportExportPayload
+  | ProductsReportExportPayload;

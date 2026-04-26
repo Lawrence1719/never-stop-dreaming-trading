@@ -14,6 +14,7 @@ import {
 import { formatPrice } from '@/lib/utils/formatting';
 
 import { ExportReportModal } from '@/components/admin/reports/ExportReportModal';
+import { DateRangePicker } from '@/components/admin/reports/DateRangePicker';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Pagination,
@@ -65,7 +66,7 @@ export default function CustomersReportPage() {
   const [error, setError] = useState<string | null>(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [exportFormat, setExportFormat] = useState<'pdf' | 'csv' | 'xlsx'>('pdf');
-  const [range, setRange] = useState<'day' | 'week' | 'month' | 'all'>('month');
+  const [dateRange, setDateRange] = useState({ startDate: '', endDate: '' });
 
   // Pagination states
   const [topCustomersPage, setTopCustomersPage] = useState(1);
@@ -78,24 +79,9 @@ export default function CustomersReportPage() {
       setTopCustomersPage(1); // Reset page on range change
       
       try {
-        const now = new Date();
-        let start: Date | null = null;
-        let end: Date | null = now;
-
-        if (range === 'day') {
-          start = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-        } else if (range === 'week') {
-          start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        } else if (range === 'month') {
-          start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        } else {
-          start = null;
-          end = null;
-        }
-
         const params = new URLSearchParams();
-        if (start) params.append('start', start.toISOString());
-        if (end) params.append('end', end.toISOString());
+        if (dateRange.startDate) params.append('startDate', dateRange.startDate);
+        if (dateRange.endDate) params.append('endDate', dateRange.endDate);
 
         const res = await fetch(`/api/admin/reports/customers?${params.toString()}`);
 
@@ -114,7 +100,7 @@ export default function CustomersReportPage() {
     }
 
     fetchReport();
-  }, [range]);
+  }, [dateRange]);
 
   const handleExport = (format: 'pdf' | 'csv' | 'xlsx') => {
     setExportFormat(format);
@@ -139,22 +125,12 @@ export default function CustomersReportPage() {
           <p className="text-muted-foreground mt-1">Customer analytics, segments, and insights</p>
         </div>
         <div className="flex items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="gap-2">
-                {range === 'day' ? 'Last 24 Hours' : 
-                 range === 'week' ? 'Last 7 Days' : 
-                 range === 'month' ? 'Last 30 Days' : 'All Time'}
-                <ChevronDown className="h-4 w-4 opacity-50" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onClick={() => setRange('day')}>Last 24 Hours</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setRange('week')}>Last 7 Days</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setRange('month')}>Last 30 Days</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setRange('all')}>All Time</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="mr-2">
+            <DateRangePicker
+              value={dateRange}
+              onChange={setDateRange}
+            />
+          </div>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

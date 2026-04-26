@@ -38,7 +38,7 @@ import type {
 } from '@/lib/admin/report-export-types';
 import { useToast } from '@/hooks/use-toast';
 
-export type ReportType = 'sales' | 'inventory' | 'customers';
+export type ReportType = 'sales' | 'inventory' | 'customers' | 'products';
 
 type ExportFormat = 'pdf' | 'csv' | 'xlsx';
 
@@ -51,6 +51,7 @@ type ExportReportModalProps = {
   | { reportType: 'sales'; data: SalesReportExportPayload }
   | { reportType: 'inventory'; data: InventoryReportExportPayload }
   | { reportType: 'customers'; data: CustomersReportExportPayload }
+  | { reportType: 'products'; data: ProductsReportExportPayload }
 );
 
 export function ExportReportModal({
@@ -75,6 +76,7 @@ export function ExportReportModal({
       case 'sales': return 'Sales';
       case 'inventory': return 'Inventory';
       case 'customers': return 'Customers';
+      case 'products': return 'Products';
       default: return 'Report';
     }
   };
@@ -96,6 +98,9 @@ export function ExportReportModal({
     }
     if (reportType === 'inventory') {
       return 'No low stock alerts at this time.';
+    }
+    if (reportType === 'products') {
+      return 'No products found matching the filters.';
     }
     return 'No information available for this report.';
   };
@@ -168,6 +173,13 @@ export function ExportReportModal({
           ['Out of Stock', data.summary.outOfStock.toString()],
           ['Availability', `${data.summary.inStockPercentage}%`],
         ];
+      } else if (reportType === 'products') {
+        summaryBody = [
+          ['Total Products', data.summary.totalProducts.toString()],
+          ['Active Products', data.summary.activeProducts.toString()],
+          ['Inactive Products', data.summary.inactiveProducts.toString()],
+          ['Total Stock', data.summary.totalStock.toString()],
+        ];
       } else {
         summaryBody = [
           ['Total Customers', data.summary.totalCustomers.toString()],
@@ -207,6 +219,10 @@ export function ExportReportModal({
         detailTitle = 'Low Stock Alerts';
         detailHead = ['Product', 'SKU', 'Stock', 'Status'];
         detailBody = data.lowStockItems.map((p) => [p.name, p.sku, p.stock.toString(), p.status]);
+      } else if (reportType === 'products') {
+        detailTitle = 'Product Catalog';
+        detailHead = ['Name', 'Category', 'Supplier', 'Stock', 'Price Range', 'Status'];
+        detailBody = data.products.map((p) => [p.name, p.category, p.supplier, p.stock.toString(), p.priceRange, p.status]);
       } else {
         detailTitle = 'Top Customers';
         detailHead = ['Name', 'Email', 'Orders', 'Total Spent'];
@@ -270,6 +286,14 @@ export function ExportReportModal({
       csvContent += `Out of Stock,${data.summary.outOfStock}\n\n`;
       csvContent += 'Product Name,SKU,Stock,Threshold,Status\n';
       data.lowStockItems.forEach((p) => { csvContent += `"${p.name}",${p.sku},${p.stock},${p.threshold},${p.status}\n`; });
+    } else if (reportType === 'products') {
+      csvContent = 'Metric,Value\n';
+      csvContent += `Total Products,${data.summary.totalProducts}\n`;
+      csvContent += `Active Products,${data.summary.activeProducts}\n`;
+      csvContent += `Inactive Products,${data.summary.inactiveProducts}\n`;
+      csvContent += `Total Stock,${data.summary.totalStock}\n\n`;
+      csvContent += 'Name,Category,Supplier,Stock,Price Range,Status\n';
+      data.products.forEach((p) => { csvContent += `"${p.name}","${p.category}","${p.supplier}",${p.stock},"${p.priceRange}","${p.status}"\n`; });
     } else if (reportType === 'customers') {
       csvContent = 'Metric,Value\n';
       csvContent += `Total Customers,${data.summary.totalCustomers}\n`;
@@ -331,6 +355,20 @@ export function ExportReportModal({
         ...data.topCustomers.map((p) => [p.name, p.email, p.orders, formatCurrencyForPDF(p.totalSpent), p.status])
       ]);
       XLSX.utils.book_append_sheet(wb, customersWS, 'Top Customers');
+    } else if (reportType === 'products') {
+      const summaryWS = XLSX.utils.aoa_to_sheet([
+        ['Metric', 'Value'],
+        ['Total Products', data.summary.totalProducts],
+        ['Active Products', data.summary.activeProducts],
+        ['Inactive Products', data.summary.inactiveProducts],
+        ['Total Stock', data.summary.totalStock]
+      ]);
+      XLSX.utils.book_append_sheet(wb, summaryWS, 'Summary');
+      const itemsWS = XLSX.utils.aoa_to_sheet([
+        ['Name', 'Category', 'Supplier', 'Stock', 'Price Range', 'Status'],
+        ...data.products.map((p) => [p.name, p.category, p.supplier, p.stock, p.priceRange, p.status])
+      ]);
+      XLSX.utils.book_append_sheet(wb, itemsWS, 'Products');
     }
 
     const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
@@ -397,6 +435,12 @@ export function ExportReportModal({
                       <TableRow><TableCell>Avg. Order Value</TableCell><TableCell className="text-right">{formatCurrencyForPDF(data.summary.avgOrderValue)}</TableCell></TableRow>
                       <TableRow><TableCell>Customer Lifetime Value</TableCell><TableCell className="text-right text-green-600">{formatCurrencyForPDF(data.summary.customerLifetimeValue)}</TableCell></TableRow>
                     </>)}
+                    {reportType === 'products' && (<>
+                      <TableRow><TableCell>Total Products</TableCell><TableCell className="text-right font-semibold">{data.summary.totalProducts}</TableCell></TableRow>
+                      <TableRow><TableCell>Active Products</TableCell><TableCell className="text-right text-green-600">{data.summary.activeProducts}</TableCell></TableRow>
+                      <TableRow><TableCell>Inactive Products</TableCell><TableCell className="text-right text-red-600">{data.summary.inactiveProducts}</TableCell></TableRow>
+                      <TableRow><TableCell>Total Stock</TableCell><TableCell className="text-right font-bold">{data.summary.totalStock}</TableCell></TableRow>
+                    </>)}
                   </TableBody>
                 </Table>
               </div>
@@ -405,12 +449,13 @@ export function ExportReportModal({
             {/* Detail list */}
             <div>
               <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-                {reportType === 'sales' ? 'Top Performing Products' : reportType === 'inventory' ? 'Low Stock Alerts' : 'Top Customers'}
+                {reportType === 'sales' ? 'Top Performing Products' : reportType === 'inventory' ? 'Low Stock Alerts' : reportType === 'products' ? 'Product Catalog' : 'Top Customers'}
               </h3>
               <div className="border rounded overflow-hidden">
                 {((reportType === 'sales' && data.topProducts.length === 0) ||
                   (reportType === 'inventory' && data.lowStockItems.length === 0) ||
-                  (reportType === 'customers' && data.topCustomers.length === 0)) ? (
+                  (reportType === 'customers' && data.topCustomers.length === 0) ||
+                  (reportType === 'products' && data.products.length === 0)) ? (
                   <div className="px-4 py-8 text-center text-sm italic text-muted-foreground">
                     {getEmptyDetailMessage()}
                   </div>
@@ -421,6 +466,7 @@ export function ExportReportModal({
                         {reportType === 'sales' && (<><TableHead className="font-semibold">Product Name</TableHead><TableHead className="text-right font-semibold">Units Sold</TableHead><TableHead className="text-right font-semibold">Revenue</TableHead></>)}
                         {reportType === 'inventory' && (<><TableHead className="font-semibold">Product</TableHead><TableHead className="font-semibold">SKU</TableHead><TableHead className="text-right font-semibold">Stock</TableHead><TableHead className="font-semibold">Status</TableHead></>)}
                         {reportType === 'customers' && (<><TableHead className="font-semibold">Name</TableHead><TableHead className="font-semibold">Email</TableHead><TableHead className="text-right font-semibold">Orders</TableHead><TableHead className="text-right font-semibold">Total Spent</TableHead></>)}
+                        {reportType === 'products' && (<><TableHead className="font-semibold">Name</TableHead><TableHead className="font-semibold">Category</TableHead><TableHead className="font-semibold">Supplier</TableHead><TableHead className="text-right font-semibold">Stock</TableHead><TableHead className="text-right font-semibold">Price Range</TableHead><TableHead className="font-semibold">Status</TableHead></>)}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -445,6 +491,16 @@ export function ExportReportModal({
                           <TableCell className="text-muted-foreground">{p.email}</TableCell>
                           <TableCell className="text-right">{p.orders}</TableCell>
                           <TableCell className="text-right text-green-600 font-medium">{formatCurrencyForPDF(p.totalSpent)}</TableCell>
+                        </TableRow>
+                      ))}
+                      {reportType === 'products' && data.products.map((p, i) => (
+                        <TableRow key={i}>
+                          <TableCell className="font-medium">{p.name}</TableCell>
+                          <TableCell className="text-muted-foreground">{p.category}</TableCell>
+                          <TableCell className="text-muted-foreground">{p.supplier}</TableCell>
+                          <TableCell className="text-right font-bold text-blue-600">{p.stock}</TableCell>
+                          <TableCell className="text-right">{p.priceRange}</TableCell>
+                          <TableCell><span className={`px-1.5 py-0.5 rounded text-xs font-medium ${p.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{p.status}</span></TableCell>
                         </TableRow>
                       ))}
                     </TableBody>

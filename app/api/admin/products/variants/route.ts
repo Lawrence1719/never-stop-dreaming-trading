@@ -93,9 +93,9 @@ export async function POST(request: NextRequest) {
     const supabaseAdmin = getClient();
 
     // Validate required fields
-    if (!body.product_id || !body.variant_label || body.price === undefined || body.stock === undefined || !body.sku) {
+    if (!body.product_id || !body.variant_label || body.price === undefined || body.stock === undefined || !body.sku || !body.item_code || !body.unit || !body.doz_pckg) {
       return NextResponse.json(
-        { error: 'Missing required fields: product_id, variant_label, price, stock, sku' },
+        { error: 'Missing required fields: product_id, variant_label, price, stock, sku, item_code, unit, doz_pckg' },
         { status: 400 }
       );
     }
@@ -132,6 +132,9 @@ export async function POST(request: NextRequest) {
           price: parseFloat(body.price),
           stock: parseInt(body.stock),
           sku: body.sku,
+          item_code: body.item_code,
+          unit: body.unit,
+          doz_pckg: body.doz_pckg,
           reorder_threshold: body.reorder_threshold ?? 5,
           is_active: body.is_active !== false,
           created_at: new Date().toISOString(),

@@ -123,6 +123,9 @@ export async function PUT(
     if (body.price !== undefined) updateData.price = parseFloat(body.price);
     if (body.stock !== undefined) updateData.stock = parseInt(body.stock);
     if (body.sku !== undefined) updateData.sku = body.sku;
+    if (body.item_code !== undefined) updateData.item_code = body.item_code;
+    if (body.unit !== undefined) updateData.unit = body.unit;
+    if (body.doz_pckg !== undefined) updateData.doz_pckg = body.doz_pckg;
     if (body.reorder_threshold !== undefined) updateData.reorder_threshold = body.reorder_threshold;
     if (body.is_active !== undefined) updateData.is_active = body.is_active;
     updateData.updated_at = new Date().toISOString();

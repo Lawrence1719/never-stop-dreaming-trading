@@ -39,7 +39,15 @@ export async function GET(request: NextRequest) {
 
     // Get date range from query params (default to 'month')
     const { searchParams } = new URL(request.url);
-    const range = (searchParams.get('range') as 'day' | 'week' | 'month' | 'all') || 'month';
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
+    
+    let range: any = 'month';
+    if (startDate && endDate) {
+      range = { start: startDate, end: endDate };
+    } else {
+      range = (searchParams.get('range') as 'day' | 'week' | 'month' | 'all') || 'month';
+    }
 
     // Fetch sales data
     const [

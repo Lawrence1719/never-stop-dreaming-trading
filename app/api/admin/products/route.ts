@@ -51,9 +51,12 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search') || '';
     const status = searchParams.get('status') || 'all';
     const category = searchParams.get('category') || 'all';
+    const supplierId = searchParams.get('supplier_id') || 'all';
     const isArchived = searchParams.get('archived') === 'true';
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '15', 10);
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
 
     // Build query to fetch products (base info only, no price/stock at product level)
     let query = supabaseAdmin
@@ -112,6 +115,20 @@ export async function GET(request: NextRequest) {
       query = query.eq('category', category);
     }
 
+    if (supplierId !== 'all') {
+      query = query.eq('supplier_id', supplierId);
+    }
+
+    if (startDate) {
+      query = query.gte('created_at', startDate);
+    }
+
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      query = query.lte('created_at', end.toISOString());
+    }
+
     // Building a separate query just for the exact count of filtered results
     let countQuery = supabaseAdmin
       .from('products')
@@ -123,6 +140,17 @@ export async function GET(request: NextRequest) {
     if (search) countQuery = countQuery.or(`name.ilike.%${search}%`);
     if (status !== 'all') countQuery = countQuery.eq('is_active', status === 'active');
     if (category !== 'all') countQuery = countQuery.eq('category', category);
+    if (supplierId !== 'all') countQuery = countQuery.eq('supplier_id', supplierId);
+
+    if (startDate) {
+      countQuery = countQuery.gte('created_at', startDate);
+    }
+
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      countQuery = countQuery.lte('created_at', end.toISOString());
+    }
 
     const { count: totalFiltered } = await countQuery;
 

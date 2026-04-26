@@ -31,6 +31,9 @@ export function ProductVariantForm({
     price: initialData?.price?.toString() || "",
     stock: initialData?.stock?.toString() || "0",
     sku: initialData?.sku || "",
+    item_code: initialData?.item_code || "",
+    unit: initialData?.unit || "",
+    doz_pckg: initialData?.doz_pckg || "",
     reorder_threshold: initialData?.reorder_threshold?.toString() || "5",
     is_active: initialData?.is_active !== false,
   });
@@ -61,6 +64,18 @@ export function ProductVariantForm({
       newErrors.sku = "SKU is required and must be unique";
     }
 
+    if (!formData.item_code.trim()) {
+      newErrors.item_code = "Item code is required (e.g., '47883')";
+    }
+
+    if (!formData.unit.trim()) {
+      newErrors.unit = "Unit is required (e.g., 'PC', 'PCS')";
+    }
+
+    if (!formData.doz_pckg.trim()) {
+      newErrors.doz_pckg = "Doz/Pckg is required (e.g., '48/ CASE PC')";
+    }
+
     if (!formData.reorder_threshold) {
       newErrors.reorder_threshold = "Reorder threshold is required";
     } else if (parseInt(formData.reorder_threshold) < 0) {
@@ -77,13 +92,11 @@ export function ProductVariantForm({
       ...prev,
       [name]: type === "checkbox" ? checked : value,
     }));
-    // Clear error when user starts typing
-    if (touched[name]) {
-      setErrors((prev) => ({
-        ...prev,
-        [name]: "",
-      }));
-    }
+    setErrors((prev) => {
+      const newErrors = { ...prev };
+      delete newErrors[name];
+      return newErrors;
+    });
   };
 
   const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
@@ -98,6 +111,12 @@ export function ProductVariantForm({
     e.preventDefault();
 
     if (!validateForm()) {
+      // Mark all fields as touched to show errors next to inputs
+      const allTouched: Record<string, boolean> = {};
+      Object.keys(formData).forEach(key => {
+        allTouched[key] = true;
+      });
+      setTouched(allTouched);
       return;
     }
 
@@ -108,6 +127,9 @@ export function ProductVariantForm({
         price: parseFloat(formData.price),
         stock: parseInt(formData.stock),
         sku: formData.sku.trim().toUpperCase(),
+        item_code: formData.item_code.trim(),
+        unit: formData.unit.trim(),
+        doz_pckg: formData.doz_pckg.trim(),
         reorder_threshold: parseInt(formData.reorder_threshold),
         is_active: formData.is_active,
       });
@@ -117,7 +139,7 @@ export function ProductVariantForm({
     }
   };
 
-  const errorFields = Object.keys(errors).filter(key => key !== 'submit');
+  const errorFields = Object.keys(errors).filter(key => key !== 'submit' && errors[key]);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 max-w-2xl">
@@ -188,6 +210,75 @@ export function ProductVariantForm({
         {errors.sku && touched.sku && (
           <p className="text-sm text-destructive mt-1">{errors.sku}</p>
         )}
+      </div>
+
+      {/* Item Code */}
+      <div>
+        <Label htmlFor="item_code">
+          Item Code <span className="text-destructive">*</span>
+        </Label>
+        <p className="text-sm text-muted-foreground mb-2">
+          Internal item code (e.g., "47883", "PHILLPSMLO")
+        </p>
+        <Input
+          id="item_code"
+          name="item_code"
+          placeholder="e.g., 47883"
+          value={formData.item_code}
+          onChange={handleChange}
+          onBlur={handleBlur}
+          className={errors.item_code && touched.item_code ? "border-destructive" : ""}
+        />
+        {errors.item_code && touched.item_code && (
+          <p className="text-sm text-destructive mt-1">{errors.item_code}</p>
+        )}
+      </div>
+
+      {/* Unit & Doz/Pckg Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Unit */}
+        <div>
+          <Label htmlFor="unit">
+            Unit <span className="text-destructive">*</span>
+          </Label>
+          <p className="text-sm text-muted-foreground mb-2">
+            Measure (e.g., "PC", "PCS")
+          </p>
+          <Input
+            id="unit"
+            name="unit"
+            placeholder="e.g., PC"
+            value={formData.unit}
+            onChange={handleChange}
+            onBlur={handleBlur}
+            className={errors.unit && touched.unit ? "border-destructive" : ""}
+          />
+          {errors.unit && touched.unit && (
+            <p className="text-sm text-destructive mt-1">{errors.unit}</p>
+          )}
+        </div>
+
+        {/* Doz/Pckg */}
+        <div>
+          <Label htmlFor="doz_pckg">
+            Doz/Pckg <span className="text-destructive">*</span>
+          </Label>
+          <p className="text-sm text-muted-foreground mb-2">
+            Packaging (e.g., "48/ CASE PC")
+          </p>
+          <Input
+            id="doz_pckg"
+            name="doz_pckg"
+            placeholder="e.g., 48/ CASE PC"
+            value={formData.doz_pckg}
+            onChange={handleChange}
+            onBlur={handleBlur}
+            className={errors.doz_pckg && touched.doz_pckg ? "border-destructive" : ""}
+          />
+          {errors.doz_pckg && touched.doz_pckg && (
+            <p className="text-sm text-destructive mt-1">{errors.doz_pckg}</p>
+          )}
+        </div>
       </div>
 
       {/* Price */}

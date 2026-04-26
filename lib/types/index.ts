@@ -6,6 +6,9 @@ export interface ProductVariant {
   price: number;
   stock: number;
   sku: string;
+  item_code: string;            // Alphanumeric code (e.g. "47883")
+  unit: string;                 // Unit of measure (e.g. "PC")
+  doz_pckg: string;             // Packaging info (e.g. "48/ CASE PC")
   reorder_threshold?: number;
   is_active?: boolean;
   created_at?: string;

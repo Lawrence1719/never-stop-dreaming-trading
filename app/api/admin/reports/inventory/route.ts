@@ -34,8 +34,8 @@ export async function GET(request: NextRequest) {
 
     // Get date range from query params
     const { searchParams } = new URL(request.url);
-    const startDate = searchParams.get('start');
-    const endDate = searchParams.get('end');
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
 
     // 4. Fetch products with their variants
     let productQuery = admin

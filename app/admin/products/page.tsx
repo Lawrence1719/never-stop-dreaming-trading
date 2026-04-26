@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { Plus, Search, Filter, Download, Trash2, Edit, Eye, AlertCircle, Package, Tag, Calendar, Clock, DollarSign, Loader2 } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import { Plus, Search, Filter, Download, Trash2, Edit, Eye, AlertCircle, Package, Tag, Calendar, Clock, DollarSign, Loader2, Truck } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -37,6 +38,10 @@ import { supabase } from '@/lib/supabase/client';
 import { formatPrice } from '@/lib/utils/formatting';
 import { MAIN_CATEGORIES } from '@/lib/data/categories';
 import { ProductImage } from '@/components/shared/ProductImage';
+import { ExportReportModal } from '@/components/admin/reports/ExportReportModal';
+import { DateRangePicker } from '@/components/admin/reports/DateRangePicker';
+import { ProductsReportExportPayload } from '@/lib/admin/report-export-types';
+import { FileText, FileSpreadsheet } from 'lucide-react';
 
 interface Product {
   id: string;
@@ -49,12 +54,32 @@ interface Product {
   status?: 'active' | 'inactive';
   created_at?: string;
   updated_at?: string;
-  product_variants?: Array<{id: string; variant_label: string; price: number; stock: number; sku: string; is_active: boolean}>;
-  variants?: Array<{label: string; price: string; stock: number; sku: string; status: 'active' | 'inactive'}>;
+  product_variants?: Array<{
+    id: string; 
+    variant_label: string; 
+    price: number; 
+    stock: number; 
+    sku: string; 
+    is_active: boolean;
+    item_code?: string;
+    unit?: string;
+    doz_pckg?: string;
+  }>;
+  variants?: Array<{
+    label: string; 
+    price: number | string; 
+    stock: number; 
+    sku: string; 
+    status: 'active' | 'inactive';
+    item_code?: string;
+    unit?: string;
+    doz_pckg?: string;
+  }>;
   variant_count?: number;
   total_stock?: number;
   price_range?: string;
   variant_names?: string[];
+  deleted_at?: string;
   supplier_name?: string;
 }
 
@@ -79,20 +104,32 @@ const formatDate = (dateString?: string) => {
 };
 
 export default function ProductsPage() {
-  const [searchTerm, setSearchTerm] = useState('');
+  const searchParams = useSearchParams();
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
   const [viewProductOpen, setViewProductOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
+  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'all');
+  const [categoryFilter, setCategoryFilter] = useState(searchParams.get('category') || 'all');
+  const [supplierFilter, setSupplierFilter] = useState(searchParams.get('supplier_id') || 'all');
+  const [suppliers, setSuppliers] = useState<Array<{id: string, name: string}>>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Date filters
+  const [dateRange, setDateRange] = useState({ startDate: '', endDate: '' });
+
+  // Export states
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportFormat, setExportFormat] = useState<'pdf' | 'csv' | 'xlsx'>('pdf');
+  const [exportData, setExportData] = useState<ProductsReportExportPayload | null>(null);
+  const [isExportLoading, setIsExportLoading] = useState(false);
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
   
   // Pagination State
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(parseInt(searchParams.get('page') || '1', 10));
   const [totalPages, setTotalPages] = useState(1);
   const [totalFiltered, setTotalFiltered] = useState(0);
   const itemsPerPage = 15;
@@ -114,7 +151,6 @@ export default function ProductsPage() {
   };
 
   const loadProductDetails = async (productId: string, baseProduct?: Product) => {
-    // Open modal immediately with base data
     if (baseProduct) {
       setSelectedProduct(baseProduct);
       setViewProductOpen(true);
@@ -142,7 +178,6 @@ export default function ProductsPage() {
 
       const productData = payload.data;
       
-      // Image fallback: use image_url first, then product_images[0] if available
       let displayImage = productData.image_url;
       if (!displayImage && productData.product_images && productData.product_images.length > 0) {
         const primaryImage = productData.product_images.find((img: any) => img.is_primary) || productData.product_images[0];
@@ -154,6 +189,9 @@ export default function ProductsPage() {
         price: variant.price,
         stock: variant.stock,
         sku: variant.sku,
+        item_code: variant.item_code,
+        unit: variant.unit,
+        doz_pckg: variant.doz_pckg,
         status: variant.is_active ? 'active' : 'inactive',
       }));
 
@@ -198,6 +236,24 @@ export default function ProductsPage() {
   };
 
   useEffect(() => {
+    async function fetchSuppliers() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch('/api/admin/suppliers', {
+          headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined
+        });
+        if (res.ok) {
+          const payload = await res.json();
+          setSuppliers(payload.data || []);
+        }
+      } catch (err) {
+        console.error('Failed to load suppliers', err);
+      }
+    }
+    fetchSuppliers();
+  }, []);
+
+  useEffect(() => {
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
@@ -212,10 +268,9 @@ export default function ProductsPage() {
     };
   }, [searchTerm]);
 
-  // Reset page to 1 when filters change natively
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearchTerm, statusFilter, categoryFilter]);
+  }, [debouncedSearchTerm, statusFilter, categoryFilter, supplierFilter, dateRange]);
 
   const handleDeleteProduct = async (productId: string) => {
     const product = products.find((p) => p.id === productId);
@@ -240,7 +295,6 @@ export default function ProductsPage() {
         throw new Error(payload.error || 'Failed to delete product');
       }
 
-      // Remove product from list
       setProducts((prev) => prev.filter((p) => p.id !== productId));
       
       toast({
@@ -273,9 +327,12 @@ export default function ProductsPage() {
         } = await supabase.auth.getSession();
 
         const params = new URLSearchParams();
-        if (debouncedSearchTerm) params.append('search', debouncedSearchTerm);
+        params.append('search', debouncedSearchTerm);
         if (statusFilter !== 'all') params.append('status', statusFilter);
         if (categoryFilter !== 'all') params.append('category', categoryFilter);
+        if (supplierFilter !== 'all') params.append('supplier_id', supplierFilter);
+        if (dateRange.startDate) params.append('startDate', dateRange.startDate);
+        if (dateRange.endDate) params.append('endDate', dateRange.endDate);
         params.append('page', currentPage.toString());
         params.append('limit', itemsPerPage.toString());
 
@@ -316,7 +373,42 @@ export default function ProductsPage() {
     fetchProducts();
 
     return () => controller.abort();
-  }, [debouncedSearchTerm, statusFilter, categoryFilter, currentPage]);
+  }, [debouncedSearchTerm, statusFilter, categoryFilter, supplierFilter, dateRange, currentPage]);
+
+  const handleExport = async (format: 'pdf' | 'csv' | 'xlsx') => {
+    setExportFormat(format);
+    setIsExportLoading(true);
+    
+    try {
+      const params = new URLSearchParams();
+      if (debouncedSearchTerm) params.append('search', debouncedSearchTerm);
+      if (statusFilter !== 'all') params.append('status', statusFilter);
+      if (categoryFilter !== 'all') params.append('category', categoryFilter);
+      if (supplierFilter !== 'all') params.append('supplier_id', supplierFilter);
+      if (dateRange.startDate) params.append('startDate', dateRange.startDate);
+      if (dateRange.endDate) params.append('endDate', dateRange.endDate);
+
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`/api/admin/reports/products?${params.toString()}`, {
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined
+      });
+
+      if (!res.ok) throw new Error('Failed to generate export data');
+      
+      const payload = await res.json();
+      setExportData(payload);
+      setIsExportModalOpen(true);
+    } catch (err) {
+      console.error('Export failed', err);
+      toast({
+        variant: 'destructive',
+        title: 'Export Error',
+        description: err instanceof Error ? err.message : 'Failed to generate report data',
+      });
+    } finally {
+      setIsExportLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -339,7 +431,6 @@ export default function ProductsPage() {
           <CardDescription>View and manage all your products</CardDescription>
         </CardHeader>
         <CardContent>
-          {/* Filters */}
           <div className="flex flex-col md:flex-row gap-3 mb-4">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -373,10 +464,52 @@ export default function ProductsPage() {
                 ))}
               </SelectContent>
             </Select>
-            <Button variant="outline" className="gap-2">
-              <Download className="h-4 w-4" />
-              Export
-            </Button>
+            <Select value={supplierFilter} onValueChange={setSupplierFilter}>
+              <SelectTrigger className="w-full md:w-48">
+                <SelectValue placeholder="All Suppliers" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Suppliers</SelectItem>
+                {suppliers.map((supplier) => (
+                  <SelectItem key={supplier.id} value={supplier.id}>
+                    {supplier.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex-1 lg:flex-none">
+              <DateRangePicker
+                value={dateRange}
+                onChange={setDateRange}
+                placeholder="Date Added"
+              />
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="gap-2 h-10" disabled={isExportLoading}>
+                  {isExportLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4" />
+                  )}
+                  Export
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={() => handleExport('pdf')} className="cursor-pointer">
+                  <FileText className="mr-2 h-4 w-4 text-red-500" />
+                  <span>Export as PDF</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport('csv')} className="cursor-pointer">
+                  <FileText className="mr-2 h-4 w-4 text-blue-500" />
+                  <span>Export as CSV</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport('xlsx')} className="cursor-pointer">
+                  <FileSpreadsheet className="mr-2 h-4 w-4 text-green-500" />
+                  <span>Export as Excel</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           {/* Error Message */}
@@ -708,6 +841,13 @@ export default function ProductsPage() {
                       </div>
                     </div>
                     <div className="flex items-start gap-3">
+                      <Truck className="h-4 w-4 mt-1 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wide">Supplier</p>
+                        <p className="font-medium text-sm mt-1">{selectedProduct?.supplier_name || 'N/A'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
                       <DollarSign className="h-4 w-4 mt-1 shrink-0 text-muted-foreground" />
                       <div className="min-w-0">
                         <p className="text-xs text-muted-foreground uppercase tracking-wide">Price Range</p>
@@ -755,6 +895,9 @@ export default function ProductsPage() {
                             <thead>
                               <tr className="bg-muted/50 border-b border-border">
                                 <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground">Variant</th>
+                                <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground">Item Code</th>
+                                <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground">Unit</th>
+                                <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground">Doz/Pckg</th>
                                 <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground">Price</th>
                                 <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground">Stock</th>
                                 <th className="text-left px-3 py-2 text-xs font-semibold text-muted-foreground">SKU</th>
@@ -765,6 +908,9 @@ export default function ProductsPage() {
                               {(selectedProduct.variants || []).map((variant, idx) => (
                                 <tr key={variant.sku} className={`${idx !== (selectedProduct.variants?.length || 0) - 1 ? 'border-b border-border/50' : ''}`}>
                                   <td className="px-3 py-2 text-sm">{variant.label}</td>
+                                  <td className="px-3 py-2 text-sm font-mono text-xs">{variant.item_code}</td>
+                                  <td className="px-3 py-2 text-sm">{variant.unit}</td>
+                                  <td className="px-3 py-2 text-sm">{variant.doz_pckg}</td>
                                   <td className="px-3 py-2 text-sm">{variant.price}</td>
                                   <td className="px-3 py-2 text-sm">{variant.stock}</td>
                                   <td className="px-3 py-2 text-sm font-mono text-xs text-muted-foreground">{variant.sku}</td>
@@ -835,6 +981,16 @@ export default function ProductsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {exportData && (
+        <ExportReportModal
+          isOpen={isExportModalOpen}
+          onClose={() => setIsExportModalOpen(false)}
+          reportType="products"
+          data={exportData}
+          initialFormat={exportFormat}
+        />
       )}
     </div>
   );

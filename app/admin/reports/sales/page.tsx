@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { formatPeso, formatPrice } from '@/lib/utils/formatting';
+import { formatPeso, formatPrice, formatDate } from '@/lib/utils/formatting';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   DropdownMenu,
@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { FileText, FileSpreadsheet } from 'lucide-react';
+import { DateRangePicker } from '@/components/admin/reports/DateRangePicker';
 
 import { SalesExportModal } from '@/components/admin/reports/SalesExportModal';
 import { getRelativeDateRangeLabel } from '@/components/admin/reports/PrintReportHeader';
@@ -48,7 +49,7 @@ export default function SalesReportPage() {
   const [error, setError] = useState<string | null>(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [exportFormat, setExportFormat] = useState<'pdf' | 'csv' | 'xlsx'>('pdf');
-  const [range, setRange] = useState<'day' | 'week' | 'month' | 'all'>('month');
+  const [dateRange, setDateRange] = useState({ startDate: '', endDate: '' });
 
   // Pagination states
   const [topProductsPage, setTopProductsPage] = useState(1);
@@ -61,8 +62,12 @@ export default function SalesReportPage() {
       setTopProductsPage(1); // Reset page on range change
       
       try {
+        const params = new URLSearchParams();
+        if (dateRange.startDate) params.append('startDate', dateRange.startDate);
+        if (dateRange.endDate) params.append('endDate', dateRange.endDate);
+        
         // We use the new modernized API route which handles auth via Cookies
-        const res = await fetch(`/api/admin/reports/sales?range=${range}`);
+        const res = await fetch(`/api/admin/reports/sales?${params.toString()}`);
 
         if (!res.ok) {
           throw new Error('Failed to load sales report');
@@ -78,7 +83,7 @@ export default function SalesReportPage() {
       }
     }
     fetchReport();
-  }, [range]);
+  }, [dateRange]);
 
   const handleExport = (format: 'pdf' | 'csv' | 'xlsx') => {
     setExportFormat(format);
@@ -100,16 +105,12 @@ export default function SalesReportPage() {
           <p className="text-muted-foreground mt-1">Comprehensive sales analytics and insights</p>
         </div>
         <div className="flex items-center gap-2">
-           <select 
-            value={range} 
-            onChange={(e) => setRange(e.target.value as any)}
-            className="bg-background border rounded px-2 py-1 text-sm h-10"
-          >
-            <option value="day">Last 24 Hours</option>
-            <option value="week">Last 7 Days</option>
-            <option value="month">Last 30 Days</option>
-            <option value="all">Lifetime</option>
-          </select>
+          <div className="mr-2">
+            <DateRangePicker
+              value={dateRange}
+              onChange={setDateRange}
+            />
+          </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button className="gap-2" disabled={isLoading || !data}>
@@ -342,7 +343,7 @@ export default function SalesReportPage() {
           isOpen={isExportModalOpen}
           onClose={() => setIsExportModalOpen(false)}
           format={exportFormat}
-          dateRange={getRelativeDateRangeLabel(range)}
+          dateRange={(dateRange.startDate && dateRange.endDate) ? `${formatDate(dateRange.startDate)} — ${formatDate(dateRange.endDate)}` : 'All Time'}
           data={data}
         />
       )}

@@ -379,9 +379,20 @@ export function ManageVariantsPage({ productId, isTab = false }: ManageVariantsP
                       <h4 className="font-bold text-lg leading-tight uppercase tracking-tight group-hover:text-primary transition-colors">
                         {variant.variant_label}
                       </h4>
-                      <p className="text-xs font-mono text-muted-foreground mt-0.5 flex items-center gap-1.5">
-                        SKU: <span className="text-foreground/80">{variant.sku}</span>
-                      </p>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
+                        <p className="text-xs font-mono text-muted-foreground flex items-center gap-1.5">
+                          SKU: <span className="text-foreground/80">{variant.sku}</span>
+                        </p>
+                        <p className="text-xs font-mono text-muted-foreground flex items-center gap-1.5">
+                          CODE: <span className="text-foreground/80">{variant.item_code}</span>
+                        </p>
+                        <p className="text-xs font-mono text-muted-foreground flex items-center gap-1.5">
+                          UNIT: <span className="text-foreground/80">{variant.unit}</span>
+                        </p>
+                        <p className="text-xs font-mono text-muted-foreground flex items-center gap-1.5">
+                          PACK: <span className="text-foreground/80">{variant.doz_pckg}</span>
+                        </p>
+                      </div>
                     </div>
                   </div>
 

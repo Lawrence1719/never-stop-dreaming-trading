@@ -42,8 +42,16 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
-    const requestedRange = (searchParams.get('range') as Range) || 'week'
-    const range: Range = allowedRanges.includes(requestedRange) ? requestedRange : 'week'
+    const startDate = searchParams.get('startDate')
+    const endDate = searchParams.get('endDate')
+    const requestedRange = searchParams.get('range') as any
+
+    let range: Range = 'week'
+    if (startDate && endDate) {
+      range = { start: startDate, end: endDate }
+    } else if (allowedRanges.includes(requestedRange)) {
+      range = requestedRange
+    }
 
     const supabaseAdmin = getClient()
 
