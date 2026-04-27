@@ -15,6 +15,8 @@ import { DashboardDetailModal, type DashboardMetric } from '@/components/admin/d
 import { DateRangePicker } from '@/components/admin/reports/DateRangePicker';
 import { startOfWeek, endOfWeek, subDays } from 'date-fns';
 
+type DashboardRange = 'day' | 'week' | 'month';
+
 type GrowthDirection = 'up' | 'down' | 'neutral';
 
 type GrowthMetric = {
