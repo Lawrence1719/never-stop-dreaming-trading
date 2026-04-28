@@ -7,7 +7,7 @@
   import { Footer } from "@/components/layout/footer";
   import { useAuth } from "@/lib/context/auth-context";
   import { useToast } from "@/hooks/use-toast";
-  import { validatePhoneNumber, validateEmail } from "@/lib/utils/validation";
+  import { validatePhoneNumber } from "@/lib/utils/validation";
   import { ChevronLeft } from 'lucide-react';
   import { supabase } from "@/lib/supabase/client";
 
@@ -72,8 +72,6 @@
 
       setErrors(newErrors);
       return Object.keys(newErrors).length === 0;
-    };
-
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
