@@ -17,36 +17,46 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid request or verification type' }, { status: 400 });
     }
 
+    const supabaseAdmin = getSupabaseAdmin();
     const supabase = await createServerClient();
-    
+
+    // 1. Verify the OTP token first to ensure the link was valid
     const { data, error } = await supabase.auth.verifyOtp({
       token_hash,
       type,
     });
 
     if (error) {
-      console.error('[VerifyOTP] Supabase error:', error);
+      console.error('[VerifyOTP] Supabase verification error:', error);
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    console.info('[VerifyOTP] Verification successful for user:', data.user?.id);
-    console.info('[VerifyOTP] New email from auth:', data.user?.email);
+    const userId = data.user?.id;
+    if (!userId || !newEmail) {
+      return NextResponse.json({ error: 'Could not identify user or new email' }, { status: 400 });
+    }
 
-    // After successful verification, we should also update the email in the profiles table
-    // to keep it in sync with auth.users. Use the admin client to bypass RLS.
-    const emailToSync = data.user?.email || newEmail;
+    console.info('[VerifyOTP] Token verified. Force-updating email for user:', userId, 'to:', newEmail);
+
+    // 2. Force the email change in auth.users via Admin API (bypasses double opt-in)
+    const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+      email: newEmail,
+      email_confirm: true // Ensure it's marked as confirmed
+    });
+
+    if (authError) {
+      console.error('[VerifyOTP] Failed to force-update auth email:', authError);
+      return NextResponse.json({ error: 'Failed to finalize email change' }, { status: 500 });
+    }
+
+    // 3. Sync the new email to the profiles table
+    const { error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .update({ email: newEmail })
+      .eq('id', userId);
     
-    if (emailToSync) {
-      console.info('[VerifyOTP] Syncing email to profiles table:', emailToSync);
-      const supabaseAdmin = getSupabaseAdmin();
-      const { error: profileError } = await supabaseAdmin
-        .from('profiles')
-        .update({ email: emailToSync })
-        .eq('id', data.user?.id || '');
-      
-      if (profileError) {
-        console.error('[VerifyOTP] Failed to update profile email via Admin:', profileError);
-      }
+    if (profileError) {
+      console.error('[VerifyOTP] Failed to update profile email via Admin:', profileError);
     }
 
     // Revalidate paths to clear any cached versions of the profile
@@ -56,7 +66,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ 
       success: true,
-      message: 'Email verified successfully' 
+      message: 'Email changed successfully' 
     });
   } catch (error: any) {
     console.error('[VerifyOTP] Unexpected error:', error);
