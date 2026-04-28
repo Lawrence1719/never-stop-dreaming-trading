@@ -34,7 +34,6 @@ function VerifyEmailPageContent() {
       const { error } = await supabase.auth.verifyOtp({
         token_hash,
         type,
-        email,
       });
 
       if (error) {
