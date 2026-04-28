@@ -40,8 +40,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    // 2. The action_link is the URL that completes the verification when clicked.
+    // 2. The action_link contains the token_hash. We'll use our own verification page
+    // to prevent email clients from auto-clicking and expiring the one-time token.
     const actionLink = data.properties.action_link;
+    const actionUrl = new URL(actionLink);
+    const tokenHash = actionUrl.searchParams.get('token');
+    
+    if (!tokenHash) {
+      console.error('[EmailChange] Could not extract token from action_link');
+      return NextResponse.json({ error: 'Internal configuration error' }, { status: 500 });
+    }
+
+    const verificationPageLink = `${new URL(request.url).origin}/auth/verify?token_hash=${tokenHash}&type=email_change&email=${encodeURIComponent(newEmail)}`;
     
     // Get user's name for the email template
     const { data: profile } = await supabaseAdmin
@@ -53,7 +63,7 @@ export async function POST(request: NextRequest) {
     const userName = profile?.name || session.user.user_metadata?.name || 'User';
 
     // 3. Send the custom branded email via Nodemailer.
-    const emailResult = await sendEmailChangeVerificationEmail(newEmail, userName, actionLink);
+    const emailResult = await sendEmailChangeVerificationEmail(newEmail, userName, verificationPageLink);
 
     if (!emailResult.success) {
       console.error('[EmailChange] Nodemailer send error:', emailResult.error);

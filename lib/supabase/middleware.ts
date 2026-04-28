@@ -51,7 +51,7 @@ export async function updateSession(request: NextRequest) {
   // 1. Redirect logged-in users away from auth pages (login/register)
   if (isAuthPage && user) {
     const role = user.user_metadata?.role || user.app_metadata?.role;
-    if (role === 'admin') return NextResponse.redirect(new URL('/admin', request.url))
+    if (role === 'admin') return NextResponse.redirect(new URL('/admin/dashboard', request.url))
     if (role === 'courier') return NextResponse.redirect(new URL('/courier/dashboard', request.url))
     return NextResponse.redirect(new URL('/', request.url))
   }
@@ -129,8 +129,8 @@ export async function updateSession(request: NextRequest) {
 
       if (!profile || profile.role !== 'courier') {
         console.warn(`[Proxy] Forbidden access to courier (Role: ${profile?.role || 'none'}): ${url.pathname}`)
-        if (profile?.role === 'admin') {
-          return NextResponse.redirect(new URL('/admin', request.url))
+        if (role === 'admin') {
+          return NextResponse.redirect(new URL('/admin/dashboard', request.url))
         }
         return NextResponse.redirect(new URL('/', request.url))
       }
