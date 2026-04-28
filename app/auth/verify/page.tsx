@@ -31,13 +31,21 @@ function VerifyEmailPageContent() {
     setError(null);
 
     try {
-      const { error } = await supabase.auth.verifyOtp({
-        token_hash,
-        type,
+      const response = await fetch('/api/auth/verify-otp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          token_hash,
+          type,
+        }),
       });
 
-      if (error) {
-        throw error;
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to verify email");
       }
 
       setSuccess(true);
