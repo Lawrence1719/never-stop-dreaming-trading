@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, X, Eye, EyeOff, Lock } from "lucide-react";
@@ -31,7 +32,7 @@ export function ReauthModal({ isOpen, onClose, onVerified, email }: ReauthModalP
     try {
       // Re-signing in with password is the standard way to verify identity in Supabase
       const { error: loginError } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.toLowerCase(),
         password,
       });
 
@@ -82,6 +83,9 @@ export function ReauthModal({ isOpen, onClose, onVerified, email }: ReauthModalP
           </div>
           <h2 className="text-xl font-bold">Identity Verification</h2>
           <p className="text-sm text-muted-foreground mt-2">
+            Verifying for <span className="font-semibold text-foreground">{email}</span>
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
             Please enter your password to confirm this sensitive action.
           </p>
         </div>
@@ -109,6 +113,15 @@ export function ReauthModal({ isOpen, onClose, onVerified, email }: ReauthModalP
               </button>
             </div>
             {error && <p className="text-xs text-destructive text-left pl-1">{error}</p>}
+            
+            <div className="flex justify-end">
+              <Link 
+                href="/profile/reset-password"
+                className="text-xs text-primary hover:underline font-medium"
+              >
+                Forgot password?
+              </Link>
+            </div>
           </div>
 
           <div className="flex flex-col gap-3 pt-2">
