@@ -31,9 +31,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    const userId = data.user?.id;
+    let userId = data.user?.id;
+    
+    // Fallback to current session if verifyOtp didn't return user directly
+    if (!userId) {
+      const { data: { user: sessionUser } } = await supabase.auth.getUser();
+      userId = sessionUser?.id;
+    }
+
     if (!userId || !newEmail) {
-      return NextResponse.json({ error: 'Could not identify user or new email' }, { status: 400 });
+      console.error('[VerifyOTP] Identification failed:', { userId, hasNewEmail: !!newEmail });
+      return NextResponse.json({ 
+        error: `Could not identify ${!userId ? 'user' : 'new email'}. Please try again.` 
+      }, { status: 400 });
     }
 
     console.info('[VerifyOTP] Token verified. Force-updating email for user:', userId, 'to:', newEmail);
