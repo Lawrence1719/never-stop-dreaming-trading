@@ -258,3 +258,69 @@ export async function sendEmailChangeVerificationEmail(email: string, name: stri
     return { success: false, error };
   }
 }
+
+export async function sendEmailChangeAlertEmail(oldEmail: string, name: string) {
+  const safeName = escapeHtml(name);
+  const { html, text } = wrapBody(
+    `
+    <h1 style="${styles.h1}">Security Alert: Email Changed</h1>
+    <p style="${styles.p}">Hello <strong style="color:#f8fafc;">${safeName}</strong>,</p>
+    <p style="${styles.p}">This is a security notification to inform you that the email address associated with your Never Stop Dreaming account has been successfully changed.</p>
+    <p style="${styles.p}"><strong>Date/Time:</strong> ${new Date().toLocaleString()}</p>
+    <p style="${styles.p}" style="margin-top:20px;">
+      <strong style="color:#f87171;">If you did not make this change, please contact our support team immediately to secure your account.</strong>
+    </p>
+    `,
+    `Hello ${name},\n\nThis is a security notification to inform you that the email address associated with your Never Stop Dreaming account has been successfully changed.\n\nDate/Time: ${new Date().toLocaleString()}\n\nIf you did not make this change, please contact our support team immediately to secure your account.\n\n— Never Stop Dreaming Trading`,
+  );
+
+  const mailOptions = {
+    from: defaultFrom,
+    to: oldEmail,
+    subject: 'Security Alert: Your NSD Account Email Was Changed',
+    text,
+    html,
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log('Email change alert sent: ' + info.response);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error('Error sending email change alert:', error);
+    return { success: false, error };
+  }
+}
+
+export async function sendEmailChangeConfirmationEmail(newEmail: string, name: string) {
+  const safeName = escapeHtml(name);
+  const { html, text } = wrapBody(
+    `
+    <h1 style="${styles.h1}">Email Change Confirmed</h1>
+    <p style="${styles.p}">Hello <strong style="color:#f8fafc;">${safeName}</strong>,</p>
+    <p style="${styles.p}">Your email address has been successfully updated to this one.</p>
+    <p style="${styles.p}">Your new email is now active on your Never Stop Dreaming account. Please use this email address for all future logins and communications.</p>
+    <p style="${styles.p}" style="margin-top:20px;">
+      We're glad to have you with us!
+    </p>
+    `,
+    `Hello ${name},\n\nYour email address has been successfully updated to this one.\n\nYour new email is now active on your Never Stop Dreaming account. Please use this email address for all future logins and communications.\n\n— Never Stop Dreaming Trading`,
+  );
+
+  const mailOptions = {
+    from: defaultFrom,
+    to: newEmail,
+    subject: 'Confirmed: Your New Email is Now Active',
+    text,
+    html,
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log('Email change confirmation sent: ' + info.response);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error('Error sending email change confirmation:', error);
+    return { success: false, error };
+  }
+}

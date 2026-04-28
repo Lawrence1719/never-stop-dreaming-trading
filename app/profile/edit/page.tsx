@@ -24,11 +24,6 @@
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [isLoading, setIsLoading] = useState(false);
 
-    const [isChangingEmail, setIsChangingEmail] = useState(false);
-    const [newEmail, setNewEmail] = useState("");
-    const [emailError, setEmailError] = useState("");
-    const [isUpdatingEmail, setIsUpdatingEmail] = useState(false);
-
     useEffect(() => {
       if (!authLoading && !user) {
         router.push("/login");
@@ -79,62 +74,6 @@
       return Object.keys(newErrors).length === 0;
     };
 
-    const handleUpdateEmail = async () => {
-      setEmailError("");
-      
-      const trimmedEmail = newEmail.trim().toLowerCase();
-      if (!trimmedEmail) {
-        setEmailError("Email address is required");
-        return;
-      }
-      if (!validateEmail(trimmedEmail)) {
-        setEmailError("Please enter a valid email address");
-        return;
-      }
-      if (user && trimmedEmail === user.email) {
-        setEmailError("This is already your current email address");
-        return;
-      }
-  
-      setIsUpdatingEmail(true);
-  
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) throw new Error("No active session");
-
-        const res = await fetch('/api/profile/email-change', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({ newEmail: trimmedEmail }),
-        });
-
-        const result = await res.json();
-
-        if (!res.ok) {
-          throw new Error(result.error || "Failed to update email");
-        }
-
-        setNewEmail("");
-        setIsChangingEmail(false);
-        toast({
-          title: "Confirmation Link Sent",
-          description: "A confirmation link has been sent to your new email address via our secure mailer. Please check your inbox.",
-          variant: "success",
-        });
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "An unexpected error occurred.";
-        setEmailError(msg);
-        toast({
-          title: "Error",
-          description: msg,
-          variant: "destructive",
-        });
-      } finally {
-        setIsUpdatingEmail(false);
-      }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -220,67 +159,20 @@
 
               <div>
                 <label className="block text-sm font-medium mb-2">Email Address</label>
-                {!isChangingEmail ? (
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    <input
-                      type="email"
-                      value={user.email}
-                      disabled
-                      className="flex-1 w-full px-4 py-2 bg-input border border-border rounded-lg opacity-50 min-w-0"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setIsChangingEmail(true)}
-                      className="px-4 py-2 border border-primary text-primary rounded-lg hover:bg-primary/10 transition-colors font-medium whitespace-nowrap"
-                    >
-                      Change Email
-                    </button>
-                  </div>
-                ) : (
-                  <div className="bg-secondary/10 border border-border rounded-lg p-4 space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium mb-1 text-muted-foreground">Current Email</label>
-                      <p className="text-sm font-medium">{user.email}</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1">New Email Address</label>
-                      <input
-                        type="email"
-                        value={newEmail}
-                        onChange={(e) => {
-                          setNewEmail(e.target.value);
-                          if (emailError) setEmailError("");
-                        }}
-                        placeholder="new@example.com"
-                        className={`w-full px-4 py-2 bg-input border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary ${
-                          emailError ? "border-destructive" : "border-border"
-                        }`}
-                      />
-                      {emailError && <p className="text-xs text-destructive mt-1">{emailError}</p>}
-                    </div>
-                    <div className="flex gap-3 pt-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsChangingEmail(false);
-                          setNewEmail("");
-                          setEmailError("");
-                        }}
-                        className="px-4 py-2 border border-border text-foreground rounded-lg hover:bg-secondary/20 transition-colors font-medium"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleUpdateEmail}
-                        disabled={isUpdatingEmail || !newEmail.trim()}
-                        className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isUpdatingEmail ? "Sending..." : "Send Confirmation"}
-                      </button>
-                    </div>
-                  </div>
-                )}
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <input
+                    type="email"
+                    value={user.email}
+                    disabled
+                    className="flex-1 w-full px-4 py-2 bg-input border border-border rounded-lg opacity-50 min-w-0"
+                  />
+                  <Link
+                    href="/profile/settings"
+                    className="px-4 py-2 border border-primary text-primary rounded-lg hover:bg-primary/10 transition-colors font-medium whitespace-nowrap text-center text-sm"
+                  >
+                    Change in Settings
+                  </Link>
+                </div>
               </div>
 
               <div>

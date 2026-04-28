@@ -16,6 +16,7 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import { supabase } from "@/lib/supabase/client";
 import { validatePassword } from "@/lib/utils/validation";
 import { ReauthModal } from "@/components/auth/reauth-modal";
+import { EmailChangeModal } from "@/components/auth/email-change-modal";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -33,8 +34,8 @@ export default function SettingsPage() {
   });
 
   const [isLoading, setIsLoading] = useState(false);
-
-  const [reauthAction, setReauthAction] = useState<"password" | "delete" | null>(null);
+  const [reauthAction, setReauthAction] = useState<"password" | "delete" | "email" | null>(null);
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -108,6 +109,9 @@ export default function SettingsPage() {
     if (reauthAction === "password") {
       setReauthAction(null);
       router.push("/profile/change-password");
+    } else if (reauthAction === "email") {
+      setReauthAction(null);
+      setIsEmailModalOpen(true);
     } else if (reauthAction === "delete") {
       handleDeleteAccount();
     }
@@ -393,6 +397,16 @@ export default function SettingsPage() {
                   </Button>
                 </div>
 
+                <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-lg">
+                  <div>
+                    <p className="font-medium">Change Email</p>
+                    <p className="text-sm text-muted-foreground">Update your account email address</p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => setReauthAction("email")}>
+                    Change Email
+                  </Button>
+                </div>
+
                 <div className="flex items-center justify-between p-4 bg-secondary/10 rounded-lg border-l-2 border-destructive">
                   <div>
                     <p className="font-medium text-destructive">Delete Account</p>
@@ -437,6 +451,13 @@ export default function SettingsPage() {
         onClose={() => setReauthAction(null)}
         onVerified={handleReauthVerified}
         email={user.email || ""}
+      />
+
+      {/* Email Change Modal (Step 2) */}
+      <EmailChangeModal
+        isOpen={isEmailModalOpen}
+        onClose={() => setIsEmailModalOpen(false)}
+        currentEmail={user.email || ""}
       />
     </div>
   );
