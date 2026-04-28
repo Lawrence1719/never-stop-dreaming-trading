@@ -225,11 +225,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           fetchUserProfile(session).catch((err) => console.error('Error fetching profile on recovery', err));
         }
       } else if (session) {
-        // Only fetch profile if user ID changed (not on every tab focus)
-        if (cachedUserIdRef.current !== session.user.id) {
-          setUser(buildUserFromSession(session));
-          fetchUserProfile(session).catch((err) => console.error('Error fetching profile on auth change', err));
-        }
+        // Force re-fetch profile if user info might have changed
+        // This ensures email changes or role updates are caught immediately
+        setUser(buildUserFromSession(session));
+        fetchUserProfile(session).catch((err) => console.error('Error fetching profile on auth change', err));
       } else {
         setUser(null);
         cachedUserIdRef.current = null;

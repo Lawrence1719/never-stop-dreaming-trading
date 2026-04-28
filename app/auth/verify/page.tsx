@@ -49,6 +49,9 @@ function VerifyEmailPageContent() {
       }
 
       setSuccess(true);
+      
+      // Refresh the client-side session to ensure the browser client picks up the new email
+      await supabase.auth.getSession();
       toast({
         title: "Success",
         description: "Your email has been verified successfully.",
