@@ -99,23 +99,31 @@
       setIsUpdatingEmail(true);
   
       try {
-        const { error } = await supabase.auth.updateUser({ email: trimmedEmail });
-        if (error) {
-          setEmailError(error.message);
-          toast({
-            title: "Update Failed",
-            description: error.message,
-            variant: "destructive",
-          });
-        } else {
-          setNewEmail("");
-          setIsChangingEmail(false);
-          toast({
-            title: "Confirmation Link Sent",
-            description: "A confirmation link has been sent to your new email address. Please check your inbox to confirm the change.",
-            variant: "success",
-          });
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error("No active session");
+
+        const res = await fetch('/api/profile/email-change', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ newEmail: trimmedEmail }),
+        });
+
+        const result = await res.json();
+
+        if (!res.ok) {
+          throw new Error(result.error || "Failed to update email");
         }
+
+        setNewEmail("");
+        setIsChangingEmail(false);
+        toast({
+          title: "Confirmation Link Sent",
+          description: "A confirmation link has been sent to your new email address via our secure mailer. Please check your inbox.",
+          variant: "success",
+        });
       } catch (err) {
         const msg = err instanceof Error ? err.message : "An unexpected error occurred.";
         setEmailError(msg);

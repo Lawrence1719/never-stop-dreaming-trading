@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, Suspense } from "react";
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from "next/link";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
@@ -13,11 +13,12 @@ import { formatPrice, formatRelativeTime } from "@/lib/utils/formatting";
 import { useNotifications } from "@/hooks/use-notifications";
 import { LoadingScreen } from "@/components/ui/loading-screen";
 
-export default function ProfilePage() {
+export function ProfilePageContent() {
   const router = useRouter();
   const { user, logout, isLoading } = useAuth();
   const { toast } = useToast();
   const { unreadCount } = useNotifications('customer', { limit: 1 });
+  const searchParams = useSearchParams();
   const [totalOrders, setTotalOrders] = useState(0);
   const [totalSpent, setTotalSpent] = useState(0);
   const [savedAddresses, setSavedAddresses] = useState(0);
@@ -28,6 +29,38 @@ export default function ProfilePage() {
       router.push("/login");
     }
   }, [user, isLoading, router]);
+
+  // Handle messages from query params
+  useEffect(() => {
+    const message = searchParams.get('message');
+    const error = searchParams.get('error');
+
+    if (message) {
+      toast({
+        title: "Success",
+        description: message,
+        variant: "success",
+      });
+      
+      // Clean up the URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete('message');
+      router.replace(url.pathname + url.search, { scroll: false });
+    }
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: error,
+        variant: "destructive",
+      });
+      
+      // Clean up the URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete('error');
+      router.replace(url.pathname + url.search, { scroll: false });
+    }
+  }, [searchParams, toast, router]);
 
   // Fetch user statistics
   useEffect(() => {
@@ -299,5 +332,13 @@ export default function ProfilePage() {
 
       <Footer />
     </div>
+  );
+}
+
+export default function ProfilePage() {
+  return (
+    <Suspense fallback={<LoadingScreen message="My Account" subMessage="Loading your profile..." />}>
+      <ProfilePageContent />
+    </Suspense>
   );
 }

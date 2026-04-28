@@ -221,3 +221,40 @@ export async function sendStaffInviteEmail(email: string, name: string, role: st
     return { success: false, error };
   }
 }
+
+export async function sendEmailChangeVerificationEmail(email: string, name: string, changeLink: string) {
+  const safeName = escapeHtml(name);
+  const { html, text } = wrapBody(
+    `
+    <h1 style="${styles.h1}">Verify Your New Email</h1>
+    <p style="${styles.p}">Hello <strong style="color:#f8fafc;">${safeName}</strong>,</p>
+    <p style="${styles.p}">We received a request to change your account's email address to this one. To confirm this change, please click the button below:</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:24px 0;">
+      <tr>
+        <td style="text-align:center;">
+          <a href="${escapeHtml(changeLink)}" style="${styles.btn}">Confirm New Email</a>
+        </td>
+      </tr>
+    </table>
+    <p style="${styles.p}">This link will expire in 1 hour. If you did not request this change, you can safely ignore this email.</p>
+    `,
+    `Hello ${name},\n\nWe received a request to change your account's email address to this one. Open this link to confirm the change:\n\n${changeLink}\n\nThis link expires in 1 hour. If you did not request this change, you can ignore this email.\n\n— Never Stop Dreaming Trading`,
+  );
+
+  const mailOptions = {
+    from: defaultFrom,
+    to: email,
+    subject: 'Action Required: Confirm Your New Email Address',
+    text,
+    html,
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log('Email change verification email sent: ' + info.response);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error('Error sending email change verification email:', error);
+    return { success: false, error };
+  }
+}
