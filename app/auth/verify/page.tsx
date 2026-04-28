@@ -39,6 +39,7 @@ function VerifyEmailPageContent() {
         body: JSON.stringify({
           token_hash,
           type,
+          email,
         }),
       });
 
@@ -58,9 +59,10 @@ function VerifyEmailPageContent() {
         variant: "success",
       });
 
-      // Redirect to profile after a short delay
+      // Use a hard refresh to ensure the entire app (including layout and context) 
+      // is re-initialized with the new session and profile data.
       setTimeout(() => {
-        router.push("/profile?message=Email changed successfully");
+        window.location.href = "/profile?message=Email changed successfully";
       }, 2000);
     } catch (err: any) {
       console.error("Verification error:", err);
