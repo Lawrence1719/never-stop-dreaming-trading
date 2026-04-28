@@ -26,9 +26,21 @@ export function ProfilePageContent() {
 
   useEffect(() => {
     if (!isLoading && !user) {
-      router.push("/login");
+      const message = searchParams.get('message');
+      const error = searchParams.get('error');
+      
+      let loginUrl = "/login";
+      const params = new URLSearchParams();
+      
+      if (message) params.set('message', message);
+      if (error) params.set('error', error);
+      
+      const queryString = params.toString();
+      if (queryString) loginUrl += `?${queryString}`;
+      
+      router.push(loginUrl);
     }
-  }, [user, isLoading, router]);
+  }, [user, isLoading, router, searchParams]);
 
   // Handle messages from query params
   useEffect(() => {

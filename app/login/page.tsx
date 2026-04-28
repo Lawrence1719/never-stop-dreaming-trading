@@ -40,6 +40,38 @@ function LoginPageContent() {
     setErrors({});
   }, []);
 
+  // Handle messages from query params
+  useEffect(() => {
+    const message = searchParams.get('message');
+    const error = searchParams.get('error');
+
+    if (message) {
+      toast({
+        title: "Success",
+        description: message,
+        variant: "success",
+      });
+      
+      // Clean up the URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete('message');
+      router.replace(url.pathname + url.search, { scroll: false });
+    }
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: error,
+        variant: "destructive",
+      });
+      
+      // Clean up the URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete('error');
+      router.replace(url.pathname + url.search, { scroll: false });
+    }
+  }, [searchParams, toast, router]);
+
   const { isMigrating } = useCart();
 
   // Redirect if already logged in; wait for cart migration to finish so migrated
