@@ -18,12 +18,13 @@ import { useToast } from "@/hooks/use-toast";
 import { RatingModal } from "@/components/orders/RatingModal";
 import { ProductImage } from "@/components/shared/ProductImage";
 import { useCart } from "@/lib/context/cart-context";
-import { generateInvoicePDF } from "@/lib/utils/invoice";
+
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { InvoicePreviewModal } from "@/components/orders/InvoicePreviewModal";
 
 // Payment Method Labels mapping
 const paymentLabels: Record<string, { label: string, icon: any }> = {
@@ -110,6 +111,7 @@ export default function OrderDetailsPage({ params }: { params: Promise<{ orderId
   const [cancelNote, setCancelNote] = useState<string>("");
   const [isOrderingAgain, setIsOrderingAgain] = useState(false);
   const [showProofModal, setShowProofModal] = useState(false);
+  const [showInvoicePreview, setShowInvoicePreview] = useState(false);
 
   const fetchOrder = useCallback(async () => {
     if (!user || !orderId) {
@@ -225,6 +227,10 @@ export default function OrderDetailsPage({ params }: { params: Promise<{ orderId
     }
   };
 
+  const handleDownloadInvoice = () => {
+    if (order) setShowInvoicePreview(true);
+  };
+
   const handleConfirmReceipt = async () => {
     if (!order || isConfirming) return;
     setIsConfirming(true);
@@ -305,6 +311,10 @@ export default function OrderDetailsPage({ params }: { params: Promise<{ orderId
   }
 
   const payment = paymentLabels[order.paymentMethod] || { label: order.paymentMethod.toUpperCase(), icon: CreditCard };
+  // Bug 1 fix: derive subtotal from totals if not correctly stored in items
+  const displaySubtotal = order.subtotal > 0
+    ? order.subtotal
+    : order.total - order.shipping + (order.discount_amount || 0);
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
@@ -352,11 +362,11 @@ export default function OrderDetailsPage({ params }: { params: Promise<{ orderId
                 </Badge>
                 <button 
                   type="button"
-                  onClick={() => generateInvoicePDF(order)}
+                  onClick={handleDownloadInvoice}
                   className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg hover:bg-muted text-xs font-semibold transition-colors"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  Invoice
+                  Download Invoice
                 </button>
               </div>
             </div>
@@ -375,10 +385,17 @@ export default function OrderDetailsPage({ params }: { params: Promise<{ orderId
               <h3 className="text-sm font-black tracking-tight">Delivery Info</h3>
               <div className="space-y-3 text-sm">
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">
-                    {order.status === 'delivered' || order.status === 'completed' ? 'Delivered on' : 'Expected delivery'}
-                  </p>
-                  <p className="font-bold">{formatDate(order.deliveredAt || order.date)}</p>
+                  {(order.status === 'delivered' || order.status === 'completed') ? (
+                    <>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">Delivered on</p>
+                      <p className="font-bold">{formatDate(order.deliveredAt || order.date)}</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">Delivery Note</p>
+                      <p className="text-sm text-muted-foreground">Delivery schedule will be advised by NSD.</p>
+                    </>
+                  )}
                 </div>
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Current status</p>
@@ -492,7 +509,7 @@ export default function OrderDetailsPage({ params }: { params: Promise<{ orderId
                 <div className="mt-5 pt-4 border-t border-border/50 space-y-2">
                   <div className="flex justify-between text-xs font-semibold">
                     <span className="text-muted-foreground uppercase tracking-wide">Subtotal</span>
-                    <span>{formatPrice(order.subtotal)}</span>
+                    <span>{formatPrice(displaySubtotal)}</span>
                   </div>
                   {order.discount_amount && order.discount_amount > 0 && (
                     <div className="flex justify-between text-xs font-semibold text-emerald-600 dark:text-emerald-400">
@@ -682,6 +699,14 @@ export default function OrderDetailsPage({ params }: { params: Promise<{ orderId
               onClick={(e) => e.stopPropagation()}
             />
           </div>
+        )}
+
+        {order && (
+          <InvoicePreviewModal
+            isOpen={showInvoicePreview}
+            onClose={() => setShowInvoicePreview(false)}
+            order={order}
+          />
         )}
 
         {showRatingModal && (

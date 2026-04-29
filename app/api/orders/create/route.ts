@@ -86,6 +86,24 @@ export async function POST(request: NextRequest) {
       }, { status: 403 });
     }
 
+    // Server-side Cavite province restriction
+    const { data: addressData, error: addressError } = await supabaseClient
+      .from('addresses')
+      .select('province')
+      .eq('id', shipping_address_id)
+      .single();
+
+    if (addressError || !addressData) {
+      return NextResponse.json({ error: 'Delivery address not found.' }, { status: 400 });
+    }
+
+    if (addressData.province.trim().toLowerCase() !== 'cavite') {
+      return NextResponse.json(
+        { error: 'Delivery is only available within Cavite province.' },
+        { status: 400 }
+      );
+    }
+
     // Server-side shipping configuration
     const { data: settingsData } = await supabaseClient
       .from('settings')

@@ -187,6 +187,22 @@ function CheckoutPageContent() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [formSubmitted, setFormSubmitted] = useState(false);
 
+  // Cavite-only delivery restriction.
+  // Read from formData.province when available (manual entry / after hook resolves).
+  // Fall back to the raw saved address data to handle pre-selection on first render
+  // before the Philippine address hook finishes resolving the province name.
+  const activeAddressProvince = (() => {
+    if (formData.province) return formData.province;
+    if (selectedAddressId) {
+      const a = addresses.find((ad) => ad.id === selectedAddressId);
+      return a?.province || '';
+    }
+    // Default address pre-filled on mount
+    const defaultAddr = addresses.find((a) => a.is_default) || addresses[0];
+    return defaultAddr?.province || '';
+  })();
+  const isCaviteAddress = activeAddressProvince.trim().toLowerCase() === 'cavite';
+
   const steps = ["Shipping", "Payment", "Review"];
   
   // Sync hook state with formData
@@ -1239,11 +1255,15 @@ function CheckoutPageContent() {
                       </div>
                     )}
 
-                    <div className="p-4 border border-blue-200 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                      <p className="text-sm text-blue-800 dark:text-blue-200">
-                        <strong>Note:</strong> NSD currently delivers within select areas in Cavite only. Shipping fee configuration will be available when delivery zones are defined.
-                      </p>
-                    </div>
+                    {/* Cavite-only restriction alert */}
+                    {activeAddressProvince && !isCaviteAddress && (
+                      <div className="flex items-start gap-3 p-4 border-2 border-destructive/60 bg-destructive/5 rounded-lg">
+                        <AlertCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+                        <p className="text-sm text-destructive font-medium">
+                          Sorry, we currently only deliver within Cavite. Please use a Cavite delivery address to continue.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1420,17 +1440,23 @@ function CheckoutPageContent() {
                   {step < steps.length - 1 ? (
                     <button
                       onClick={handleNext}
-                      className="flex-1 px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium"
+                      disabled={step === 0 && !!formData.province && !isCaviteAddress}
+                      className={`flex-1 px-6 py-2 rounded-lg transition-colors font-medium ${
+                        step === 0 && !!formData.province && !isCaviteAddress
+                          ? 'bg-muted text-muted-foreground cursor-not-allowed'
+                          : 'bg-primary text-primary-foreground hover:bg-primary/90'
+                      }`}
                     >
                       Next
                     </button>
                   ) : (
                     <button
                       onClick={handleSubmit}
-                      disabled={isProcessingOrder}
-                      className={`flex-1 px-6 py-2 rounded-lg transition-colors font-medium ${isProcessingOrder
-                        ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                        : 'bg-green-600 text-white hover:bg-green-700'
+                      disabled={isProcessingOrder || !isCaviteAddress}
+                      className={`flex-1 px-6 py-2 rounded-lg transition-colors font-medium ${
+                        isProcessingOrder || !isCaviteAddress
+                          ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                          : 'bg-green-600 text-white hover:bg-green-700'
                         }`}
                     >
                       {isProcessingOrder ? (
@@ -1505,6 +1531,16 @@ function CheckoutPageContent() {
                 subtotal={checkoutTotal}
                 discount={appliedCoupon?.discount_amount || 0}
               />
+
+              {/* NSD Delivery Info Box */}
+              <div className="bg-card border border-border rounded-lg p-5 space-y-2">
+                <p className="text-sm font-semibold flex items-center gap-2">
+                  🚚 NSD Delivery — Cavite Area Only
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Your order will be delivered by our NSD courier team. Delivery schedules vary based on route and availability. You will receive a notification when your order is out for delivery.
+                </p>
+              </div>
             </div>
           </div>
         </div>

@@ -272,7 +272,7 @@ export default function SettingsPage() {
               <Alert className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
                 <AlertCircle className="h-4 w-4 text-blue-600" />
                 <AlertDescription className="text-blue-800 dark:text-blue-200">
-                  NSD currently delivers within select areas in Cavite only. Shipping fee configuration will be available when delivery zones are defined.
+                  NSD currently delivers within Cavite province only. Delivery schedules are flexible and depend on courier availability and route conditions. Customers are notified when their order is out for delivery.
                 </AlertDescription>
               </Alert>
 

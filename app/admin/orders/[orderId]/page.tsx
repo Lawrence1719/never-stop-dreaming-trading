@@ -131,6 +131,7 @@ export default function OrderDetailPage() {
   const [selectedCourierId, setSelectedCourierId] = useState<string>('auto');
   const [showProofModal, setShowProofModal] = useState(false);
   const [showOverrideDialog, setShowOverrideDialog] = useState(false);
+  const [courierDeliveryFailed, setCourierDeliveryFailed] = useState(false);
 
   const { toast } = useToast();
 
@@ -140,6 +141,20 @@ export default function OrderDetailPage() {
       fetchOrder(true);
       fetchAvailableCouriers();
     }
+  }, [orderId]);
+
+  // Check for failed courier delivery
+  useEffect(() => {
+    if (!orderId) return;
+    supabase
+      .from('courier_deliveries')
+      .select('status')
+      .eq('order_id', orderId)
+      .eq('status', 'failed')
+      .maybeSingle()
+      .then(({ data }) => {
+        setCourierDeliveryFailed(!!data);
+      });
   }, [orderId]);
 
   const fetchAvailableCouriers = async () => {
@@ -1108,6 +1123,18 @@ export default function OrderDetailPage() {
               <CardContent className="pt-6">
                 <p className="text-sm text-muted-foreground text-center">
                   This order cannot be updated further.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Failed delivery advisory note */}
+          {courierDeliveryFailed && (
+            <Card className="border-orange-300 dark:border-orange-700 bg-orange-50/50 dark:bg-orange-950/20">
+              <CardContent className="pt-5 flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-orange-600 dark:text-orange-400 shrink-0 mt-0.5" />
+                <p className="text-sm text-orange-800 dark:text-orange-300 font-medium">
+                  Delivery attempt failed. Please reassign the courier when the route is next available.
                 </p>
               </CardContent>
             </Card>

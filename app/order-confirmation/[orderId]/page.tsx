@@ -4,7 +4,7 @@ import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, Truck } from 'lucide-react';
 import { useAuth } from "@/lib/context/auth-context";
 import { supabase } from "@/lib/supabase/client";
 import { formatDate, formatPrice } from "@/lib/utils/formatting";
@@ -16,7 +16,6 @@ export default function OrderConfirmationPage({ params }: { params: Promise<{ or
   const [order, setOrder] = useState<Order | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [shippingMethod, setShippingMethod] = useState<string>("Standard Shipping (5-7 business days)");
 
   // Fetch order details
   useEffect(() => {
@@ -60,8 +59,6 @@ export default function OrderConfirmationPage({ params }: { params: Promise<{ or
           setError('Order not found');
         } else {
           setOrder(foundOrder);
-          // Set shipping method from order data
-          setShippingMethod(foundOrder.shippingMethod || 'Standard Shipping (5-7 business days)');
         }
       } catch (err) {
         console.error('Failed to fetch order', err);
@@ -74,15 +71,7 @@ export default function OrderConfirmationPage({ params }: { params: Promise<{ or
     fetchOrder();
   }, [user, orderId]);
 
-  // Calculate estimated delivery (5-7 business days from order date)
-  const getEstimatedDelivery = () => {
-    if (!order) return new Date();
-    const orderDate = new Date(order.date);
-    // Add 6 days (average of 5-7 business days)
-    const deliveryDate = new Date(orderDate);
-    deliveryDate.setDate(deliveryDate.getDate() + 6);
-    return deliveryDate;
-  };
+  // No estimated delivery date — NSD schedules depend on route/courier availability
 
   if (isLoading) {
     return (
@@ -146,20 +135,19 @@ export default function OrderConfirmationPage({ params }: { params: Promise<{ or
               </div>
 
               <div>
-                <p className="text-sm text-muted-foreground">Estimated Delivery</p>
-                <p className="font-medium">
-                  {formatDate(getEstimatedDelivery())}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-sm text-muted-foreground">Shipping Method</p>
-                <p className="font-medium">{shippingMethod}</p>
-              </div>
-
-              <div>
                 <p className="text-sm text-muted-foreground">Total Amount</p>
                 <p className="font-bold text-lg text-primary">{formatPrice(order.total)}</p>
+              </div>
+            </div>
+
+            {/* NSD Delivery Next Steps */}
+            <div className="mt-4 flex items-start gap-3 p-4 bg-muted/50 border border-border rounded-lg text-left">
+              <Truck className="w-5 h-5 text-muted-foreground shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-sm font-semibold">🚚 What happens next?</p>
+                <p className="text-sm text-muted-foreground">
+                  Our team will process your order and dispatch it when our courier route reaches your area. You&apos;ll be notified when it&apos;s on its way. If you have questions, please contact NSD directly.
+                </p>
               </div>
             </div>
           </div>

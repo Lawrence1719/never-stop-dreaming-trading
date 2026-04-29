@@ -121,48 +121,212 @@ export default function SettingsPage() {
   const handleExportData = async () => {
     setIsLoading(true);
     try {
-      if (!user) throw new Error("Not authenticated");
+      if (!user) throw new Error('Not authenticated');
 
-      // Fetch all related data
+      // Fetch addresses and orders in parallel
       const [addressesRes, ordersRes] = await Promise.all([
         supabase.from('addresses').select('*').eq('user_id', user.id),
-        supabase.from('orders').select('*, order_items(*)').eq('user_id', user.id)
+        supabase.from('orders').select('*, order_items(*)').eq('user_id', user.id).order('created_at', { ascending: false }),
       ]);
 
-      const exportData = {
-        profile: {
-          name: user.name,
-          email: user.email,
-          phone: user.phone,
-          memberSince: user.memberSince,
-          preferences: user.notification_preferences
-        },
-        addresses: addressesRes.data || [],
-        orders: ordersRes.data || [],
-        exportedAt: new Date().toISOString()
-      };
+      const addresses = addressesRes.data || [];
+      const orders = ordersRes.data || [];
 
-      // Create and trigger download
-      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `nsd_account_data_${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      // ── Client-side PDF generation ────────────────────────────────
+      const { default: jsPDF } = await import('jspdf');
+      const { default: autoTable } = await import('jspdf-autotable');
+
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const PAGE_W = 210;
+      const PAGE_H = 297;
+      const MARGIN = 15;
+      const RIGHT = PAGE_W - MARGIN;
+
+      function peso(n: number) {
+        return `PHP ${Math.abs(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+      }
+      function fmtDate(iso: string) {
+        return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      }
+      function fmtStatus(s: string) {
+        return s.charAt(0).toUpperCase() + s.slice(1);
+      }
+
+      // ── 1. Cover / Header ─────────────────────────────────────────
+      doc.setFillColor(20, 20, 20);
+      doc.rect(0, 0, PAGE_W, 36, 'F');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(16);
+      doc.setTextColor(255, 255, 255);
+      doc.text('Never Stop Dreaming Trading', MARGIN, 16);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(180, 180, 180);
+      doc.text('Account Data Export', MARGIN, 24);
+
+      doc.setFontSize(8);
+      doc.text(`Generated: ${fmtDate(new Date().toISOString())}`, RIGHT, 24, { align: 'right' });
+
+      let y = 50;
+
+      // ── 2. Profile Info ───────────────────────────────────────────
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(20, 20, 20);
+      doc.text('Profile Information', MARGIN, y);
+
+      y += 2;
+      doc.setDrawColor(220, 220, 220);
+      doc.setLineWidth(0.3);
+      doc.line(MARGIN, y + 2, RIGHT, y + 2);
+      y += 8;
+
+      const profileRows = [
+        ['Name', user.name || '—'],
+        ['Email', user.email || '—'],
+        ['Phone', user.phone || '—'],
+        ['Member Since', user.memberSince ? fmtDate(user.memberSince) : '—'],
+      ];
+
+      autoTable(doc, {
+        startY: y,
+        body: profileRows,
+        theme: 'plain',
+        styles: { fontSize: 9, textColor: [40, 40, 40] },
+        columnStyles: {
+          0: { fontStyle: 'bold', cellWidth: 40, textColor: [100, 100, 100] },
+          1: { cellWidth: 120 },
+        },
+        margin: { left: MARGIN, right: MARGIN },
+      });
+
+      y = (doc as any).lastAutoTable.finalY + 12;
+
+      // ── 3. Addresses ──────────────────────────────────────────────
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(20, 20, 20);
+      doc.text('Saved Addresses', MARGIN, y);
+      y += 2;
+      doc.setDrawColor(220, 220, 220);
+      doc.line(MARGIN, y + 2, RIGHT, y + 2);
+      y += 6;
+
+      if (addresses.length === 0) {
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(9);
+        doc.setTextColor(140, 140, 140);
+        doc.text('No saved addresses.', MARGIN, y + 6);
+        y += 14;
+      } else {
+        const addrRows = addresses.map((a: any) => [
+          a.full_name || '—',
+          a.street_address || '—',
+          [a.city, a.province].filter(Boolean).join(', ') + (a.zip_code ? ` ${a.zip_code}` : ''),
+          a.phone || '—',
+          a.is_default ? '✓ Default' : '',
+        ]);
+
+        autoTable(doc, {
+          startY: y,
+          head: [['Name', 'Street', 'City / Province', 'Phone', '']],
+          body: addrRows,
+          theme: 'striped',
+          headStyles: { fillColor: [50, 50, 50], textColor: [255, 255, 255], fontSize: 8 },
+          bodyStyles: { fontSize: 8, textColor: [40, 40, 40] },
+          columnStyles: {
+            0: { cellWidth: 32 },
+            1: { cellWidth: 42 },
+            2: { cellWidth: 45 },
+            3: { cellWidth: 32 },
+            4: { cellWidth: 20, textColor: [16, 120, 80], fontStyle: 'bold' },
+          },
+          margin: { left: MARGIN, right: MARGIN },
+        });
+
+        y = (doc as any).lastAutoTable.finalY + 12;
+      }
+
+      // ── 4. Order History ──────────────────────────────────────────
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(20, 20, 20);
+      doc.text('Order History', MARGIN, y);
+      y += 2;
+      doc.setDrawColor(220, 220, 220);
+      doc.line(MARGIN, y + 2, RIGHT, y + 2);
+      y += 6;
+
+      if (orders.length === 0) {
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(9);
+        doc.setTextColor(140, 140, 140);
+        doc.text('No orders found.', MARGIN, y + 6);
+      } else {
+        // Build order summary rows + nested item rows
+        const orderBody: any[] = [];
+
+        orders.forEach((o: any, idx: number) => {
+          const orderNum = `#NSD-${String(idx + 1).padStart(5, '0')}`; // fallback sequential
+          const items: any[] = Array.isArray(o.order_items) ? o.order_items
+            : Array.isArray(o.items) ? o.items : [];
+
+          const itemsText = items
+            .map((it: any) => `${it.name || 'Product'} × ${it.quantity || 1}`)
+            .join(', ') || '—';
+
+          orderBody.push([
+            orderNum,
+            fmtDate(o.created_at),
+            itemsText,
+            peso(Number(o.total) || 0),
+            fmtStatus(o.status || 'pending'),
+          ]);
+        });
+
+        autoTable(doc, {
+          startY: y,
+          head: [['Order #', 'Date', 'Items', 'Total', 'Status']],
+          body: orderBody,
+          theme: 'striped',
+          headStyles: { fillColor: [50, 50, 50], textColor: [255, 255, 255], fontSize: 8 },
+          bodyStyles: { fontSize: 7.5, textColor: [40, 40, 40], valign: 'top' },
+          columnStyles: {
+            0: { cellWidth: 22, fontStyle: 'bold' },
+            1: { cellWidth: 24 },
+            2: { cellWidth: 80 },
+            3: { cellWidth: 28, halign: 'right' },
+            4: { cellWidth: 22 },
+          },
+          margin: { left: MARGIN, right: MARGIN },
+        });
+      }
+
+      // ── 5. Footer ──────────────────────────────────────────────────
+      doc.setDrawColor(210, 210, 210);
+      doc.setLineWidth(0.3);
+      doc.line(MARGIN, PAGE_H - 18, RIGHT, PAGE_H - 18);
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(7.5);
+      doc.setTextColor(140, 140, 140);
+      doc.text('This document is confidential and intended only for the account holder.', PAGE_W / 2, PAGE_H - 12, { align: 'center' });
+      doc.text('© Never Stop Dreaming Trading', PAGE_W / 2, PAGE_H - 7, { align: 'center' });
+
+      const date = new Date().toISOString().split('T')[0];
+      doc.save(`NSD-Account-Data-${date}.pdf`);
 
       toast({
-        title: "Data Exported",
-        description: "Your account data has been downloaded successfully.",
-        variant: "success",
+        title: 'Data Exported',
+        description: 'Your account data PDF has been downloaded successfully.',
+        variant: 'success',
       });
     } catch (error: any) {
       toast({
-        title: "Export Failed",
-        description: error.message || "Failed to export data.",
-        variant: "destructive",
+        title: 'Export Failed',
+        description: error.message || 'Failed to export data.',
+        variant: 'destructive',
       });
     } finally {
       setIsLoading(false);
@@ -383,7 +547,7 @@ export default function SettingsPage() {
                     onClick={handleExportData}
                     disabled={isLoading}
                   >
-                    {isLoading ? "Exporting..." : "Export"}
+                    {isLoading ? 'Exporting...' : 'Export PDF'}
                   </Button>
                 </div>
 

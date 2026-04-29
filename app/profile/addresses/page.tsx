@@ -7,7 +7,7 @@ import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { useAuth } from "@/lib/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
-import { ChevronLeft, Plus, MapPin, Edit, Trash2 } from 'lucide-react';
+import { ChevronLeft, Plus, MapPin, Edit, Trash2, AlertCircle } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AddressDialog, AddressFormData } from "@/components/ecommerce/address-dialog";
@@ -358,6 +358,14 @@ export default function AddressesPage() {
                       </p>
                       <p className="text-xs mt-1">Phone: +63 {address.phone}</p>
                     </div>
+                    {address.province?.trim().toLowerCase() !== 'cavite' && (
+                      <div className="mt-3 flex items-start gap-2 px-3 py-2 rounded-md bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800">
+                        <AlertCircle className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400 shrink-0 mt-0.5" />
+                        <p className="text-xs text-orange-700 dark:text-orange-400">
+                          NSD does not deliver to this area. Orders using this address will be blocked at checkout.
+                        </p>
+                      </div>
+                    )}
                     {!address.default && (
                       <Button
                         variant="outline"
