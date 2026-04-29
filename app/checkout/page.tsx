@@ -1201,9 +1201,17 @@ function CheckoutPageContent() {
                             type="text"
                             name="zip"
                             value={formData.zip}
+                            maxLength={4}
                             onChange={(e) => {
-                              handleInputChange(e);
-                              setZipCode(e.target.value);
+                              const cleanedValue = e.target.value.replace(/\D/g, '').slice(0, 4);
+                              const fakeEvent = {
+                                target: {
+                                  name: 'zip',
+                                  value: cleanedValue
+                                }
+                              } as any;
+                              handleInputChange(fakeEvent);
+                              setZipCode(cleanedValue);
                             }}
                             onBlur={handleBlur}
                             placeholder="e.g., 1630"

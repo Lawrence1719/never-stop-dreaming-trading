@@ -248,10 +248,13 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields (only product base info)
     if (!body.name) {
-      return NextResponse.json(
-        { error: 'Missing required field: name' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Missing required field: name' }, { status: 400 });
+    }
+    if (!body.description || body.description.trim() === '') {
+      return NextResponse.json({ error: 'Missing required field: description' }, { status: 400 });
+    }
+    if (!body.category || body.category.trim() === '') {
+      return NextResponse.json({ error: 'Missing required field: category' }, { status: 400 });
     }
 
     // Create product WITHOUT price, stock, or SKU (those go in variants)

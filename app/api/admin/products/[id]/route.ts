@@ -144,7 +144,7 @@ export async function PUT(
     }
 
     // Handle variant pricing/inventory update if provided
-    if (body.sku || body.price !== undefined || body.stock !== undefined) {
+    if (body.sku || body.price !== undefined || body.stock !== undefined || body.unit || body.doz_pckg || body.variant_label) {
       try {
         const { data: variants } = await supabaseAdmin
           .from('product_variants')
@@ -152,14 +152,18 @@ export async function PUT(
           .eq('product_id', id)
           .order('created_at', { ascending: true })
           .limit(1);
-
+ 
         if (variants && variants.length > 0) {
           // Update existing variant
           const updateObj: any = { updated_at: new Date().toISOString() };
           if (body.sku) updateObj.sku = body.sku;
           if (body.price !== undefined) updateObj.price = Number(body.price);
           if (body.stock !== undefined) updateObj.stock = Number(body.stock);
-
+          if (body.unit) updateObj.unit = body.unit;
+          if (body.doz_pckg) updateObj.doz_pckg = body.doz_pckg;
+          if (body.variant_label) updateObj.variant_label = body.variant_label;
+          if (body.reorder_threshold !== undefined) updateObj.reorder_threshold = Number(body.reorder_threshold);
+ 
           const { error: vError } = await supabaseAdmin
             .from('product_variants')
             .update(updateObj)
@@ -172,11 +176,13 @@ export async function PUT(
             .from('product_variants')
             .insert([{
               product_id: id,
-              variant_label: 'Standard',
+              variant_label: body.variant_label || 'Standard',
               sku: body.sku || `NSD-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
               price: Number(body.price) || 0,
               stock: Number(body.stock) || 0,
-              reorder_threshold: 10,
+              unit: body.unit || null,
+              doz_pckg: body.doz_pckg || null,
+              reorder_threshold: body.reorder_threshold || 10,
               is_active: true,
             }]);
           

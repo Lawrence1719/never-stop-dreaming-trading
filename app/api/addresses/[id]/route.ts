@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { validateZipCode } from '@/lib/utils/validation';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -31,7 +32,7 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await request.json();
-    const { street, city, cityCode, province, provinceCode, barangay, barangayCode, isDefault } = body;
+    const { street, city, cityCode, province, provinceCode, barangay, barangayCode, isDefault, zip } = body;
 
     // Build update object with only provided fields
     const updates: any = {};
@@ -42,7 +43,13 @@ export async function PATCH(
     if (provinceCode !== undefined) updates.province_code = provinceCode;
     if (barangay !== undefined) updates.barangay = barangay;
     if (barangayCode !== undefined) updates.barangay_code = barangayCode;
-    if (body.zip !== undefined) updates.zip_code = body.zip;
+    
+    if (zip !== undefined) {
+      if (!validateZipCode(zip)) {
+        return NextResponse.json({ error: 'Zip code must be exactly 4 digits' }, { status: 400 });
+      }
+      updates.zip_code = zip;
+    }
 
     // If setting as default, unset other defaults first
     if (isDefault === true) {

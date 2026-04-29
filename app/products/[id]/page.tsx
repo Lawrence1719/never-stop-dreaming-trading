@@ -92,6 +92,8 @@ export default function ProductDetailPage() {
               price,
               stock,
               sku,
+              unit,
+              doz_pckg,
               is_active
             ),
             product_images (
@@ -176,6 +178,8 @@ export default function ProductDetailPage() {
               price,
               stock,
               sku,
+              unit,
+              doz_pckg,
               is_active
             ),
             product_images (*)
@@ -616,13 +620,13 @@ export default function ProductDetailPage() {
                     </p>
                   )}
 
-                  {product.doz_pckg && (
+                  {(selectedVariant?.doz_pckg || product.doz_pckg) && (
                     <div className="flex items-center gap-2 pt-2 mt-2 border-t border-primary/10">
                       <span className="text-[10px] font-bold text-primary uppercase tracking-wider bg-primary/10 px-2 py-1 rounded">
                         Packaging Information
                       </span>
                       <span className="text-sm font-semibold text-primary/80">
-                        {product.doz_pckg} per {product.unit || 'package'}
+                        {selectedVariant?.doz_pckg || product.doz_pckg} per {selectedVariant?.unit || product.unit || 'package'}
                       </span>
                     </div>
                   )}

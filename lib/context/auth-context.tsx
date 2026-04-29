@@ -352,7 +352,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { error: new Error("No active session found") };
       }
 
-      const response = await fetch('/api/admin/profile', {
+      const response = await fetch('/api/profile', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

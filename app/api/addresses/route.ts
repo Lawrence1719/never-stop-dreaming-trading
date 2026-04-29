@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { validateZipCode } from '@/lib/utils/validation';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -106,6 +107,10 @@ export async function POST(request: NextRequest) {
     if (!street || !city || !province || !zip) {
       console.error('Missing fields:', { street, city, province, zip });
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+
+    if (!validateZipCode(zip)) {
+      return NextResponse.json({ error: 'Zip code must be exactly 4 digits' }, { status: 400 });
     }
 
     // Get user profile for name and phone

@@ -100,6 +100,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (parseFloat(body.price) <= 0) {
+      return NextResponse.json({ error: 'Price must be greater than 0' }, { status: 400 });
+    }
+
+    if (parseInt(body.stock) < 0) {
+      return NextResponse.json({ error: 'Stock cannot be negative' }, { status: 400 });
+    }
+
     // Check if product exists
     const { data: product, error: productError } = await supabaseAdmin
       .from('products')

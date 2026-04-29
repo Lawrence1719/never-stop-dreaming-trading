@@ -16,6 +16,7 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { usePhilippineAddress } from "@/lib/hooks/use-philippine-address";
 import { Address } from "@/lib/types";
+import { validateZipCode } from "@/lib/utils/validation";
 
 interface AddressDialogProps {
   open: boolean;
@@ -154,6 +155,8 @@ export function AddressDialog({
 
     if (!formData.zip.trim()) {
       newErrors.zip = "ZIP code is required";
+    } else if (!validateZipCode(formData.zip)) {
+      newErrors.zip = "ZIP code must be exactly 4 digits";
     }
 
     setErrors(newErrors);
@@ -266,7 +269,8 @@ export function AddressDialog({
                 id="zip"
                 placeholder="1630"
                 value={formData.zip}
-                onChange={(e) => setFormData(prev => ({ ...prev, zip: e.target.value }))}
+                maxLength={4}
+                onChange={(e) => setFormData(prev => ({ ...prev, zip: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
                 className={errors.zip ? "border-destructive" : ""}
               />
               {errors.zip && (

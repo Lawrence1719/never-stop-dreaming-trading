@@ -388,46 +388,63 @@ export function ProductForm({
   const uploadImagesToSupabase = async (): Promise<any[]> => {
     const imagesToProcess = formData.product_images;
     const finalImages = [];
+    const newFilesToUpload: File[] = [];
+    const existingImages: any[] = [];
     
+    // Separate new files from existing images
+    imagesToProcess.forEach(img => {
+      if (img.file) newFilesToUpload.push(img.file);
+      else existingImages.push(img);
+    });
+
+    if (newFilesToUpload.length === 0) return existingImages;
+
     setIsUploadingImage(true);
-    setUploadProgress(0);
+    setUploadProgress(10);
 
     try {
+      const formDataUpload = new FormData();
+      newFilesToUpload.forEach(file => formDataUpload.append('files', file));
+
+      const { data: { session } } = await supabase.auth.getSession();
+
+      const res = await fetch('/api/admin/products/upload', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        },
+        body: formDataUpload
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Upload failed');
+      }
+
+      const { paths } = await res.json();
+      
+      // Combine results
+      let newFileIndex = 0;
       for (let i = 0; i < imagesToProcess.length; i++) {
         const img = imagesToProcess[i];
-        
         if (img.file) {
-          // It's a new upload
-          const fileExt = img.file.name.split('.').pop();
-          const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-
-          const { data, error } = await supabase.storage
-            .from('product-images')
-            .upload(fileName, img.file, {
-              cacheControl: '3600',
-              upsert: false
-            });
-
-          if (error) throw error;
-          
           finalImages.push({
-            storage_path: data.path, // Store only path!
+            storage_path: paths[newFileIndex++],
             is_primary: img.is_primary,
             sort_order: i
           });
         } else {
-          // It's an existing image
           finalImages.push({
             ...img,
             sort_order: i
           });
         }
-        setUploadProgress(Math.round(((i + 1) / imagesToProcess.length) * 100));
       }
 
       return finalImages;
     } catch (error: any) {
       console.error('Image upload error:', error);
+      setErrors(prev => ({ ...prev, imageFile: error.message }));
       return [];
     } finally {
       setIsUploadingImage(false);
