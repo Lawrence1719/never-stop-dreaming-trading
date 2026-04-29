@@ -71,6 +71,9 @@ function ResetPasswordForm() {
 
       if (updateError) throw updateError;
 
+      // Force sign out immediately to prevent automatic login
+      await supabase.auth.signOut();
+
       setStatus('success');
       toast({
         title: 'Password updated',
@@ -78,9 +81,8 @@ function ResetPasswordForm() {
         variant: 'success',
       });
 
-      // Sign out the recovery session and go to login.
-      setTimeout(async () => {
-        await supabase.auth.signOut();
+      // Redirect to login after a short delay
+      setTimeout(() => {
         router.push('/login');
       }, 2500);
     } catch (err: unknown) {

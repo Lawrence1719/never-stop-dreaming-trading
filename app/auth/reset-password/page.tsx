@@ -124,14 +124,14 @@ function ResetPasswordContent() {
           variant: "destructive",
         });
       } else {
+        // Force sign out immediately to prevent automatic login
+        await supabase.auth.signOut();
+
         toast({
           title: "Success",
           description: "Password updated successfully!",
           variant: "success",
         });
-        
-        // Force sign out and redirect to login
-        await supabase.auth.signOut();
         
         // Short delay before redirecting to login
         setTimeout(() => {
