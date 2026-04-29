@@ -16,7 +16,7 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { usePhilippineAddress } from "@/lib/hooks/use-philippine-address";
 import { Address } from "@/lib/types";
-import { validateZipCode } from "@/lib/utils/validation";
+import { validateZipCode, validatePhoneNumber, validateFullName } from "@/lib/utils/validation";
 
 interface AddressDialogProps {
   open: boolean;
@@ -27,6 +27,8 @@ interface AddressDialogProps {
 }
 
 export interface AddressFormData {
+  fullName: string;
+  phone: string;
   street: string;
   barangay: string;
   barangayCode: string;
@@ -62,6 +64,8 @@ export function AddressDialog({
   });
 
   const [formData, setFormData] = useState<AddressFormData>({
+    fullName: address?.fullName || "",
+    phone: address?.phone || "",
     street: address?.street || "",
     barangay: address?.barangay || "",
     barangayCode: address?.barangayCode || "",
@@ -97,6 +101,8 @@ export function AddressDialog({
       setSelectedBarangay(address.barangayCode || "");
       setFormData(prev => ({
         ...prev,
+        fullName: address.fullName,
+        phone: address.phone,
         street: address.street,
         isDefault: address.default,
         zip: address.zip
@@ -107,6 +113,8 @@ export function AddressDialog({
       setSelectedCity("");
       setSelectedBarangay("");
       setFormData({
+        fullName: "",
+        phone: "",
         street: "",
         barangay: "",
         barangayCode: "",
@@ -136,6 +144,19 @@ export function AddressDialog({
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
+
+    if (!formData.fullName.trim()) {
+      newErrors.fullName = "Full name is required";
+    } else {
+      const nameVal = validateFullName(formData.fullName);
+      if (!nameVal.valid) newErrors.fullName = nameVal.error || "Invalid name";
+    }
+
+    if (!formData.phone.trim()) {
+      newErrors.phone = "Phone number is required";
+    } else if (!validatePhoneNumber(formData.phone)) {
+      newErrors.phone = "Invalid 10-digit PH phone number";
+    }
 
     if (!formData.street.trim()) {
       newErrors.street = "Street address is required";
@@ -186,6 +207,52 @@ export function AddressDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="fullName">
+                Recipient Name <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="fullName"
+                placeholder="Juan Dela Cruz"
+                value={formData.fullName}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, fullName: e.target.value }))
+                }
+                className={errors.fullName ? "border-destructive" : ""}
+              />
+              {errors.fullName && (
+                <p className="text-sm text-destructive">{errors.fullName}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="phone">
+                Phone Number <span className="text-destructive">*</span>
+              </Label>
+              <div className="relative">
+                <div className="absolute left-3 top-2.5 flex items-center gap-1.5 text-sm text-muted-foreground pointer-events-none">
+                  <span role="img" aria-label="PH flag">🇵🇭</span>
+                  <span>+63</span>
+                </div>
+                <Input
+                  id="phone"
+                  type="tel"
+                  placeholder="9123456789"
+                  value={formData.phone}
+                  maxLength={10}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, phone: e.target.value.replace(/\D/g, '') }))
+                  }
+                  className={`pl-16 ${errors.phone ? "border-destructive" : ""}`}
+                />
+              </div>
+              {errors.phone && (
+                <p className="text-sm text-destructive">{errors.phone}</p>
+              )}
+            </div>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="street">
               Street Address <span className="text-destructive">*</span>

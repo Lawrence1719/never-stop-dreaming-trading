@@ -43,9 +43,9 @@ export async function updateSession(request: NextRequest) {
   const isCourierPage = url.pathname.startsWith('/courier') || url.pathname.startsWith('/api/courier')
   const isProfilePage = url.pathname.startsWith('/profile') || url.pathname.startsWith('/settings')
 
-  // Debug logging to identify loop causes
   if (process.env.NODE_ENV === 'development') {
-    console.debug(`[Proxy] ${request.method} ${url.pathname} | Auth: ${!!user} | Role: ${user?.user_metadata?.role || 'none'}`)
+    const role = user?.user_metadata?.role || user?.app_metadata?.role || 'none';
+    console.debug(`[Proxy] ${request.method} ${url.pathname} | Auth: ${!!user} | Role: ${role}`)
   }
 
   // 1. Redirect logged-in users away from auth pages (login/register)

@@ -16,6 +16,6 @@ export const config = {
      * - api/integration (internal API key integration)
      * - api/health (public health check)
      */
-    '/((?!_next/static|_next/image|favicon.ico|api/integration|api/health|public|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/integration|api/health|public|.*\\.(?:svg|png|jpg|jpeg|gif|webp|webmanifest|json)$).*)',
   ],
 }

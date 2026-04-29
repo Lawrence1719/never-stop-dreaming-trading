@@ -351,10 +351,12 @@ export default function AddressesPage() {
                       </div>
                     </div>
                     <div className="space-y-1 text-sm text-muted-foreground">
+                      <p className="font-medium text-foreground">{address.fullName}</p>
                       <p>{address.street}</p>
                       <p>
                         {address.city}, {address.province} {address.zip}
                       </p>
+                      <p className="text-xs mt-1">Phone: +63 {address.phone}</p>
                     </div>
                     {!address.default && (
                       <Button

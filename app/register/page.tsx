@@ -7,7 +7,7 @@ import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { useAuth } from "@/lib/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
-import { validateEmail, validatePassword, validatePhoneNumber, validateName } from "@/lib/utils/validation";
+import { validateEmail, validatePassword, validatePhoneNumber, validateName, validatePasswordStrength } from "@/lib/utils/validation";
 import { User, Mail, Lock, Phone } from 'lucide-react';
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Logo } from "@/components/ui/logo";
@@ -100,8 +100,9 @@ function RegisterPageContent() {
       newErrors.phone = "Please enter a valid 10-digit Philippine phone number starting with 9 (e.g., 9123456789)";
     }
 
-    if (!validatePassword(formData.password)) {
-      newErrors.password = "Password must be at least 6 characters";
+    const passwordVal = validatePasswordStrength(formData.password);
+    if (!passwordVal.valid) {
+      newErrors.password = passwordVal.error || "Invalid password";
     }
 
     if (formData.password !== formData.confirmPassword) {
@@ -197,16 +198,31 @@ function RegisterPageContent() {
       );
 
       if (error) {
+        console.error('Registration error details:', {
+          message: error.message,
+          error: error
+        });
+
         let errorMessage = "Registration failed. Please try again.";
 
         if (error.message) {
           const lowerMsg = error.message.toLowerCase();
-          if (lowerMsg.includes("already registered") || lowerMsg.includes("already exists")) {
+          
+          // Check for "already exists" variants FIRST and more comprehensively
+          if (
+            lowerMsg.includes("already registered") || 
+            lowerMsg.includes("already exists") || 
+            lowerMsg.includes("already in use") ||
+            lowerMsg.includes("email already taken") ||
+            lowerMsg.includes("user_already_exists")
+          ) {
             errorMessage = "This email is already registered. Please use a different email or try logging in.";
           } else if (lowerMsg.includes("password")) {
             errorMessage = "Password is too weak. Please use a stronger password.";
-          } else if (lowerMsg.includes("email")) {
+          } else if (lowerMsg.includes("email") && !lowerMsg.includes("rate limit")) {
             errorMessage = "Invalid email address or provider error.";
+          } else if (lowerMsg.includes("rate limit") || lowerMsg.includes("too many requests")) {
+            errorMessage = "Too many registration attempts. Please try again later.";
           } else if (lowerMsg.includes("smtp") || lowerMsg.includes("configuration") || lowerMsg.includes("mail")) {
             errorMessage = "Email delivery failed. Please contact support.";
           } else {
@@ -452,6 +468,9 @@ function RegisterPageContent() {
                     className={`pl-10 ${errors.password ? "border-destructive" : "border-border"}`}
                   />
                 </div>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Requirements: 8+ chars, Uppercase, Lowercase, Number, Symbol
+                </p>
                 {errors.password && <p className="text-xs text-destructive mt-1">{errors.password}</p>}
               </div>
 

@@ -33,7 +33,32 @@ export const validateEmail = (email: string): boolean => {
 };
 
 export const validatePassword = (password: string): boolean => {
-  return password.length >= 6;
+  // Basic check for existence and minimum length (permissive for login)
+  return !!password && password.length >= 6;
+};
+
+/**
+ * Strict password validation for new passwords (Registration, Reset, Change)
+ * Requirements: 8+ chars, 1 uppercase, 1 lowercase, 1 number, 1 symbol
+ */
+export const validatePasswordStrength = (password: string): { valid: boolean; error?: string } => {
+  if (!password || password.length < 8) {
+    return { valid: false, error: 'Password must be at least 8 characters long' };
+  }
+  if (!/[A-Z]/.test(password)) {
+    return { valid: false, error: 'Password must contain at least one uppercase letter' };
+  }
+  if (!/[a-z]/.test(password)) {
+    return { valid: false, error: 'Password must contain at least one lowercase letter' };
+  }
+  if (!/[0-9]/.test(password)) {
+    return { valid: false, error: 'Password must contain at least one number' };
+  }
+  // Symbols/Special characters
+  if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+    return { valid: false, error: 'Password must contain at least one special character/symbol (e.g. !@#$%^&*)' };
+  }
+  return { valid: true };
 };
 
 export const validatePhoneNumber = (phone: string): boolean => {

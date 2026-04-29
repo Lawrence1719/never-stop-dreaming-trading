@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useRouter } from 'next/navigation';
 import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
-import { validatePassword } from "@/lib/utils/validation";
+import { validatePassword, validatePasswordStrength } from "@/lib/utils/validation";
 import { Lock, UserCircle } from 'lucide-react';
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { supabase } from "@/lib/supabase/client";
@@ -69,13 +69,16 @@ function ResetPasswordContent() {
     
     if (name === "password") {
       setPassword(value);
-      const length = value.length;
+      const val = validatePasswordStrength(value);
       if (!value) {
         setPasswordStrength("");
-      } else if (length < 6) {
-        setPasswordStrength("weak");
-      } else if (length < 10) {
-        setPasswordStrength("medium");
+      } else if (!val.valid) {
+        // If length is okay but missing other rules, call it medium
+        if (value.length >= 8) {
+          setPasswordStrength("medium");
+        } else {
+          setPasswordStrength("weak");
+        }
       } else {
         setPasswordStrength("strong");
       }
@@ -93,8 +96,9 @@ function ResetPasswordContent() {
     e.preventDefault();
     const newErrors: Record<string, string> = {};
 
-    if (!validatePassword(password)) {
-      newErrors.password = "Password must be at least 6 characters";
+    const passwordVal = validatePasswordStrength(password);
+    if (!passwordVal.valid) {
+      newErrors.password = passwordVal.error || "Invalid password";
     }
 
     if (password !== confirmPassword) {
@@ -220,6 +224,9 @@ function ResetPasswordContent() {
                       }`}
                     />
                   </div>
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Requirements: 8+ chars, Uppercase, Lowercase, Number, Symbol
+                  </p>
                   {errors.password && <p className="text-xs text-destructive mt-1">{errors.password}</p>}
                   {passwordStrength && (
                     <div className="mt-2">

@@ -525,7 +525,7 @@ export default function SecurityPage() {
                   <div>
                     <p className="font-medium text-sm">Strong Password</p>
                     <p className="text-xs text-muted-foreground">
-                      Your password meets security requirements
+                      Ensure your password has 8+ characters, including uppercase, lowercase, numbers, and symbols.
                     </p>
                   </div>
                 </div>

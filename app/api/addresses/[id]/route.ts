@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { validateZipCode } from '@/lib/utils/validation';
+import { validateZipCode, validatePhoneNumber } from '@/lib/utils/validation';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -32,10 +32,17 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await request.json();
-    const { street, city, cityCode, province, provinceCode, barangay, barangayCode, isDefault, zip } = body;
+    const { fullName, phone, street, city, cityCode, province, provinceCode, barangay, barangayCode, isDefault, zip } = body;
 
     // Build update object with only provided fields
     const updates: any = {};
+    if (fullName !== undefined) updates.full_name = fullName;
+    if (phone !== undefined) {
+      if (!validatePhoneNumber(phone)) {
+        return NextResponse.json({ error: 'Invalid 10-digit Philippine phone number starting with 9' }, { status: 400 });
+      }
+      updates.phone = phone;
+    }
     if (street !== undefined) updates.street_address = street;
     if (city !== undefined) updates.city = city;
     if (cityCode !== undefined) updates.city_code = cityCode;

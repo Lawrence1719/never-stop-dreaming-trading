@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { validateZipCode } from '@/lib/utils/validation';
+import { validateZipCode, validatePhoneNumber } from '@/lib/utils/validation';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -91,6 +91,8 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const { 
+      fullName,
+      phone,
       street, 
       city, 
       cityCode,
@@ -104,8 +106,8 @@ export async function POST(request: NextRequest) {
     } = body;
 
     // Validate required fields
-    if (!street || !city || !province || !zip) {
-      console.error('Missing fields:', { street, city, province, zip });
+    if (!street || !city || !province || !zip || !fullName || !phone) {
+      console.error('Missing fields:', { street, city, province, zip, fullName, phone });
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
@@ -113,15 +115,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Zip code must be exactly 4 digits' }, { status: 400 });
     }
 
-    // Get user profile for name and phone
-    const { data: profile } = await supabaseClient
-      .from('profiles')
-      .select('name, phone')
-      .eq('id', user.id)
-      .single();
+    if (!validatePhoneNumber(phone)) {
+      return NextResponse.json({ error: 'Invalid 10-digit Philippine phone number starting with 9' }, { status: 400 });
+    }
 
-    const fullName = profile?.name || user.email?.split('@')[0] || 'User';
-    const phone = profile?.phone || '';
+    // We use fullName and phone from request body, or fallback to profile if not provided
+    // (though they are now required in the check above)
+    const finalFullName = fullName || (await (async () => {
+      const { data: profile } = await supabaseClient
+        .from('profiles')
+        .select('name')
+        .eq('id', user.id)
+        .single();
+      return profile?.name || user.email?.split('@')[0] || 'User';
+    })());
+
+    const finalPhone = phone || (await (async () => {
+      const { data: profile } = await supabaseClient
+        .from('profiles')
+        .select('phone')
+        .eq('id', user.id)
+        .single();
+      return profile?.phone || '';
+    })());
 
     // If setting as default, unset other defaults first
     if (isDefault) {
@@ -136,9 +152,9 @@ export async function POST(request: NextRequest) {
       .from('addresses')
       .insert({
         user_id: user.id,
-        full_name: fullName,
+        full_name: finalFullName,
         email: user.email,
-        phone: phone,
+        phone: finalPhone,
         street_address: street,
         city: city,
         city_code: cityCode,

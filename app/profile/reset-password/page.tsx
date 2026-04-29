@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { validatePasswordStrength } from '@/lib/utils/validation';
 import { Lock, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PasswordInput } from '@/components/ui/PasswordInput';
@@ -52,8 +53,9 @@ function ResetPasswordForm() {
     e.preventDefault();
     setError('');
 
-    if (newPassword.length < 8) {
-      setError('Password must be at least 8 characters');
+    const passwordVal = validatePasswordStrength(newPassword);
+    if (!passwordVal.valid) {
+      setError(passwordVal.error || "Invalid password");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -174,10 +176,13 @@ function ResetPasswordForm() {
                 }}
                 placeholder="Minimum 8 characters"
                 disabled={status === 'saving'}
-                className={`py-6 pl-10 ${error.includes('characters') ? 'border-destructive' : ''}`}
+                className={`py-6 pl-10 ${error.includes('characters') || error.includes('contain') ? 'border-destructive' : ''}`}
               />
               <Lock className="absolute left-3 top-4 w-4 h-4 text-muted-foreground" />
             </div>
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Requirements: 8+ chars, Uppercase, Lowercase, Number, Symbol
+            </p>
           </div>
 
           <div className="space-y-2">

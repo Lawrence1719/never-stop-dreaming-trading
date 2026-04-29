@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { validatePhoneNumber } from '@/lib/utils/validation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -272,6 +273,16 @@ export default function StaffManagementPage() {
   };
 
   const handleAddStaff = async () => {
+    // Validate phone number
+    if (!validatePhoneNumber(addForm.phone)) {
+      toast({
+        title: 'Invalid Phone Number',
+        description: 'Please enter a valid 10-digit Philippines phone number starting with 9.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     const success = await updateStaff(
       '/api/admin/staff',
       {
@@ -297,6 +308,16 @@ export default function StaffManagementPage() {
 
   const handleEditStaff = async () => {
     if (!selectedStaff) return;
+
+    // Validate phone number
+    if (!validatePhoneNumber(editForm.phone)) {
+      toast({
+        title: 'Invalid Phone Number',
+        description: 'Please enter a valid 10-digit Philippines phone number starting with 9.',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     const success = await updateStaff(
       `/api/admin/staff/${selectedStaff.id}`,
@@ -612,15 +633,23 @@ export default function StaffManagementPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="staff-phone">Phone</Label>
-              <Input
-                id="staff-phone"
-                maxLength={10}
-                value={addForm.phone}
-                onChange={(event) =>
-                  setAddForm((prev) => ({ ...prev, phone: event.target.value.replace(/\D/g, '') }))
-                }
-                placeholder="9123456789"
-              />
+              <div className="relative">
+                <div className="absolute left-3 top-2.5 flex items-center gap-1.5 text-sm text-muted-foreground pointer-events-none">
+                  <span role="img" aria-label="PH flag">🇵🇭</span>
+                  <span>+63</span>
+                </div>
+                <Input
+                  id="staff-phone"
+                  type="tel"
+                  maxLength={10}
+                  value={addForm.phone}
+                  className="pl-16"
+                  onChange={(event) =>
+                    setAddForm((prev) => ({ ...prev, phone: event.target.value.replace(/\D/g, '') }))
+                  }
+                  placeholder="9123456789"
+                />
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Role</Label>
@@ -663,15 +692,23 @@ export default function StaffManagementPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-staff-phone">Phone</Label>
-              <Input
-                id="edit-staff-phone"
-                maxLength={10}
-                value={editForm.phone}
-                onChange={(event) =>
-                  setEditForm((prev) => ({ ...prev, phone: event.target.value.replace(/\D/g, '') }))
-                }
-                placeholder="9123456789"
-              />
+              <div className="relative">
+                <div className="absolute left-3 top-2.5 flex items-center gap-1.5 text-sm text-muted-foreground pointer-events-none">
+                  <span role="img" aria-label="PH flag">🇵🇭</span>
+                  <span>+63</span>
+                </div>
+                <Input
+                  id="edit-staff-phone"
+                  type="tel"
+                  maxLength={10}
+                  className="pl-16"
+                  value={editForm.phone}
+                  onChange={(event) =>
+                    setEditForm((prev) => ({ ...prev, phone: event.target.value.replace(/\D/g, '') }))
+                  }
+                  placeholder="9123456789"
+                />
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Email</Label>

@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { validatePasswordStrength } from '@/lib/utils/validation';
 import { Lock, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PasswordInput } from '@/components/ui/PasswordInput';
@@ -60,8 +61,9 @@ function ResetPasswordForm() {
     e.preventDefault();
     setError('');
 
-    if (newPassword.length < 8) {
-      setError('Password must be at least 8 characters');
+    const passwordVal = validatePasswordStrength(newPassword);
+    if (!passwordVal.valid) {
+      setError(passwordVal.error || "Invalid password");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -187,6 +189,9 @@ function ResetPasswordForm() {
               disabled={status === 'saving'}
               placeholder="Minimum 8 characters"
             />
+            <p className="text-[10px] text-muted-foreground mt-1">
+              Requirements: 8+ chars, Uppercase, Lowercase, Number, Symbol
+            </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="confirm-password">Confirm Password</Label>

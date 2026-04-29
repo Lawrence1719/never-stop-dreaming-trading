@@ -21,21 +21,11 @@ export default function ShippingPage() {
                 <Truck className="w-6 h-6" />
                 Shipping Options
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-card border border-border rounded-lg p-4">
-                  <h3 className="font-semibold mb-2">Standard Shipping</h3>
-                  <p className="text-sm text-muted-foreground mb-2">5-7 business days</p>
-                  <p className="text-lg font-bold">₱299.00</p>
-                </div>
-                <div className="bg-card border border-border rounded-lg p-4">
-                  <h3 className="font-semibold mb-2">Express Shipping</h3>
-                  <p className="text-sm text-muted-foreground mb-2">2-3 business days</p>
-                  <p className="text-lg font-bold">₱599.00</p>
-                </div>
-                <div className="bg-card border border-border rounded-lg p-4">
-                  <h3 className="font-semibold mb-2">Overnight</h3>
-                  <p className="text-sm text-muted-foreground mb-2">Next business day</p>
-                  <p className="text-lg font-bold">₱1,199.00</p>
+                  <h3 className="font-semibold mb-2">NSD Delivery</h3>
+                  <p className="text-sm text-muted-foreground mb-2">1-3 business days within Cavite</p>
+                  <p className="text-lg font-bold text-green-600">FREE</p>
                 </div>
               </div>
             </section>
@@ -43,11 +33,11 @@ export default function ShippingPage() {
             <section>
               <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
                 <MapPin className="w-6 h-6" />
-                Shipping Locations
+                Delivery Areas
               </h2>
               <p className="text-muted-foreground">
-                We currently ship to most countries in North America and Europe. For digital products and software subscriptions, 
-                delivery is instant via email. Physical products are shipped from our warehouse locations.
+                NSD currently delivers within select areas in Cavite only. Shipping fee configuration will be available 
+                when delivery zones are defined. We are continuously working to expand our reach to serve more customers.
               </p>
             </section>
 
@@ -57,8 +47,8 @@ export default function ShippingPage() {
                 Processing Time
               </h2>
               <p className="text-muted-foreground">
-                Orders are typically processed within 1-2 business days. During peak seasons or sales, processing may take up to 3-4 business days. 
-                You will receive a confirmation email with tracking information once your order ships.
+                Orders are typically processed within 1 business day. You will receive a confirmation email 
+                once your order is ready for delivery.
               </p>
             </section>
 
@@ -68,28 +58,16 @@ export default function ShippingPage() {
                 Tracking Your Order
               </h2>
               <p className="text-muted-foreground">
-                Once your order ships, you'll receive a tracking number via email. You can use this number to track your package 
-                on the carrier's website. You can also view your order status and tracking information in your account's order history.
+                Once your order is dispatched, you will receive updates via email. You can also view your 
+                order status and history in your account dashboard.
               </p>
             </section>
 
             <section>
-              <h2 className="text-2xl font-bold mb-4">International Shipping</h2>
-              <p className="text-muted-foreground mb-3">
-                We ship internationally to select countries. International orders may be subject to:
-              </p>
-              <ul className="text-muted-foreground space-y-2 ml-4">
-                <li>• Customs duties and taxes (paid by recipient)</li>
-                <li>• Extended delivery times (7-14 business days)</li>
-                <li>• Additional shipping fees</li>
-              </ul>
-            </section>
-
-            <section>
-              <h2 className="text-2xl font-bold mb-4">Free Shipping</h2>
+              <h2 className="text-2xl font-bold mb-4">Free Shipping Policy</h2>
               <p className="text-muted-foreground">
-                Free standard shipping is available on orders over ₱2,500. This applies to physical products only. 
-                Digital products and subscriptions are always delivered instantly at no additional cost.
+                Currently, all orders qualify for FREE shipping as we roll out our delivery services across Cavite. 
+                This policy is subject to change once delivery zones and corresponding fees are finalized.
               </p>
             </section>
           </div>

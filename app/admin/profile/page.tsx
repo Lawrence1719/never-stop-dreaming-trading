@@ -8,6 +8,7 @@ import { formatDate } from '@/lib/utils/formatting';
 import { LoadingScreen } from '@/components/ui/loading-screen';
 import { User, Settings, LogOut, Shield, Key, Bell, Activity } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { validatePhoneNumber } from "@/lib/utils/validation";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -52,9 +53,17 @@ export default function AdminProfilePage() {
       router.push('/admin/login');
     }
   }, [user, isLoading, router]);
-
   const handleSaveProfile = async () => {
     if (!user) return;
+
+    if (formData.phone && !validatePhoneNumber(formData.phone)) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter a valid 10-digit Philippine phone number starting with 9 (e.g., 9123456789)",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsSaving(true);
     try {
@@ -172,13 +181,24 @@ export default function AdminProfilePage() {
 
                 <div>
                   <Label htmlFor="phone">Phone Number</Label>
-                  <Input
-                    id="phone"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="mt-2"
-                    placeholder="+63 912 345 6789"
-                  />
+                  <div className="relative mt-2">
+                    <div className="absolute left-3 top-2.5 flex items-center gap-1.5 text-sm text-muted-foreground pointer-events-none">
+                      <span role="img" aria-label="PH flag">🇵🇭</span>
+                      <span>+63</span>
+                    </div>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '') })}
+                      className="pl-16"
+                      placeholder="9123456789"
+                      maxLength={10}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Philippine format: 9XXXXXXXXX (10 digits)
+                  </p>
                 </div>
 
                 <div>

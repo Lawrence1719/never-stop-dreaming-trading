@@ -328,6 +328,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { error };
       }
 
+      // If user is returned but identities is empty, it means user already exists
+      // but Supabase is returning a fake success for security (when email confirmation is enabled).
+      if (data.user && data.user.identities && data.user.identities.length === 0) {
+        console.warn('[auth] SignUp returned fake success (user already exists)');
+        return { error: new Error("User already registered") };
+      }
+
       if (data.session) {
         // Set minimal user immediately and fetch profile in background
         setUser(buildUserFromSession(data.session));

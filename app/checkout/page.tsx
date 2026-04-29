@@ -1241,7 +1241,7 @@ function CheckoutPageContent() {
 
                     <div className="p-4 border border-blue-200 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                       <p className="text-sm text-blue-800 dark:text-blue-200">
-                        <strong>Note:</strong> NSD currently delivers within select areas in Luzon only. Shipping fee configuration will be available when delivery zones are defined.
+                        <strong>Note:</strong> NSD currently delivers within select areas in Cavite only. Shipping fee configuration will be available when delivery zones are defined.
                       </p>
                     </div>
                   </div>
