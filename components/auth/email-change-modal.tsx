@@ -8,6 +8,7 @@ import { Loader2, X, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { changeEmailAction } from "@/app/profile/settings/actions";
+import { supabase } from "@/lib/supabase/client";
 
 const emailSchema = z.object({
   newEmail: z.string().email("Invalid email address"),
@@ -68,6 +69,10 @@ export function EmailChangeModal({ isOpen, onClose, currentEmail }: EmailChangeM
       
       reset();
       onClose();
+      
+      // Refresh the session to get a new JWT with the updated email
+      await supabase.auth.refreshSession();
+      
       // Force refresh to update UI
       window.location.reload();
     } catch (err: any) {
