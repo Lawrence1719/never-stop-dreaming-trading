@@ -96,21 +96,43 @@ export function DeliveryCard({ delivery, courierId, onUpdate, orderNumber }: Del
   const addr = delivery.order.shipping_address;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const selectedFile = e.target.files[0];
-      if (selectedFile.size > 10 * 1024 * 1024) {
-        toast({ title: 'Error', description: 'File size exceeds 10MB', variant: 'destructive' });
-        return;
-      }
-      setFile(selectedFile);
-      setPreview(URL.createObjectURL(selectedFile));
+    const selectedFile = e.target.files?.[0];
+    if (!selectedFile) return;
+
+    if (selectedFile.size > 10 * 1024 * 1024) {
+      toast({ title: 'Error', description: 'File size exceeds 10MB', variant: 'destructive' });
+      return;
     }
+
+    // Set the file for upload
+    setFile(selectedFile);
+
+    // Use FileReader for the preview instead of URL.createObjectURL.
+    // Base64 is more reliable on mobile browsers that might aggressively 
+    // garbage collect Blob URLs when switching back from the camera app.
+    const reader = new FileReader();
+    reader.onloadstart = () => {
+      setIsUploading(true); // Reuse loading state to show something is happening
+    };
+    reader.onloadend = () => {
+      setPreview(reader.result as string);
+      setIsUploading(false);
+    };
+    reader.onerror = () => {
+      toast({ title: 'Error', description: 'Failed to process image preview', variant: 'destructive' });
+      setIsUploading(false);
+    };
+    reader.readAsDataURL(selectedFile);
   };
 
   const clearFile = () => {
     setFile(null);
-    if (preview) URL.revokeObjectURL(preview);
     setPreview(null);
+    // Reset inputs manually to ensure they can be reused
+    if (cameraInputRef.current) cameraInputRef.current.value = '';
+    if (galleryInputRef.current) galleryInputRef.current.value = '';
+    if (cameraPendingInputRef.current) cameraPendingInputRef.current.value = '';
+    if (galleryPendingInputRef.current) galleryPendingInputRef.current.value = '';
   };
 
   const handleSubmitProof = async () => {
@@ -282,19 +304,28 @@ export function DeliveryCard({ delivery, courierId, onUpdate, orderNumber }: Del
                   accept="image/*"
                   capture="environment"
                   onChange={handleFileChange}
-                  className="hidden"
+                  className="absolute inset-0 w-0 h-0 opacity-0 pointer-events-none"
+                  tabIndex={-1}
                 />
                 <input
                   ref={galleryInputRef}
                   type="file"
                   accept="image/*"
                   onChange={handleFileChange}
-                  className="hidden"
+                  className="absolute inset-0 w-0 h-0 opacity-0 pointer-events-none"
+                  tabIndex={-1}
                 />
                 {/* Preview */}
                 {preview ? (
                   <div className="relative rounded-xl overflow-hidden border border-border aspect-video bg-muted">
-                    <img src={preview} alt="Proof preview" className="w-full h-full object-cover" />
+                    <img 
+                      src={preview} 
+                      alt="Proof preview" 
+                      className="w-full h-full object-cover" 
+                      onError={() => {
+                        toast({ title: 'Preview Error', description: 'Failed to display image. You can still try to submit.', variant: 'destructive' });
+                      }}
+                    />
                     <button
                       type="button"
                       onClick={clearFile}
@@ -389,14 +420,16 @@ export function DeliveryCard({ delivery, courierId, onUpdate, orderNumber }: Del
                 accept="image/*"
                 capture="environment"
                 onChange={handleFileChange}
-                className="hidden"
+                className="absolute inset-0 w-0 h-0 opacity-0 pointer-events-none"
+                tabIndex={-1}
               />
               <input
                 ref={galleryPendingInputRef}
                 type="file"
                 accept="image/*"
                 onChange={handleFileChange}
-                className="hidden"
+                className="absolute inset-0 w-0 h-0 opacity-0 pointer-events-none"
+                tabIndex={-1}
               />
               {/* Preview */}
               {preview ? (
