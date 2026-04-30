@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -66,16 +66,47 @@ export function DeliveryCard({ delivery, courierId, onUpdate, orderNumber }: Del
   const [showUploadForm, setShowUploadForm] = useState(isProofPending);
   const { toast } = useToast();
 
-  // Refs for programmatic triggering — fixes mobile camera bug where
-  // label/htmlFor pattern drops the captured photo after camera dismisses.
+  // Refs for programmatic triggering
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const cameraPendingInputRef = useRef<HTMLInputElement>(null);
   const galleryPendingInputRef = useRef<HTMLInputElement>(null);
 
+  // Persistence: Restore state from sessionStorage on mount
+  useEffect(() => {
+    const savedNotes = sessionStorage.getItem(`delivery-notes-${delivery.id}`);
+    const savedPreview = sessionStorage.getItem(`delivery-preview-${delivery.id}`);
+    const savedShowForm = sessionStorage.getItem(`delivery-showform-${delivery.id}`);
+    
+    if (savedNotes) setNotes(savedNotes);
+    if (savedPreview) setPreview(savedPreview);
+    if (savedShowForm === 'true') setShowUploadForm(true);
+  }, [delivery.id]);
+
+  // Persistence: Save state to sessionStorage
+  useEffect(() => {
+    if (notes) sessionStorage.setItem(`delivery-notes-${delivery.id}`, notes);
+    else sessionStorage.removeItem(`delivery-notes-${delivery.id}`);
+  }, [notes, delivery.id]);
+
+  useEffect(() => {
+    if (preview) {
+      try {
+        sessionStorage.setItem(`delivery-preview-${delivery.id}`, preview);
+      } catch (e) {
+        console.warn('Failed to save preview to sessionStorage (likely too large)', e);
+      }
+    } else {
+      sessionStorage.removeItem(`delivery-preview-${delivery.id}`);
+    }
+  }, [preview, delivery.id]);
+
+  useEffect(() => {
+    sessionStorage.setItem(`delivery-showform-${delivery.id}`, showUploadForm ? 'true' : 'false');
+  }, [showUploadForm, delivery.id]);
+
   const openInput = (ref: { current: HTMLInputElement | null }) => {
     if (ref.current) {
-      // Reset value so onChange fires even if same file/photo is picked again
       ref.current.value = '';
       ref.current.click();
     }
@@ -95,40 +126,64 @@ export function DeliveryCard({ delivery, courierId, onUpdate, orderNumber }: Del
 
   const addr = delivery.order.shipping_address;
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
 
-    if (selectedFile.size > 10 * 1024 * 1024) {
-      toast({ title: 'Error', description: 'File size exceeds 10MB', variant: 'destructive' });
-      return;
+    setIsUploading(true);
+    try {
+      // Compress and resize image before previewing/saving
+      // This solves two problems: 
+      // 1. Faster uploads on mobile
+      // 2. Fits in sessionStorage so we can survive page refreshes
+      const compressedBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(selectedFile);
+        reader.onload = (event) => {
+          const img = new Image();
+          img.src = event.target?.result as string;
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const MAX_DIM = 1200;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+              if (width > MAX_DIM) {
+                height *= MAX_DIM / width;
+                width = MAX_DIM;
+              }
+            } else {
+              if (height > MAX_DIM) {
+                width *= MAX_DIM / height;
+                height = MAX_DIM;
+              }
+            }
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx?.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/jpeg', 0.8));
+          };
+          img.onerror = () => reject(new Error('Failed to load image'));
+        };
+        reader.onerror = () => reject(new Error('Failed to read file'));
+      });
+
+      setFile(selectedFile); // Keep original for now, but we can reconstruct it from base64 if needed
+      setPreview(compressedBase64);
+    } catch (err) {
+      console.error('Image processing failed', err);
+      toast({ title: 'Error', description: 'Failed to process image', variant: 'destructive' });
+    } finally {
+      setIsUploading(false);
     }
-
-    // Set the file for upload
-    setFile(selectedFile);
-
-    // Use FileReader for the preview instead of URL.createObjectURL.
-    // Base64 is more reliable on mobile browsers that might aggressively 
-    // garbage collect Blob URLs when switching back from the camera app.
-    const reader = new FileReader();
-    reader.onloadstart = () => {
-      setIsUploading(true); // Reuse loading state to show something is happening
-    };
-    reader.onloadend = () => {
-      setPreview(reader.result as string);
-      setIsUploading(false);
-    };
-    reader.onerror = () => {
-      toast({ title: 'Error', description: 'Failed to process image preview', variant: 'destructive' });
-      setIsUploading(false);
-    };
-    reader.readAsDataURL(selectedFile);
   };
 
   const clearFile = () => {
     setFile(null);
     setPreview(null);
-    // Reset inputs manually to ensure they can be reused
+    sessionStorage.removeItem(`delivery-preview-${delivery.id}`);
     if (cameraInputRef.current) cameraInputRef.current.value = '';
     if (galleryInputRef.current) galleryInputRef.current.value = '';
     if (cameraPendingInputRef.current) cameraPendingInputRef.current.value = '';
@@ -136,7 +191,21 @@ export function DeliveryCard({ delivery, courierId, onUpdate, orderNumber }: Del
   };
 
   const handleSubmitProof = async () => {
-    if (!file) {
+    let uploadFile = file;
+
+    // If file is missing (due to page refresh) but we have the preview, 
+    // reconstruct the file from the base64 preview.
+    if (!uploadFile && preview) {
+      try {
+        const res = await fetch(preview);
+        const blob = await res.blob();
+        uploadFile = new File([blob], 'proof.jpg', { type: 'image/jpeg' });
+      } catch (e) {
+        console.error('Failed to reconstruct file from preview', e);
+      }
+    }
+
+    if (!uploadFile) {
       toast({ title: 'Error', description: 'Please select a proof image', variant: 'destructive' });
       return;
     }
@@ -144,7 +213,7 @@ export function DeliveryCard({ delivery, courierId, onUpdate, orderNumber }: Del
     setIsUploading(true);
     try {
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', uploadFile);
       formData.append('notes', notes);
       formData.append('courierId', courierId);
 
@@ -162,6 +231,11 @@ export function DeliveryCard({ delivery, courierId, onUpdate, orderNumber }: Del
         const errorData = await res.json().catch(() => ({}));
         throw new Error(errorData.error || 'Failed to upload proof');
       }
+
+      // Success! Clean up storage
+      sessionStorage.removeItem(`delivery-notes-${delivery.id}`);
+      sessionStorage.removeItem(`delivery-preview-${delivery.id}`);
+      sessionStorage.removeItem(`delivery-showform-${delivery.id}`);
 
       toast({ 
         title: 'Success', 
