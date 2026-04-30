@@ -73,6 +73,8 @@ interface Order {
   created_at: string;
   updated_at: string;
   status_history: StatusHistory[];
+  proof_image_url?: string | null;
+  delivery_notes?: string | null;
 }
 
 function renderEntityLabel(value: string) {
@@ -860,6 +862,32 @@ export default function OrderDetailPage() {
                     <ImageIcon className="w-4 h-4 mr-2" />
                     View Proof of Delivery
                   </Button>
+                </div>
+              )}
+              {order.proof_image_url && (
+                <div className="pt-2 space-y-2">
+                  <Label className="text-muted-foreground flex items-center gap-2">
+                    <ImageIcon className="w-3 h-3" />
+                    Proof of Delivery
+                  </Label>
+                  <div 
+                    className="relative aspect-video rounded-lg overflow-hidden border border-border bg-muted cursor-pointer hover:ring-2 hover:ring-primary/20 transition-all"
+                    onClick={() => setShowProofModal(true)}
+                  >
+                    <img 
+                      src={order.proof_image_url} 
+                      alt="Proof" 
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/0 hover:bg-black/10 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                      <span className="text-[10px] bg-black/60 text-white px-2 py-1 rounded-full font-bold">CLICK TO ENLARGE</span>
+                    </div>
+                  </div>
+                  {order.delivery_notes && (
+                    <p className="text-[10px] text-muted-foreground italic border-l-2 border-primary/20 pl-2 py-1">
+                      "{order.delivery_notes}"
+                    </p>
+                  )}
                 </div>
               )}
               {order.delivered_at && (

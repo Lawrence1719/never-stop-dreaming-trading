@@ -109,6 +109,14 @@ export async function GET(
       };
     }
 
+    // Fetch proof of delivery if available
+    const { data: deliveryProof } = await supabaseAdmin
+      .from('courier_deliveries')
+      .select('proof_image_url, delivery_notes')
+      .eq('order_id', orderId)
+      .in('status', ['delivered', 'proof_pending'])
+      .maybeSingle();
+
     let items = Array.isArray(order.items) ? order.items : [];
 
     // ENRICHMENT: Fetch images for items if missing or placeholders
@@ -176,6 +184,8 @@ export async function GET(
       created_at: order.created_at,
       updated_at: order.updated_at,
       status_history: statusHistory || [],
+      proof_image_url: deliveryProof?.proof_image_url || null,
+      delivery_notes: deliveryProof?.delivery_notes || null,
     });
   } catch (error) {
     console.error('Failed to fetch order:', error);
