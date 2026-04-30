@@ -455,7 +455,7 @@ export function DeliveryCard({ delivery, courierId, onUpdate, orderNumber }: Del
                   <AlertDialogTrigger asChild>
                     <Button 
                       className="flex-1 rounded-xl bg-cyan-400 text-black hover:bg-cyan-500 font-bold" 
-                      disabled={isUploading || !file}
+                      disabled={isUploading || (!file && !preview)}
                     >
                       {isUploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-2" />}
                       Confirm
@@ -555,7 +555,7 @@ export function DeliveryCard({ delivery, courierId, onUpdate, orderNumber }: Del
               />
             </div>
 
-            <Button className="w-full" onClick={handleSubmitProof} disabled={isUploading || !file}>
+            <Button className="w-full" onClick={handleSubmitProof} disabled={isUploading || (!file && !preview)}>
               {isUploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-2" />}
               Submit Proof
             </Button>
