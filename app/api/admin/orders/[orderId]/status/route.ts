@@ -8,7 +8,7 @@ const ALLOWED_TRANSITIONS: Record<string, string[]> = {
   paid: ['processing', 'cancelled'],
   processing: ['shipped', 'cancelled'],
   shipped: ['delivered', 'cancelled'],
-  delivered: [],
+  delivered: ['completed'],
   cancelled: [],
   duplicate: ['cancelled'],
 };
@@ -81,7 +81,7 @@ export async function PUT(
     }
 
     // Validate status value
-    const validStatuses = ['pending', 'paid', 'processing', 'shipped', 'delivered', 'cancelled', 'duplicate'];
+    const validStatuses = ['pending', 'paid', 'processing', 'shipped', 'delivered', 'completed', 'cancelled', 'duplicate'];
     if (!validStatuses.includes(status)) {
       return NextResponse.json({ 
         error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` 

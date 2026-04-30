@@ -605,10 +605,10 @@ export default function OrderDetailPage() {
                     <span className="text-muted-foreground">Subtotal</span>
                     <span className="font-medium">{formatPrice(order.total - (order.shipping_cost || 0) + (order.discount_amount || 0))}</span>
                   </div>
-                  {order.discount_amount && order.discount_amount > 0 && (
+                  {(order.discount_amount ?? 0) > 0 && (
                     <div className="flex justify-between items-center text-sm text-emerald-600 dark:text-emerald-400">
                       <span>Discount</span>
-                      <span className="font-medium">-{formatPrice(order.discount_amount)}</span>
+                      <span className="font-medium">-{formatPrice(order.discount_amount ?? 0)}</span>
                     </div>
                   )}
                   <div className="flex justify-between items-center text-sm">

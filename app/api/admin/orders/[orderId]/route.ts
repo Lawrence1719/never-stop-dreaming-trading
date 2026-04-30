@@ -264,7 +264,7 @@ export async function PUT(
     console.log('[PUT] Update data:', { status, tracking_number, courier, notes, isManualOverride });
 
     // Validate status
-    const validStatuses = ['pending', 'paid', 'processing', 'shipped', 'delivered', 'cancelled', 'duplicate'];
+    const validStatuses = ['pending', 'paid', 'processing', 'shipped', 'delivered', 'completed', 'cancelled', 'duplicate'];
     if (!status || !validStatuses.includes(status)) {
       return NextResponse.json({ 
         error: `Invalid status: ${status}`,
@@ -340,6 +340,13 @@ export async function PUT(
       updateData.delivered_at = new Date().toISOString();
     }
 
+    // When admin manually completes an order, stamp confirmed_by_customer_at
+    // so the sidebar "Customer Confirmation" section shows as confirmed.
+    if (status === 'completed') {
+      updateData.confirmed_by_customer_at = new Date().toISOString();
+      updateData.auto_confirmed = false;
+    }
+
     console.log('[PUT] Updating order with data:', updateData);
 
     // Update order
@@ -378,6 +385,8 @@ export async function PUT(
       let finalNotes = notes?.trim() || null;
       if (status === 'delivered' && isManualOverride) {
         finalNotes = 'Manually confirmed as delivered by admin (no courier proof uploaded)';
+      } else if (status === 'completed') {
+        finalNotes = notes?.trim() || 'Order marked as completed by admin';
       } else if (status === 'shipped') {
         const personnelNote = assignedPersonnelName ? `Courier assigned: ${assignedPersonnelName}` : '';
         const baseNote = notes?.trim() ? notes.trim() : 'Package handed to courier';

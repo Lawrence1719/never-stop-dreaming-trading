@@ -511,10 +511,10 @@ export default function OrderDetailsPage({ params }: { params: Promise<{ orderId
                     <span className="text-muted-foreground uppercase tracking-wide">Subtotal</span>
                     <span>{formatPrice(displaySubtotal)}</span>
                   </div>
-                  {order.discount_amount && order.discount_amount > 0 && (
+                  {(order.discount_amount ?? 0) > 0 && (
                     <div className="flex justify-between text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                       <span className="uppercase tracking-wide">Discount</span>
-                      <span>-{formatPrice(order.discount_amount)}</span>
+                      <span>-{formatPrice(order.discount_amount ?? 0)}</span>
                     </div>
                   )}
                   <div className="flex justify-between text-xs font-semibold">

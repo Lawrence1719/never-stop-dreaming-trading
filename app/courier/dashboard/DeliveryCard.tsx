@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -65,6 +65,21 @@ export function DeliveryCard({ delivery, courierId, onUpdate, orderNumber }: Del
   const isProofPending = delivery.status === 'proof_pending';
   const [showUploadForm, setShowUploadForm] = useState(isProofPending);
   const { toast } = useToast();
+
+  // Refs for programmatic triggering — fixes mobile camera bug where
+  // label/htmlFor pattern drops the captured photo after camera dismisses.
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const cameraPendingInputRef = useRef<HTMLInputElement>(null);
+  const galleryPendingInputRef = useRef<HTMLInputElement>(null);
+
+  const openInput = (ref: { current: HTMLInputElement | null }) => {
+    if (ref.current) {
+      // Reset value so onChange fires even if same file/photo is picked again
+      ref.current.value = '';
+      ref.current.click();
+    }
+  };
 
   if (!delivery.order) {
     return (
@@ -260,9 +275,9 @@ export function DeliveryCard({ delivery, courierId, onUpdate, orderNumber }: Del
             <div className="w-full space-y-4">
               <div className="space-y-2">
                 <Label>Proof of Delivery</Label>
-                {/* Hidden inputs */}
+                {/* Hidden inputs — triggered via ref to avoid mobile camera bug */}
                 <input
-                  id={`camera-${delivery.id}`}
+                  ref={cameraInputRef}
                   type="file"
                   accept="image/*"
                   capture="environment"
@@ -270,7 +285,7 @@ export function DeliveryCard({ delivery, courierId, onUpdate, orderNumber }: Del
                   className="hidden"
                 />
                 <input
-                  id={`gallery-${delivery.id}`}
+                  ref={galleryInputRef}
                   type="file"
                   accept="image/*"
                   onChange={handleFileChange}
@@ -293,22 +308,24 @@ export function DeliveryCard({ delivery, courierId, onUpdate, orderNumber }: Del
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-2">
-                    <label
-                      htmlFor={`camera-${delivery.id}`}
+                    <button
+                      type="button"
+                      onClick={() => openInput(cameraInputRef)}
                       className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border-2 border-dashed border-cyan-400/50 bg-cyan-400/5 hover:bg-cyan-400/10 cursor-pointer transition text-center"
                     >
                       <Camera className="w-6 h-6 text-cyan-400" />
                       <span className="text-xs font-semibold text-cyan-400">Take Photo</span>
                       <span className="text-[10px] text-muted-foreground">Use camera</span>
-                    </label>
-                    <label
-                      htmlFor={`gallery-${delivery.id}`}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openInput(galleryInputRef)}
                       className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border-2 border-dashed border-border hover:bg-muted/30 cursor-pointer transition text-center"
                     >
                       <FolderOpen className="w-6 h-6 text-muted-foreground" />
                       <span className="text-xs font-semibold text-muted-foreground">Choose File</span>
                       <span className="text-[10px] text-muted-foreground">From gallery</span>
-                    </label>
+                    </button>
                   </div>
                 )}
               </div>
@@ -365,9 +382,9 @@ export function DeliveryCard({ delivery, courierId, onUpdate, orderNumber }: Del
           <div className="w-full space-y-4">
             <div className="space-y-2">
               <Label>Proof of Delivery</Label>
-              {/* Hidden inputs */}
+              {/* Hidden inputs — triggered via ref to avoid mobile camera bug */}
               <input
-                id={`camera-pending-${delivery.id}`}
+                ref={cameraPendingInputRef}
                 type="file"
                 accept="image/*"
                 capture="environment"
@@ -375,7 +392,7 @@ export function DeliveryCard({ delivery, courierId, onUpdate, orderNumber }: Del
                 className="hidden"
               />
               <input
-                id={`gallery-pending-${delivery.id}`}
+                ref={galleryPendingInputRef}
                 type="file"
                 accept="image/*"
                 onChange={handleFileChange}
@@ -398,22 +415,24 @@ export function DeliveryCard({ delivery, courierId, onUpdate, orderNumber }: Del
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-2">
-                  <label
-                    htmlFor={`camera-pending-${delivery.id}`}
+                  <button
+                    type="button"
+                    onClick={() => openInput(cameraPendingInputRef)}
                     className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border-2 border-dashed border-cyan-400/50 bg-cyan-400/5 hover:bg-cyan-400/10 cursor-pointer transition text-center"
                   >
                     <Camera className="w-6 h-6 text-cyan-400" />
                     <span className="text-xs font-semibold text-cyan-400">Take Photo</span>
                     <span className="text-[10px] text-muted-foreground">Use camera</span>
-                  </label>
-                  <label
-                    htmlFor={`gallery-pending-${delivery.id}`}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openInput(galleryPendingInputRef)}
                     className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border-2 border-dashed border-border hover:bg-muted/30 cursor-pointer transition text-center"
                   >
                     <FolderOpen className="w-6 h-6 text-muted-foreground" />
                     <span className="text-xs font-semibold text-muted-foreground">Choose File</span>
                     <span className="text-[10px] text-muted-foreground">From gallery</span>
-                  </label>
+                  </button>
                 </div>
               )}
             </div>
