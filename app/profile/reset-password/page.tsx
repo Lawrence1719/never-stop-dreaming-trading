@@ -65,11 +65,20 @@ function ResetPasswordForm() {
 
     setStatus('saving');
     try {
-      // updateUser() uses the active PASSWORD_RECOVERY session —
-      // no token reads, no listUsers(), no user_metadata writes.
-      const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+      const res = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: newPassword }),
+      });
 
-      if (updateError) throw updateError;
+      if (res.status === 429) {
+        throw new Error('Too many attempts. Please try again later.');
+      }
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to update password');
+      }
 
       // Force sign out immediately to prevent automatic login
       await supabase.auth.signOut();

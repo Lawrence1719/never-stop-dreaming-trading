@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { getClient as getSupabaseAdmin } from '@/lib/supabase/admin';
+import { rateLimiters, getIdentifier, rateLimitResponse } from '@/lib/rate-limit';
 
 /**
  * Products Report API for Exporting.
@@ -26,6 +27,14 @@ export async function GET(request: NextRequest) {
 
     if (profile?.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const identifier = getIdentifier(request, user.id);
+    try {
+      const { success, reset } = await rateLimiters.admin.limit(identifier);
+      if (!success) return rateLimitResponse(reset);
+    } catch (err) {
+      console.error('[RateLimit] Redis unavailable, failing open:', err);
     }
 
     // 3. Use Admin Client (Service Role)

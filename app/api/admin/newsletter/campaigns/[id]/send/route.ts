@@ -3,6 +3,7 @@ import { getClient } from '@/lib/supabase/admin';
 import { transporter, defaultFrom } from '@/lib/emails/mailer';
 import { renderNewsletterEmail } from '@/lib/emails/newsletter-template';
 import { verifyAdminAuth } from '@/lib/admin/auth';
+import { rateLimiters, getIdentifier, rateLimitResponse } from '@/lib/rate-limit';
 
 export async function POST(
   req: NextRequest,
@@ -15,6 +16,14 @@ export async function POST(
   const authResult = await verifyAdminAuth(token);
   if (authResult.error) {
     return NextResponse.json({ error: authResult.error }, { status: authResult.status });
+  }
+
+  const identifier = getIdentifier(req, authResult.user?.id);
+  try {
+    const { success, reset } = await rateLimiters.expensive.limit(identifier);
+    if (!success) return rateLimitResponse(reset);
+  } catch (err) {
+    console.error('[RateLimit] Redis unavailable, failing open:', err);
   }
 
   try {

@@ -1,8 +1,16 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { rateLimiters, getIdentifier, rateLimitResponse } from '@/lib/rate-limit';
 
 // ONE-TIME use route — run this once then delete it.
 // Visit /api/admin/run-migration to apply the updated RPCs.
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const identifier = getIdentifier(request);
+  try {
+    const { success, reset } = await rateLimiters.expensive.limit(identifier);
+    if (!success) return rateLimitResponse(reset);
+  } catch (err) {
+    console.error('[RateLimit] Redis unavailable, failing open:', err);
+  }
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 

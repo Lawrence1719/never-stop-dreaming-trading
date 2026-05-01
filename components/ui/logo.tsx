@@ -71,6 +71,7 @@ export function Logo({ variant, className, priority = false, width: customWidth,
           transformOrigin,
         }}
         priority={priority}
+        loading={priority ? "eager" : undefined}
       />
     </span>
   );

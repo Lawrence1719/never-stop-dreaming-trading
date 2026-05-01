@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getClient } from '@/lib/supabase/admin';
 import { isSuperAdminIdentity, verifyStaffAccess, type StaffRole } from '@/lib/admin/staff';
+import { rateLimiters, getIdentifier, rateLimitResponse } from '@/lib/rate-limit';
 
 export async function PATCH(
   request: NextRequest,
@@ -55,6 +56,15 @@ export async function PATCH(
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
       const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
       const verifier = createClient(supabaseUrl, supabaseAnonKey);
+
+      const identifier = getIdentifier(request, authResult.user.id);
+      try {
+        const { success, reset } = await rateLimiters.auth.limit(identifier);
+        if (!success) return rateLimitResponse(reset);
+      } catch (err) {
+        console.error('[RateLimit] Redis unavailable, failing open:', err);
+      }
+
       const { error: passwordError } = await verifier.auth.signInWithPassword({
         email: authResult.user.email || '',
         password: currentPassword,

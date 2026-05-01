@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { sendOrderConfirmationEmail } from '@/lib/emails/order-emails';
 import { createNotification, checkLowStockAndNotify } from '@/lib/notifications/service';
+import { rateLimiters, getIdentifier, rateLimitResponse } from '@/lib/rate-limit';
 
 /**
  * POST /api/orders/create
@@ -54,6 +55,14 @@ export async function POST(request: NextRequest) {
 
     if (userError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const identifier = getIdentifier(request, user.id);
+    try {
+      const { success, reset } = await rateLimiters.user.limit(identifier);
+      if (!success) return rateLimitResponse(reset);
+    } catch (err) {
+      console.error('[RateLimit] Redis unavailable, failing open:', err);
     }
 
     // The RPC will handle the idempotency check in a single database transaction,

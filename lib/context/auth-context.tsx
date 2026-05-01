@@ -50,6 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq("id", session.user.id)
         .single();
 
+      // TODO: Remove after all legacy users have profiles confirmed.
       // If profile doesn't exist, create it
       if (error && (error.code === 'PGRST116' || error.message?.includes('No rows') || error.message?.includes('not found'))) {
         const userMetadata = session.user.user_metadata || {};
@@ -245,20 +246,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       console.log('Auth context: Attempting login for email:', email);
       
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
       });
 
-      console.log('Auth context: Login response:', { 
-        hasData: !!data, 
-        hasSession: !!data?.session, 
-        error: error?.message 
-      });
+      if (res.status === 429) {
+        throw new Error('Too many attempts. Please try again later.');
+      }
 
-      if (error) {
-        console.error('Auth context: Login error:', error);
-        return { error };
+      const data = await res.json();
+
+      if (!res.ok) {
+        return { error: new Error(data.error || 'Failed to login') };
       }
 
       if (data.session) {
@@ -311,28 +312,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = async (name: string, email: string, phone: string, password: string) => {
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            name,
-            phone,
-            role: "customer",
-          },
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, name, phone }),
       });
 
-      if (error) {
-        return { error };
+      if (res.status === 429) {
+        throw new Error('Too many attempts. Please try again later.');
       }
 
-      // If user is returned but identities is empty, it means user already exists
-      // but Supabase is returning a fake success for security (when email confirmation is enabled).
-      if (data.user && data.user.identities && data.user.identities.length === 0) {
-        console.warn('[auth] SignUp returned fake success (user already exists)');
-        return { error: new Error("User already registered") };
+      const data = await res.json();
+
+      if (!res.ok) {
+        return { error: new Error(data.error || 'Failed to register') };
       }
 
       if (data.session) {
@@ -393,14 +386,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: new Error("User not authenticated") };
     }
 
-    const redirectTo =
-      `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/admin/profile/reset-password`;
+    try {
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: user.email }),
+      });
 
-    const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
-      redirectTo,
-    });
+      if (res.status === 429) {
+        return { error: new Error('Too many attempts. Please try again later.') };
+      }
 
-    return { error: error as Error | null };
+      const data = await res.json();
+      if (!res.ok) {
+        return { error: new Error(data.error || 'Failed to send reset email') };
+      }
+
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
   };
 
   const requestCustomerPasswordReset = async () => {
@@ -408,14 +413,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { error: new Error("User not authenticated") };
     }
 
-    const redirectTo =
-      `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/profile/reset-password`;
+    try {
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: user.email }),
+      });
 
-    const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
-      redirectTo,
-    });
+      if (res.status === 429) {
+        return { error: new Error('Too many attempts. Please try again later.') };
+      }
 
-    return { error: error as Error | null };
+      const data = await res.json();
+      if (!res.ok) {
+        return { error: new Error(data.error || 'Failed to send reset email') };
+      }
+
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
   };
 
   const resendConfirmationEmail = async (email: string) => {

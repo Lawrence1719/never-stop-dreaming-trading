@@ -1,11 +1,12 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { rateLimiters, getIdentifier, rateLimitResponse } from '@/lib/rate-limit';
 
 /**
  * SOFT DELETE: Marks the account for deletion by setting deleted_at = NOW()
  * The user has 30 days to log back in and restore the account.
  */
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
     const supabase = await createServerClient();
     
@@ -14,6 +15,14 @@ export async function POST() {
 
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const identifier = getIdentifier(request, user.id);
+    try {
+      const { success, reset } = await rateLimiters.user.limit(identifier);
+      if (!success) return rateLimitResponse(reset);
+    } catch (err) {
+      console.error('[RateLimit] Redis unavailable, failing open:', err);
     }
 
     // Mark as deleted

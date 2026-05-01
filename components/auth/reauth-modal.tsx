@@ -30,17 +30,19 @@ export function ReauthModal({ isOpen, onClose, onVerified, email }: ReauthModalP
     setError("");
 
     try {
-      // Re-signing in with password is the standard way to verify identity in Supabase
-      const { error: loginError } = await supabase.auth.signInWithPassword({
-        email: email.toLowerCase(),
-        password,
+      const res = await fetch('/api/auth/reauth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.toLowerCase(), password }),
       });
 
-      if (loginError) {
-        if (loginError.message.includes("Invalid login credentials") || loginError.message.includes("Invalid credentials")) {
-          throw new Error("Incorrect password. Please try again.");
-        }
-        throw loginError;
+      if (res.status === 429) {
+        throw new Error('Too many attempts. Please try again later.');
+      }
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Incorrect password. Please try again.");
       }
 
       toast({

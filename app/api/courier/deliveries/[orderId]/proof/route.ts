@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getClient } from '@/lib/supabase/admin';
 import { createNotification } from '@/lib/notifications/service';
 import { sendOrderStatusEmail } from '@/lib/emails/order-emails';
+import { rateLimiters, getIdentifier, rateLimitResponse } from '@/lib/rate-limit';
 
 export async function POST(
   request: NextRequest,
@@ -37,6 +38,14 @@ export async function POST(
 
     if (profileError || profile?.role !== 'courier') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const identifier = getIdentifier(request, user.id);
+    try {
+      const { success, reset } = await rateLimiters.user.limit(identifier);
+      if (!success) return rateLimitResponse(reset);
+    } catch (err) {
+      console.error('[RateLimit] Redis unavailable, failing open:', err);
     }
 
     // 4. Parse the multipart body now that auth has passed.

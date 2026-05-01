@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getClient } from '@/lib/supabase/admin';
 import { formatOrderNumber } from '@/lib/utils/formatting';
+import { rateLimiters, getIdentifier, rateLimitResponse } from '@/lib/rate-limit';
 
 /**
  * GET /api/orders/[orderId]/invoice
@@ -23,6 +24,14 @@ export async function GET(
 
     const { data: { user }, error: userErr } = await supabase.auth.getUser(token);
     if (userErr || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const identifier = getIdentifier(request, user.id);
+    try {
+      const { success, reset } = await rateLimiters.expensive.limit(identifier);
+      if (!success) return rateLimitResponse(reset);
+    } catch (err) {
+      console.error('[RateLimit] Redis unavailable, failing open:', err);
+    }
 
     // Caller role
     const { data: callerProfile } = await supabase

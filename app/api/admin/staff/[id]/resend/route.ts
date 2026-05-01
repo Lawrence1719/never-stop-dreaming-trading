@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getClient } from '@/lib/supabase/admin';
 import { verifyStaffAccess, type StaffRole } from '@/lib/admin/staff';
+import { rateLimiters, getIdentifier, rateLimitResponse } from '@/lib/rate-limit';
 
 export async function POST(
   request: NextRequest,
@@ -18,6 +19,14 @@ export async function POST(
   // Couriers cannot access staff management
   if (!authResult.isSuperAdmin && authResult.profile?.role !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  const identifier = getIdentifier(request, authResult.user.id);
+  try {
+    const { success, reset } = await rateLimiters.high.limit(identifier);
+    if (!success) return rateLimitResponse(reset);
+  } catch (err) {
+    console.error('[RateLimit] Redis unavailable, failing open:', err);
   }
 
   try {

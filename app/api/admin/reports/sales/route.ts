@@ -9,6 +9,7 @@ import {
   getGrowthRate,
   getDateRange,
 } from '@/lib/supabase/admin';
+import { rateLimiters, getIdentifier, rateLimitResponse } from '@/lib/rate-limit';
 
 const DELETED_PRODUCT_FALLBACK = '[Deleted Product]';
 const LEGACY_UNKNOWN_PRODUCT_NAME = 'Unknown Product';
@@ -33,6 +34,14 @@ export async function GET(request: NextRequest) {
 
     if (profile?.role !== 'admin') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    const identifier = getIdentifier(request, user.id);
+    try {
+      const { success, reset } = await rateLimiters.admin.limit(identifier);
+      if (!success) return rateLimitResponse(reset);
+    } catch (err) {
+      console.error('[RateLimit] Redis unavailable, failing open:', err);
     }
 
     const supabaseAdmin = getClient()

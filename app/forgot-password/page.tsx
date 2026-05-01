@@ -29,12 +29,19 @@ export default function ForgotPasswordPage() {
     setIsLoading(true);
 
     try {
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
-        redirectTo: `${window.location.origin}/auth/reset-password`,
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: trimmedEmail }),
       });
 
-      if (resetError) {
-        throw new Error(resetError.message);
+      if (res.status === 429) {
+        throw new Error('Too many attempts. Please try again later.');
+      }
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to send reset email');
       }
 
       setSubmitted(true);

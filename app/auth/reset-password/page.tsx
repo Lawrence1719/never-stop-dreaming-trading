@@ -114,13 +114,29 @@ function ResetPasswordContent() {
     setErrors({});
 
     try {
-      const { error } = await supabase.auth.updateUser({ password });
+      const res = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
 
-      if (error) {
-        setErrors({ form: error.message });
+      if (res.status === 429) {
+        setErrors({ form: 'Too many attempts. Please try again later.' });
         toast({
           title: "Error",
-          description: error.message,
+          description: 'Too many attempts. Please try again later.',
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setErrors({ form: data.error || 'Failed to update password' });
+        toast({
+          title: "Error",
+          description: data.error || 'Failed to update password',
           variant: "destructive",
         });
       } else {

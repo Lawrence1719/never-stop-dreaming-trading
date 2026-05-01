@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { storeToken, validateToken as validateTokenUtil } from '@/lib/integration/token-store';
+import { rateLimiters, getIdentifier, rateLimitResponse } from '@/lib/rate-limit';
 
 /**
  * POST /api/integration/auth
@@ -71,6 +72,14 @@ function validateCredentials(username: string, password: string): boolean {
 }
 
 export async function POST(request: NextRequest) {
+  const identifier = getIdentifier(request);
+  try {
+    const { success, reset } = await rateLimiters.high.limit(identifier);
+    if (!success) return rateLimitResponse(reset);
+  } catch (err) {
+    console.error('[RateLimit] Redis unavailable, failing open:', err);
+  }
+
   try {
     let body: unknown;
     try {
