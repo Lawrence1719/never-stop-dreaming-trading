@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     }
     
     const { name, email, phone, password } = result.data;
-    const origin = request.headers.get('origin') || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const origin = request.headers.get('origin') || process.env.NEXT_PUBLIC_APP_URL || 'https://never-stop-dreaming-trading.vercel.app';
     
     const supabase = await createServerClient();
     

@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     if (!error) {
       const isLocalEnv = process.env.NODE_ENV === 'development'
       if (isLocalEnv) {
-        // we can be sure that "origin" is http://localhost:3000
+        // Handle local environment redirects if needed
         return NextResponse.redirect(`${origin}${next}`)
       } else {
         return NextResponse.redirect(`${origin}${next}`)
