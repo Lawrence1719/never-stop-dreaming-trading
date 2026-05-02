@@ -7,11 +7,28 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { MapPin, Phone, User, Package, Upload, CheckCircle, Clock, Loader2, Image as ImageIcon, Camera, FolderOpen, X } from 'lucide-react';
+import { MapPin, Phone, User, Package, Upload, CheckCircle, Clock, Loader2, Image as ImageIcon, Camera, FolderOpen, X, XCircle, AlertCircle } from 'lucide-react';
 import { formatPrice, formatDate, formatOrderNumber } from '@/lib/utils/formatting';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase/client';
+import { rejectionReasonLabels } from '@/lib/constants/delivery';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -62,8 +79,13 @@ export function DeliveryCard({ delivery, courierId, onUpdate, orderNumber }: Del
   const [preview, setPreview] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
   const isDelivered = delivery.status === 'delivered';
+  const isFailed = delivery.status === 'failed';
   const isProofPending = delivery.status === 'proof_pending';
   const [showUploadForm, setShowUploadForm] = useState(isProofPending);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState<string>('');
+  const [rejectNotes, setRejectNotes] = useState('');
+  const [isRejecting, setIsRejecting] = useState(false);
   const { toast } = useToast();
 
   // Refs for programmatic triggering
@@ -252,6 +274,50 @@ export function DeliveryCard({ delivery, courierId, onUpdate, orderNumber }: Del
     }
   };
 
+  const handleReject = async () => {
+    if (!rejectReason) {
+      toast({ title: 'Error', description: 'Please select a reason for rejection', variant: 'destructive' });
+      return;
+    }
+
+    setIsRejecting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      const res = await fetch(`/api/courier/deliveries/${delivery.order_id}/reject`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({
+          reason: rejectReason,
+          notes: rejectNotes,
+        }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to record rejection');
+      }
+
+      toast({ 
+        title: 'Success', 
+        description: 'Delivery rejection recorded. Order has been cancelled.',
+        variant: 'success'
+      });
+      
+      setShowRejectModal(false);
+      onUpdate();
+    } catch (err) {
+      console.error('Rejection failed', err);
+      toast({ title: 'Rejection Failed', description: err instanceof Error ? err.message : 'An error occurred', variant: 'destructive' });
+    } finally {
+      setIsRejecting(false);
+    }
+  };
+
+
 
   return (
     <Card className={`flex flex-col h-full overflow-hidden border-2 transition-all hover:shadow-xl group/card ${isDelivered ? 'border-green-100 bg-green-50/10' : 'border-border/50 bg-background/50 backdrop-blur-sm'}`}>
@@ -272,7 +338,7 @@ export function DeliveryCard({ delivery, courierId, onUpdate, orderNumber }: Del
               ⚠️ Proof Required
             </Badge>
           ) : (
-            <Badge variant={isDelivered ? 'success' : 'default'} className="capitalize">
+            <Badge variant={isDelivered ? 'success' : isFailed ? 'destructive' : 'default'} className="capitalize">
               {delivery.status}
             </Badge>
           )}
@@ -363,10 +429,23 @@ export function DeliveryCard({ delivery, courierId, onUpdate, orderNumber }: Del
       <CardFooter className="mt-auto bg-muted/10 border-t pt-4">
         {!isDelivered && !isProofPending ? (
           !showUploadForm ? (
-            <Button className="w-full group" onClick={() => setShowUploadForm(true)}>
-              <Upload className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" />
-              Complete Delivery
-            </Button>
+            <div className="flex flex-col gap-2 w-full">
+              <Button 
+                className="w-full h-12 rounded-xl font-black uppercase tracking-widest group shadow-lg shadow-primary/10" 
+                onClick={() => setShowUploadForm(true)}
+              >
+                <Upload className="w-4 h-4 mr-2 group-hover:scale-110 transition-transform" />
+                Complete Delivery
+              </Button>
+              <Button 
+                variant="outline" 
+                className="w-full border-rose-500/30 text-rose-600 hover:bg-rose-500/5 h-11 rounded-xl font-bold text-xs uppercase tracking-wider" 
+                onClick={() => setShowRejectModal(true)}
+              >
+                <XCircle className="w-4 h-4 mr-2" />
+                Customer Rejected
+              </Button>
+            </div>
           ) : (
             <div className="w-full space-y-4">
               <div className="space-y-2">
@@ -566,6 +645,69 @@ export function DeliveryCard({ delivery, courierId, onUpdate, orderNumber }: Del
             Delivery Completed
           </div>
         )}
+
+        {/* Rejection Modal */}
+        <Dialog open={showRejectModal} onOpenChange={setShowRejectModal}>
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-black tracking-tight text-rose-600 uppercase">Report Delivery Rejection</DialogTitle>
+              <DialogDescription className="font-medium">
+                The customer has refused to accept this delivery.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="reason" className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Reason (Required)</Label>
+                <Select value={rejectReason} onValueChange={setRejectReason}>
+                  <SelectTrigger id="reason" className="rounded-xl h-12">
+                    <SelectValue placeholder="Select rejection reason" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(rejectionReasonLabels).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="notes" className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Additional Notes (Optional)</Label>
+                <Textarea
+                  id="notes"
+                  placeholder="Describe the issue in more detail..."
+                  value={rejectNotes}
+                  onChange={(e) => setRejectNotes(e.target.value)}
+                  className="min-h-[100px] rounded-xl"
+                  maxLength={500}
+                />
+              </div>
+
+              <Alert variant="destructive" className="bg-rose-50 border-rose-200 text-rose-800 rounded-xl">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle className="font-bold">Important</AlertTitle>
+                <AlertDescription className="text-xs font-medium">
+                  This action cannot be undone. The order will be cancelled and the item will be marked for return to warehouse. The customer will be notified.
+                </AlertDescription>
+              </Alert>
+            </div>
+            
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="ghost" onClick={() => setShowRejectModal(false)} disabled={isRejecting} className="rounded-xl font-bold">
+                Cancel
+              </Button>
+              <Button 
+                variant="destructive" 
+                onClick={handleReject} 
+                disabled={isRejecting || !rejectReason}
+                className="rounded-xl font-black uppercase tracking-widest px-8 h-12"
+              >
+                {isRejecting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <XCircle className="w-4 h-4 mr-2" />}
+                Confirm Rejection
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </CardFooter>
     </Card>
   );

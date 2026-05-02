@@ -158,6 +158,7 @@ export interface Order {
   deliveryNotes?: string | null;
   /** Newest first; omitted or empty when no history */
   statusHistory?: OrderStatusHistoryEntry[];
+  isRejected?: boolean;
 }
 
 export interface Profile {

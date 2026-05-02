@@ -48,6 +48,7 @@ interface Order {
   date: string;
   courier?: string | null;
   isIncomplete?: boolean;
+  isRejected?: boolean;
 }
 
 function renderEntityLabel(value: string) {
@@ -80,7 +81,6 @@ export default function OrdersPage() {
   const [orderToCancel, setOrderToCancel] = useState<Order | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [exportMode, setExportMode] = useState<ExportMode>('pdf-preview');
   const [exportData, setExportData] = useState<OrdersExportRow[]>([]);
@@ -150,7 +150,6 @@ export default function OrdersPage() {
           completed: 0,
           cancelled: 0,
           duplicate: 0,
-          incomplete: 0,
         };
         
         let totalRevenue = 0;
@@ -161,8 +160,9 @@ export default function OrdersPage() {
           if (counts[status] !== undefined) {
             counts[status]++;
           }
-          if (order.isIncomplete) {
-            counts.incomplete++;
+          if (order.isRejected) {
+            // Rejected orders are counted under cancelled
+            // The API handles the status being 'cancelled' for these
           }
           
           // Calculate revenue
@@ -268,7 +268,6 @@ export default function OrdersPage() {
     { value: 'completed', label: 'Completed' },
     { value: 'cancelled', label: 'Cancelled' },
     { value: 'duplicate', label: 'Duplicate' },
-    { value: 'incomplete', label: 'Incomplete' },
   ];
 
   const handleStatusChange = (status: string) => {
@@ -352,39 +351,6 @@ export default function OrdersPage() {
     }
   };
 
-  const handleBulkDeleteIncomplete = async () => {
-    const incompleteIds = orders.filter(o => o.isIncomplete).map(o => o.orderId);
-    if (incompleteIds.length === 0) return;
-
-    if (!confirm(`Are you sure you want to permanently delete all ${incompleteIds.length} incomplete orders? This action cannot be undone.`)) {
-      return;
-    }
-
-    setIsBulkDeleting(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const response = await fetch('/api/admin/orders', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token || ''}`
-        },
-        body: JSON.stringify({ ids: incompleteIds })
-      });
-
-      if (!response.ok) throw new Error('Bulk delete failed');
-
-      toast({ title: 'Success', description: `Deleted ${incompleteIds.length} ghost orders`, variant: 'success' });
-      
-      // Refresh current page
-      setCurrentPage(1);
-      setOrderStatus('all');
-    } catch (err) {
-      toast({ title: 'Error', description: err instanceof Error ? err.message : 'Delete failed', variant: 'destructive' });
-    } finally {
-      setIsBulkDeleting(false);
-    }
-  };
 
   const downloadCSV = (rows: string[][], filename: string) => {
     const content = rows.map(r => r.map(v => `"${v || ''}"`).join(',')).join('\n');
@@ -612,17 +578,6 @@ export default function OrdersPage() {
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              {orderStatus === 'incomplete' && orders.length > 0 && (
-                <Button 
-                  variant="destructive" 
-                  className="gap-2 font-bold" 
-                  onClick={handleBulkDeleteIncomplete}
-                  disabled={isBulkDeleting}
-                >
-                  {isBulkDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
-                  Bulk Delete Incomplete ({orders.length})
-                </Button>
-              )}
             </div>
             
             {/* Quick Filter Buttons */}
@@ -709,11 +664,6 @@ export default function OrdersPage() {
                       >
                         <div className="flex items-center gap-2">
                           {order.id}
-                          {order.isIncomplete && (
-                            <Badge variant="destructive" className="h-4 px-1 text-[8px] font-black uppercase tracking-tighter bg-red-600">
-                              Incomplete
-                            </Badge>
-                          )}
                         </div>
                       </TableCell>
                       <TableCell
@@ -741,7 +691,14 @@ export default function OrdersPage() {
                         className="cursor-pointer"
                         onClick={() => window.location.href = `/admin/orders/${order.orderId}`}
                       >
-                        <StatusBadge status={order.orderStatus} />
+                        <div className="flex items-center gap-2">
+                          <StatusBadge status={order.orderStatus} />
+                          {order.isRejected && (
+                            <Badge variant="outline" className="text-[10px] bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800">
+                              Rejected at delivery
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell
                         className="cursor-pointer"
@@ -863,6 +820,7 @@ export default function OrdersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
 
       {/* Orders Export Modal */}
       <OrdersExportModal

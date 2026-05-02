@@ -17,6 +17,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { rejectionReasonLabels } from '@/lib/constants/delivery';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { StatusBadge } from '@/components/admin/status-badge';
 import { useAuth } from '@/lib/context/auth-context';
@@ -75,6 +77,12 @@ interface Order {
   status_history: StatusHistory[];
   proof_image_url?: string | null;
   delivery_notes?: string | null;
+  rejection_info?: {
+    reason: string;
+    notes: string | null;
+    rejected_at: string;
+    courier_name: string;
+  } | null;
 }
 
 function renderEntityLabel(value: string) {
@@ -850,6 +858,28 @@ export default function OrderDetailPage() {
                   <Label className="text-muted-foreground">Assigned Courier</Label>
                   <p className="font-medium text-sm">{order.assigned_courier_name}</p>
                 </div>
+              )}
+              {order.rejection_info && (
+                <Alert variant="destructive" className="bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800 rounded-xl">
+                  <XCircle className="h-4 w-4 text-rose-600" />
+                  <AlertTitle className="text-sm font-black uppercase tracking-tight text-rose-700 dark:text-rose-400">Rejected at Delivery</AlertTitle>
+                  <AlertDescription className="text-xs space-y-2 mt-2">
+                    <div className="flex flex-col gap-1">
+                      <span className="font-bold text-rose-900 dark:text-rose-300">Reason:</span>
+                      <span className="bg-rose-100 dark:bg-rose-900/40 px-2 py-0.5 rounded border border-rose-200 dark:border-rose-800 inline-block w-fit">
+                        {rejectionReasonLabels[order.rejection_info.reason] || order.rejection_info.reason}
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <span className="font-bold text-rose-900 dark:text-rose-300">Notes:</span>
+                      <span className="italic">{order.rejection_info.notes || 'None provided'}</span>
+                    </div>
+                    <div className="flex flex-col gap-1 text-[10px] text-rose-600 dark:text-rose-500 pt-1 border-t border-rose-200 dark:border-rose-800">
+                      <span>Rejected at: {formatDate(order.rejection_info.rejected_at)}</span>
+                      <span>Courier: {order.rejection_info.courier_name}</span>
+                    </div>
+                  </AlertDescription>
+                </Alert>
               )}
               {order.status === 'delivered' && (
                 <div className="pt-2">

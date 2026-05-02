@@ -109,12 +109,12 @@ export async function GET(
       };
     }
 
-    // Fetch proof of delivery if available
-    const { data: deliveryProof } = await supabaseAdmin
+    // Fetch proof of delivery or rejection info if available
+    const { data: deliveryInfo } = await supabaseAdmin
       .from('courier_deliveries')
-      .select('proof_image_url, delivery_notes')
+      .select('proof_image_url, delivery_notes, status, rejection_reason, rejection_notes, rejected_at, courier:profiles!courier_id(name)')
       .eq('order_id', orderId)
-      .in('status', ['delivered', 'proof_pending'])
+      .in('status', ['delivered', 'proof_pending', 'failed'])
       .maybeSingle();
 
     let items = Array.isArray(order.items) ? order.items : [];
@@ -184,8 +184,14 @@ export async function GET(
       created_at: order.created_at,
       updated_at: order.updated_at,
       status_history: statusHistory || [],
-      proof_image_url: deliveryProof?.proof_image_url || null,
-      delivery_notes: deliveryProof?.delivery_notes || null,
+      proof_image_url: deliveryInfo?.proof_image_url || null,
+      delivery_notes: deliveryInfo?.delivery_notes || null,
+      rejection_info: deliveryInfo?.status === 'failed' ? {
+        reason: deliveryInfo.rejection_reason,
+        notes: deliveryInfo.rejection_notes,
+        rejected_at: deliveryInfo.rejected_at,
+        courier_name: (deliveryInfo.courier as any)?.name || 'Unknown'
+      } : null,
     });
   } catch (error) {
     console.error('Failed to fetch order:', error);

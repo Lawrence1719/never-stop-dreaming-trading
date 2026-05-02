@@ -37,11 +37,11 @@ export async function GET(request: NextRequest) {
     // Build query
     let query = supabaseAdmin
       .from('orders')
-      .select('id, status, total, items, payment_method, payment_status, paid_at, created_at, updated_at, user_id, shipping_address_id, courier_id, courier_name:profiles!courier_id(name)')
+      .select('id, status, total, items, payment_method, payment_status, paid_at, created_at, updated_at, user_id, shipping_address_id, courier_id, courier_name:profiles!courier_id(name), courier_deliveries(status, rejection_reason)')
       .order('created_at', { ascending: false});
 
     // Apply filters
-    if (status !== 'all' && status !== 'incomplete') {
+    if (status !== 'all' && status !== 'incomplete' && status !== 'rejected') {
       query = query.eq('status', status);
     }
 
@@ -149,12 +149,18 @@ export async function GET(request: NextRequest) {
           date,
           courier: row.courier_name?.name || null,
           isIncomplete: !row.shipping_address_id,
+          isRejected: (row.courier_deliveries as any[] || []).some(d => d.status === 'failed' && d.rejection_reason),
         };
       })
       .filter((order: any) => {
         // Apply incomplete filter if requested
         if (status === 'incomplete') {
           return order.isIncomplete;
+        }
+        
+        // Apply rejected filter
+        if (status === 'rejected') {
+          return order.isRejected;
         }
         
         // Apply search filter

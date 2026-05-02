@@ -59,10 +59,11 @@ function formatTimelineTimestamp(iso: string): string {
   return `${datePart} at ${timePart}`;
 }
 
-function statusTimelineLabel(status: string): string {
+function statusTimelineLabel(status: string, notes?: string | null): string {
   const s = status.toLowerCase();
   if (s === "paid") return "Processing";
   if (s === "completed") return "Delivered";
+  if (s === "cancelled" && notes?.startsWith("Rejected at delivery:")) return "Cancelled at Delivery";
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
@@ -558,7 +559,7 @@ export default function OrderDetailsPage({ params }: { params: Promise<{ orderId
                             />
                             <div className="min-w-0 flex-1 pt-0.5">
                               <p className={cn("text-xs font-bold uppercase tracking-wide", label)}>
-                                {statusTimelineLabel(entry.newStatus)}
+                                {statusTimelineLabel(entry.newStatus, entry.notes)}
                               </p>
                               <p className="text-[11px] text-muted-foreground mt-0.5">
                                 {formatTimelineTimestamp(entry.changedAt)}
@@ -581,7 +582,11 @@ export default function OrderDetailsPage({ params }: { params: Promise<{ orderId
                                     </p>
                                   )}
                                   {entry.notes?.trim() && (
-                                    <p className="italic">{entry.notes.trim()}</p>
+                                    <p className="italic">
+                                      {entry.notes.startsWith("Rejected at delivery:") 
+                                        ? "Your order was rejected at delivery. Please contact NSD if you have questions."
+                                        : entry.notes.trim()}
+                                    </p>
                                   )}
                                 </div>
                               )}

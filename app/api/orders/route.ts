@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
         shipping_address:addresses!shipping_address_id(*),
         reviews(id, rating, comment, created_at),
         courier_profile:profiles!courier_id(name, phone),
-        courier_deliveries(proof_image_url, delivery_notes, delivered_at),
+        courier_deliveries(status, proof_image_url, delivery_notes, delivered_at, rejection_reason),
         order_status_history(id, old_status, new_status, changed_at, notes, tracking_number, courier),
         order_items(
           *,
@@ -216,6 +216,7 @@ export async function GET(request: NextRequest) {
           return {
             proofImageUrl: d?.proof_image_url || null,
             deliveryNotes: d?.delivery_notes || null,
+            isRejected: d?.status === 'failed' && !!d?.rejection_reason,
           };
         })(),
         ...(() => {
