@@ -25,6 +25,22 @@ export async function POST(request: NextRequest) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 401 });
     }
+
+    // Check if user account is blocked
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('is_blocked')
+      .eq('id', data.user.id)
+      .single();
+
+    if (profile?.is_blocked) {
+      // Sign them back out immediately
+      await supabase.auth.signOut();
+      return NextResponse.json(
+        { error: 'Your account has been deactivated. Please contact NSD for assistance.' },
+        { status: 403 }
+      );
+    }
     
     return NextResponse.json({ user: data.user, session: data.session }, { status: 200 });
   } catch (error) {

@@ -66,12 +66,28 @@ export async function POST(
     }
 
     // Use admin client for the actual operation
-    const { error: unblockError } = await supabaseAdmin.auth.admin.updateUserById(id, {
-      user_metadata: { blocked: false },
+    // 1. Remove permanent ban in Supabase Auth
+    const { error: unbanError } = await supabaseAdmin.auth.admin.updateUserById(id, {
+      ban_duration: '0', // '0' removes the ban
     });
 
-    if (unblockError) {
-      return NextResponse.json({ error: unblockError.message }, { status: 500 });
+    if (unbanError) {
+      return NextResponse.json({ error: unbanError.message }, { status: 500 });
+    }
+
+    // 2. Update profiles table
+    const { error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .update({
+        is_blocked: false,
+        blocked_at: null,
+        blocked_by: null,
+      })
+      .eq('id', id);
+
+    if (profileError) {
+      console.error('Failed to update profile blocked status:', profileError);
+      return NextResponse.json({ error: 'Failed to update customer profile' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });

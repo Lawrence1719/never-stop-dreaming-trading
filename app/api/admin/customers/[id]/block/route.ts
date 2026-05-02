@@ -66,12 +66,36 @@ export async function POST(
     }
 
     // Use admin client for the actual operation
-    const { error: blockError } = await supabaseAdmin.auth.admin.updateUserById(id, {
-      user_metadata: { blocked: true },
+    // 1. Ban the user in Supabase Auth — prevents future logins
+    const { error: banError } = await supabaseAdmin.auth.admin.updateUserById(id, {
+      ban_duration: 'none', // permanent ban
     });
 
-    if (blockError) {
-      return NextResponse.json({ error: blockError.message }, { status: 500 });
+    if (banError) {
+      return NextResponse.json({ error: banError.message }, { status: 500 });
+    }
+
+    // 2. Revoke all active sessions immediately
+    try {
+      await supabaseAdmin.auth.admin.signOut(id, 'others');
+    } catch (signOutErr) {
+      console.error('Failed to sign out user sessions:', signOutErr);
+      // Continue anyway, signout failure shouldn't block the operation
+    }
+
+    // 3. Update profiles table to reflect blocked status
+    const { error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .update({
+        is_blocked: true,
+        blocked_at: new Date().toISOString(),
+        blocked_by: user.id,
+      })
+      .eq('id', id);
+
+    if (profileError) {
+      console.error('Failed to update profile blocked status:', profileError);
+      return NextResponse.json({ error: 'Failed to update customer profile' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });

@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabaseAdmin
       .from('profiles')
-      .select('id, name, phone, email, role, created_at, deleted_at, invited_at, invitation_status, accepted_at')
+      .select('id, name, phone, email, role, created_at, deleted_at, invited_at, invitation_status, accepted_at, is_blocked')
       .in('role', ['admin', 'courier']);
 
     if (status === 'deleted') {
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
       .map((profile) => {
         const authUser = authUsersMap.get(profile.id);
         const role = authUser ? resolveStaffRole(authUser) : (profile.role as StaffRole);
-        const isBlocked = authUser?.user_metadata?.blocked === true;
+        const isBlocked = profile.is_blocked === true;
 
         return {
           id: profile.id,

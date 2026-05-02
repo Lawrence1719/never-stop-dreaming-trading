@@ -56,8 +56,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabaseAdmin
       .from('profiles')
-      .select('id, name, phone, role, created_at, deleted_at')
-      .in('role', allowedRoles);
+      .select('id, name, phone, role, created_at, deleted_at, is_blocked');
 
     if (status === 'deleted') {
       query = query.not('deleted_at', 'is', null);
@@ -73,10 +72,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: profilesError.message }, { status: 500 });
     }
 
-    // Fetch emails and metadata from auth.users with pagination to avoid silent
+    // Fetch emails from auth.users with pagination to avoid silent
     // truncation at 1000 users (Supabase listUsers default).
     const emailsMap: Record<string, string> = {};
-    const blockedMap: Record<string, boolean> = {};
     let authPage = 1;
     while (true) {
       const { data: { users: pageUsers }, error: usersError } =
@@ -84,7 +82,6 @@ export async function GET(request: NextRequest) {
       if (usersError || !pageUsers || pageUsers.length === 0) break;
       pageUsers.forEach(u => {
         emailsMap[u.id] = u.email || '';
-        blockedMap[u.id] = u.user_metadata?.blocked === true;
       });
       if (pageUsers.length < 1000) break;
       authPage++;
@@ -106,7 +103,7 @@ export async function GET(request: NextRequest) {
     // Map and Filter ALL customers
     const allCustomers = (allProfiles || []).map((p: any) => {
       const email = emailsMap[p.id] || '';
-      const isBlocked = blockedMap[p.id] || false;
+      const isBlocked = p.is_blocked === true;
       const stats = orderStats[p.id] || { count: 0, total: 0 };
       const role = 'customer';
       const isSuperAdmin = !!(superAdminEmail && email === superAdminEmail);

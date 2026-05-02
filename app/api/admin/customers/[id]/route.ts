@@ -98,12 +98,16 @@ export async function GET(
 
     const totalSpent = (orders || []).reduce((sum: number, order: any) => sum + Number(order.total || 0), 0);
 
-    // Get blocked status from auth.users metadata
+    // Get blocked status from profiles table
     let isBlocked = false;
     try {
-      const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.getUserById(id);
-      if (!authError && authUser?.user) {
-        isBlocked = authUser.user.user_metadata?.blocked === true;
+      const { data: profile, error: profileError } = await supabaseAdmin
+        .from('profiles')
+        .select('is_blocked')
+        .eq('id', id)
+        .single();
+      if (!profileError && profile) {
+        isBlocked = profile.is_blocked === true;
       }
     } catch (err) {
       console.error('Error fetching blocked status:', err);
