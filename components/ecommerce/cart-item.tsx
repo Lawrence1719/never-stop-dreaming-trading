@@ -40,7 +40,7 @@ export function CartItem({ product, quantity }: CartItemProps) {
           <div className="text-right shrink-0">
             <p className="font-semibold text-sm sm:text-base">{formatPrice((product.price ?? 0) * quantity)}</p>
             {quantity > 1 && (
-               <p className="text-xs text-muted-foreground">{formatPrice(product.price ?? 0)} each</p>
+               <p className="text-xs text-muted-foreground">{formatPrice(product.price ?? 0)} / {product.doz_pckg || product.unit || 'each'}</p>
             )}
           </div>
         </div>

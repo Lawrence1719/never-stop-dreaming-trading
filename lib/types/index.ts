@@ -86,6 +86,8 @@ export interface CartItem {
   image?: string;
   variantLabel?: string;         // e.g. "1kg", "5kg"
   sku?: string;
+  unit?: string;                 // e.g. "PC"
+  doz_pckg?: string;             // e.g. "48/ CASE PC"
 }
 
 export interface Cart {
@@ -129,6 +131,8 @@ export interface OrderItem {
   image: string;
   sku?: string;
   variantLabel?: string;         // e.g. "1kg", "5kg"
+  unit?: string;
+  doz_pckg?: string;
 }
 
 export interface Order {

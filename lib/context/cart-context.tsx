@@ -51,7 +51,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
           // Get primary image from product_images or fallback to legacy image_url
           const productImages = data.product_images || [];
           const primaryImage = productImages.find((img: any) => img.is_primary) || productImages[0];
-          const displayImage = primaryImage?.storage_path || data.image_url;
+          let displayImage = primaryImage?.storage_path || data.image_url;
+          
+          if (displayImage && !displayImage.startsWith('http')) {
+            displayImage = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-images/${displayImage}`;
+          }
 
           product = {
             id: data.id,
@@ -68,6 +72,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
             reviewCount: data.review_count ?? 0,
             featured: data.featured ?? false,
             specifications: data.specifications || {},
+            doz_pckg: data.doz_pckg || '',
+            unit: data.unit || '',
           };
         }
       } catch (err) {
@@ -81,10 +87,18 @@ export function CartProvider({ children }: { children: ReactNode }) {
     // If variant is provided, use its price; otherwise use product price
     const name = product?.name || "";
     const price = Number(variant?.price ?? product?.price ?? 0);
-    const image = product?.images?.[0] || "";
+    let image = product?.images?.[0] || "";
+    
+    // Ensure image has correct Supabase URL prefix if it's a storage path
+    if (image && !image.startsWith('http') && !image.startsWith('/')) {
+      image = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-images/${image}`;
+    }
+
     const variantId = variant?.id || "";
     const variantLabel = variant?.variant_label || "";
     const sku = variant?.sku || product?.sku || "";
+    const unit = variant?.unit || product?.unit || "";
+    const doz_pckg = variant?.doz_pckg || product?.doz_pckg || "";
     
     console.debug('[Cart] addItem called:', {
       productId,
@@ -107,7 +121,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       if (existingItem) {
         newItems = prev.items.map((i) =>
           i.productId === productId && (!variantId || i.variantId === variantId)
-            ? { ...i, quantity: i.quantity + quantity, price, variantLabel, sku }
+            ? { ...i, quantity: i.quantity + quantity, price, variantLabel, sku, unit, doz_pckg }
             : i
         );
       } else {
@@ -316,21 +330,47 @@ export function CartProvider({ children }: { children: ReactNode }) {
         const productIds = itemsToMigrate.map((i) => i.productId);
         const { data: productsData } = await supabase
           .from('products')
-          .select('*')
+          .select('*, product_variants(*), product_images(*)')
           .in('id', productIds);
 
         const newItems: CartItem[] = itemsToMigrate.map((i) => {
           const p = productsData?.find((pd: any) => pd.id === i.productId);
+          const v = p?.product_variants?.find((vd: any) => vd.id === i.variantId);
+          
+          const productImages = p?.product_images || [];
+          const primaryImage = productImages.find((img: any) => img.is_primary) || productImages[0];
+          let displayImage = primaryImage?.storage_path || p?.image_url || i.image || '';
+          
+          if (displayImage && !displayImage.startsWith('http') && !displayImage.startsWith('/')) {
+            displayImage = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-images/${displayImage}`;
+          }
+
           return {
             productId: i.productId,
+            variantId: i.variantId || '',
             quantity: i.quantity,
             name: p?.name || i.name,
-            price: p?.price ?? i.price ?? 0,
-            image: p?.image_url || i.image || '',
+            price: v?.price ?? p?.price ?? i.price ?? 0,
+            image: displayImage,
+            variantLabel: v?.variant_label || i.variantLabel || '',
+            sku: v?.sku || p?.sku || i.sku || '',
+            unit: v?.unit || p?.unit || i.unit || '',
+            doz_pckg: v?.doz_pckg || p?.doz_pckg || i.doz_pckg || '',
           } as CartItem;
         });
 
-        setCart({ items: newItems, total: calculateTotal(newItems) });
+        // Merge duplicate items if any (same productId and variantId)
+        const mergedItems: CartItem[] = [];
+        newItems.forEach(item => {
+          const existing = mergedItems.find(mi => mi.productId === item.productId && mi.variantId === item.variantId);
+          if (existing) {
+            existing.quantity += item.quantity;
+          } else {
+            mergedItems.push(item);
+          }
+        });
+
+        setCart({ items: mergedItems, total: calculateTotal(mergedItems) });
         migratedRef.current = true;
         setIsMigrating(false);
       } catch (err) {
@@ -357,7 +397,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         setIsMigrating(true);
         const { data: cartRows, error: cartErr } = await supabase
           .from('cart')
-          .select('product_id,quantity')
+          .select('product_id, variant_id, quantity')
           .eq('user_id', user.id);
 
         if (cartErr) {
@@ -377,21 +417,47 @@ export function CartProvider({ children }: { children: ReactNode }) {
         const productIds = cartRows.map((r: any) => r.product_id);
         const { data: productsData } = await supabase
           .from('products')
-          .select('*')
+          .select('*, product_variants(*), product_images(*)')
           .in('id', productIds);
 
         const newItems: CartItem[] = (cartRows as any[]).map((r) => {
           const p = productsData?.find((pd: any) => pd.id === r.product_id);
+          const v = p?.product_variants?.find((vd: any) => vd.id === r.variant_id);
+          
+          const productImages = p?.product_images || [];
+          const primaryImage = productImages.find((img: any) => img.is_primary) || productImages[0];
+          let displayImage = primaryImage?.storage_path || p?.image_url || '';
+          
+          if (displayImage && !displayImage.startsWith('http') && !displayImage.startsWith('/')) {
+            displayImage = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-images/${displayImage}`;
+          }
+
           return {
             productId: r.product_id,
+            variantId: r.variant_id || '',
             quantity: r.quantity,
             name: p?.name || '',
-            price: p?.price ?? 0,
-            image: p?.image_url || '',
+            price: v?.price ?? p?.price ?? 0,
+            image: displayImage,
+            variantLabel: v?.variant_label || '',
+            sku: v?.sku || p?.sku || '',
+            unit: v?.unit || p?.unit || '',
+            doz_pckg: v?.doz_pckg || p?.doz_pckg || '',
           } as CartItem;
         });
 
-        setCart({ items: newItems, total: calculateTotal(newItems) });
+        // Merge duplicate items if any (same productId and variantId)
+        const mergedItems: CartItem[] = [];
+        newItems.forEach(item => {
+          const existing = mergedItems.find(mi => mi.productId === item.productId && mi.variantId === item.variantId);
+          if (existing) {
+            existing.quantity += item.quantity;
+          } else {
+            mergedItems.push(item);
+          }
+        });
+
+        setCart({ items: mergedItems, total: calculateTotal(mergedItems) });
         migratedRef.current = true;
         setIsMigrating(false);
       } catch (err) {

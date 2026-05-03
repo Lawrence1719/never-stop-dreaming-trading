@@ -28,33 +28,46 @@ export default function CartPage() {
         const productIds = cart.items.map((item) => item.productId);
         const { data, error } = await supabase
           .from('products')
-          .select('*')
+          .select('*, product_variants(*), product_images(*)')
           .in('id', productIds);
 
         if (error) throw error;
 
         if (data) {
           // Map DB rows to frontend Product shape
-          const mapped = data.map((row: any) => ({
-            id: row.id,
-            name: row.name,
-            slug: row.slug || row.id,
-            description: row.description || '',
-            price: Number(row.price) || 0,
-            stock: row.stock ?? 999,
-            compareAtPrice: row.compare_at_price ? Number(row.compare_at_price) : undefined,
-            images: row.image_url ? [row.image_url] : [],
-            category: row.category || '',
-            sku: row.sku || '',
-            rating: row.rating ?? 0,
-            reviewCount: row.review_count ?? 0,
-            featured: row.featured ?? false,
-            specifications: row.specifications || {},
-            iot: row.iot || undefined,
-            reorder_threshold: row.reorder_threshold ?? undefined,
-            updated_at: row.updated_at ?? undefined,
-            is_active: row.is_active ?? undefined,
-          })) as Product[];
+          const mapped = data.map((row: any) => {
+            const productImages = row.product_images || [];
+            const primaryImage = productImages.find((img: any) => img.is_primary) || productImages[0];
+            let displayImage = primaryImage?.storage_path || row.image_url;
+            
+            if (displayImage && !displayImage.startsWith('http')) {
+              displayImage = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-images/${displayImage}`;
+            }
+
+            return {
+              id: row.id,
+              name: row.name,
+              slug: row.slug || row.id,
+              description: row.description || '',
+              price: Number(row.price) || 0,
+              stock: row.stock ?? 999,
+              compareAtPrice: row.compare_at_price ? Number(row.compare_at_price) : undefined,
+              images: displayImage ? [displayImage] : [],
+              category: row.category || '',
+              sku: row.sku || '',
+              rating: row.rating ?? 0,
+              reviewCount: row.review_count ?? 0,
+              featured: row.featured ?? false,
+              specifications: row.specifications || {},
+              iot: row.iot || undefined,
+              doz_pckg: row.doz_pckg,
+              unit: row.unit,
+              reorder_threshold: row.reorder_threshold ?? undefined,
+              updated_at: row.updated_at ?? undefined,
+              is_active: row.is_active ?? undefined,
+              variants: row.product_variants || [],
+            };
+          }) as Product[];
 
           setProducts(mapped);
         }
@@ -77,33 +90,36 @@ export default function CartPage() {
     const full = products.find((p) => p.id === item.productId);
     if (full) {
       // Use full product data but override price with the cart item's price (variant price)
-      return { 
-        product: { ...full, price: item.price ?? full.price }, 
-        quantity: item.quantity 
-      };
-    }
-
-    // Synthesize a Product-like object from cart item details so UI can render
-    const synthesized: Product = {
-      id: item.productId,
-      name: item.name || "Product",
-      slug: item.productId,
-      description: "",
-      price: item.price ?? 0,
-      stock: 999, // Set high default to allow quantity increases (fallback if product not found in DB)
-      compareAtPrice: undefined,
-      images: item.image ? [item.image] : ["/placeholder.svg"],
-      category: "",
-      sku: "",
-      rating: 0,
-      reviewCount: 0,
-      featured: false,
-      specifications: {},
-      iot: undefined,
-    };
-
-    return { product: synthesized, quantity: item.quantity };
-  });
+          return { 
+            product: { ...full, price: item.price ?? full.price }, 
+            quantity: item.quantity,
+            variantId: item.variantId
+          };
+        }
+    
+        // Synthesize a Product-like object from cart item details so UI can render
+        const synthesized: Product = {
+          id: item.productId,
+          name: item.name || "Product",
+          slug: item.productId,
+          description: "",
+          price: item.price ?? 0,
+          stock: 999, // Set high default to allow quantity increases (fallback if product not found in DB)
+          compareAtPrice: undefined,
+          images: item.image ? [item.image] : ["/placeholder.svg"],
+          category: "",
+          sku: item.sku || "",
+          doz_pckg: item.doz_pckg,
+          unit: item.unit,
+          rating: 0,
+          reviewCount: 0,
+          featured: false,
+          specifications: {},
+          iot: undefined,
+        };
+    
+        return { product: synthesized, quantity: item.quantity, variantId: item.variantId };
+      });
 
   if (cart.items.length === 0) {
     return (
@@ -140,8 +156,8 @@ export default function CartPage() {
             <div className="lg:col-span-2">
               <div className="bg-card border border-border rounded-lg p-6">
                 <div className="space-y-4">
-                  {cartProducts.map(({ product, quantity }) => (
-                    <CartItem key={product.id} product={product} quantity={quantity} />
+                  {cartProducts.map(({ product, quantity, variantId }) => (
+                    <CartItem key={`${product.id}-${variantId}`} product={product} quantity={quantity} />
                   ))}
                 </div>
               </div>

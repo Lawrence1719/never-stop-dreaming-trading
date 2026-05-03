@@ -162,7 +162,7 @@ export function DashboardDetailModal({
     let body = [];
     if (metric === 'orders') {
       head = [['ID', 'Customer', 'Amount', 'Status']];
-      body = detailData.map(o => [o.id, o.customer || 'Guest', formatPrice(Number(o.total) || 0), o.orderStatus]);
+      body = detailData.map(o => [o.id, o.customer || 'Guest', formatPrice(o.total || 0), o.orderStatus]);
     } else if (metric === 'customers') {
       head = [['Name', 'Email', 'Role']];
       body = detailData.map(c => [c.name, c.email, c.role]);
@@ -315,9 +315,9 @@ export function DashboardDetailModal({
                       <TableRow key={i} className="hover:bg-transparent">
                         {metric === 'orders' ? (
                           <>
-                            <TableCell className="py-2 text-[11px] font-mono">{row.id?.slice(0, 8)}</TableCell>
+                            <TableCell className="py-2 text-[11px] font-mono">{row.id}</TableCell>
                             <TableCell className="py-2 text-[11px]">{row.customer || 'Guest'}</TableCell>
-                            <TableCell className="py-2 text-[11px] text-right font-bold">{formatPrice(Number(row.amount || row.total) || 0)}</TableCell>
+                            <TableCell className="py-2 text-[11px] text-right font-bold">{formatPrice(row.total || 0)}</TableCell>
                           </>
                         ) : metric === 'customers' ? (
                           <>

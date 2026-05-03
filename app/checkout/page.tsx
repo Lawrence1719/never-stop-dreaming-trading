@@ -86,7 +86,8 @@ function CheckoutPageContent() {
               stock,
               sku,
               is_active
-            )
+            ),
+            product_images (*)
           `)
           .eq('id', buyNowProductId)
           .single();
@@ -102,6 +103,15 @@ function CheckoutPageContent() {
             selectedVariant = data.product_variants.find((v: any) => v.is_active);
           }
 
+          // Image logic similar to ProductDetailPage
+          const productImages = data.product_images || [];
+          const primaryImage = productImages.find((img: any) => img.is_primary) || productImages[0];
+          let displayImage = primaryImage?.storage_path || data.image_url;
+          
+          if (displayImage && !displayImage.startsWith('http')) {
+            displayImage = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/product-images/${displayImage}`;
+          }
+
           const price = selectedVariant?.price ?? Number(data.price) ?? 0;
           const cartItem: CartItem = {
             productId: data.id,
@@ -109,7 +119,7 @@ function CheckoutPageContent() {
             quantity: buyNowQuantity,
             name: data.name,
             price,
-            image: data.image_url || (data.images && data.images.length > 0 ? data.images[0] : ""),
+            image: displayImage || "",
             variantLabel: selectedVariant?.variant_label || "",
             sku: selectedVariant?.sku || data.sku || "",
           };
@@ -237,7 +247,7 @@ function CheckoutPageContent() {
   // object from the cart item's stored details so the checkout can render.
   const cartProducts = checkoutCart.map((item) => {
     const full = products.find((p) => p.id === item.productId);
-    if (full) return { product: full, quantity: item.quantity };
+    if (full) return { product: full, quantity: item.quantity, variantId: item.variantId };
 
     const synthesized: Product = {
       id: item.productId,
@@ -249,7 +259,9 @@ function CheckoutPageContent() {
       images: item.image ? [item.image] : ["/placeholder.svg"],
       category: "",
       stock: item.quantity,
-      sku: "",
+      sku: item.sku || "",
+      doz_pckg: item.doz_pckg,
+      unit: item.unit,
       rating: 0,
       reviewCount: 0,
       featured: false,
@@ -257,7 +269,7 @@ function CheckoutPageContent() {
       iot: undefined,
     };
 
-    return { product: synthesized, quantity: item.quantity };
+    return { product: synthesized, quantity: item.quantity, variantId: item.variantId };
   });
 
 
@@ -1375,9 +1387,9 @@ function CheckoutPageContent() {
                     <div>
                       <h3 className="font-semibold mb-3">Order Summary</h3>
                       <div className="space-y-2 border-b border-border pb-4">
-                        {cartProducts.map(({ product, quantity }) => (
-                          <div key={product.id} className="flex justify-between text-sm">
-                            <span>{product.name} x {quantity}</span>
+                        {cartProducts.map(({ product, quantity, variantId }) => (
+                          <div key={`${product.id}-${variantId}`} className="flex justify-between text-sm">
+                            <span>{product.name} ({product.doz_pckg || product.unit || 'each'}) x {quantity}</span>
                             <span>{formatPrice((product.price ?? 0) * quantity)}</span>
                           </div>
                         ))}

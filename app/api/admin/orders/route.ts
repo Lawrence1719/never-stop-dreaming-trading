@@ -143,6 +143,7 @@ export async function GET(request: NextRequest) {
           customer: customerName,
           email: customerEmail,
           amount,
+          total: Number(row.total),
           items: itemCount,
           orderStatus: row.status,
           paymentStatus,
