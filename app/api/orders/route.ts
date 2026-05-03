@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getClient } from '@/lib/supabase/admin';
 import { formatOrderNumber } from '@/lib/utils/formatting';
 
 /**
@@ -103,9 +104,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Build a global sequence map: order id → sequential position (1-based, oldest first)
-    // This is used to generate human-readable #00047 order numbers on the customer side.
-    // The admin panel uses its own separate display format and is not affected.
-    const { data: allOrderIds } = await supabaseClient
+    // We use the admin client (getClient) here to bypass Row-Level Security,
+    // ensuring the sequence calculation considers ALL orders, not just the current user's.
+    const supabaseAdmin = getClient();
+    const { data: allOrderIds } = await supabaseAdmin
       .from('orders')
       .select('id')
       .order('created_at', { ascending: true });

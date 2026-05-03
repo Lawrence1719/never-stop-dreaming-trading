@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getClient } from '@/lib/supabase/admin';
+import { formatOrderNumber } from '@/lib/utils/formatting';
 import { sendOrderConfirmationEmail } from '@/lib/emails/order-emails';
 import { createNotification, checkLowStockAndNotify } from '@/lib/notifications/service';
 import { rateLimiters, getIdentifier, rateLimitResponse } from '@/lib/rate-limit';
@@ -217,7 +219,11 @@ export async function POST(request: NextRequest) {
             .eq('role', 'admin');
 
           if (admins && admins.length > 0) {
-            const orderNum = createdOrder.id.slice(0, 8).toUpperCase();
+            const { count: seqCount } = await supabaseAdmin
+              .from('orders')
+              .select('id', { count: 'exact', head: true })
+              .lte('created_at', createdOrder.created_at);
+            const orderNum = formatOrderNumber(seqCount ?? 0);
             for (const admin of admins) {
               await createNotification({
                 userId: admin.id,
