@@ -55,6 +55,9 @@ interface DeliveryCardProps {
     delivery_notes?: string;
     proof_image_url?: string;
     delivered_at?: string;
+    rejection_reason?: string;
+    rejection_notes?: string;
+    rejected_at?: string;
     order: {
       total: number;
       items: any[];
@@ -412,6 +415,24 @@ export function DeliveryCard({ delivery, courierId, onUpdate, orderNumber }: Del
           </div>
         )}
 
+        {isFailed && delivery.rejection_reason && (
+          <div className="mt-3 p-3 bg-rose-50/50 rounded-lg border border-rose-100">
+            <p className="text-xs font-bold text-rose-800 mb-2 uppercase">Rejection Details</p>
+            <div className="flex items-start gap-2 mb-2">
+               <AlertCircle className="w-4 h-4 text-rose-500 mt-0.5 shrink-0" />
+               <div className="min-w-0 flex-1">
+                 <p className="text-sm font-bold text-rose-700">
+                   {rejectionReasonLabels[delivery.rejection_reason] || delivery.rejection_reason}
+                 </p>
+                 {delivery.rejection_notes && (
+                   <p className="text-xs text-rose-600 mt-1 italic">"{delivery.rejection_notes}"</p>
+                 )}
+               </div>
+            </div>
+            <p className="text-[10px] text-rose-500 mt-2">Rejected on {formatDate(delivery.rejected_at || '')}</p>
+          </div>
+        )}
+
         {isDelivered && delivery.proof_image_url && (
           <div className="mt-3 p-3 bg-green-50/50 rounded-lg border border-green-100">
             <p className="text-xs font-bold text-green-800 mb-2">PROOOF OF DELIVERY</p>
@@ -427,7 +448,7 @@ export function DeliveryCard({ delivery, courierId, onUpdate, orderNumber }: Del
       </CardContent>
 
       <CardFooter className="mt-auto bg-muted/10 border-t pt-4">
-        {!isDelivered && !isProofPending ? (
+        {!isDelivered && !isProofPending && !isFailed ? (
           !showUploadForm ? (
             <div className="flex flex-col gap-2 w-full">
               <Button 
@@ -638,6 +659,11 @@ export function DeliveryCard({ delivery, courierId, onUpdate, orderNumber }: Del
               {isUploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-2" />}
               Submit Proof
             </Button>
+          </div>
+        ) : isFailed ? (
+          <div className="w-full text-center py-2 flex items-center justify-center gap-2 text-rose-600 font-semibold">
+            <XCircle className="w-5 h-5" />
+            Delivery Rejected
           </div>
         ) : (
           <div className="w-full text-center py-2 flex items-center justify-center gap-2 text-green-600 font-semibold">
